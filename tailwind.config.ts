@@ -41,6 +41,41 @@ const config: Config = {
           line: "#e3e1d8",
         },
       },
+      keyframes: {
+        scan: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        breathe: {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.85", transform: "scale(1.04)" },
+        },
+        blink: {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0" },
+        },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "dot-bounce": {
+          "0%, 80%, 100%": {
+            transform: "translateY(0)",
+            opacity: "0.4",
+          },
+          "40%": {
+            transform: "translateY(-3px)",
+            opacity: "1",
+          },
+        },
+      },
+      animation: {
+        scan: "scan 1.8s ease-in-out infinite",
+        breathe: "breathe 2.4s ease-in-out infinite",
+        blink: "blink 1s steps(2, start) infinite",
+        "fade-up": "fade-up 240ms ease-out both",
+        "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

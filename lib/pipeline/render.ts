@@ -18,12 +18,20 @@ function targetFormat(plan: PanelPlan): "svg" | "html" {
   return "svg";
 }
 
+const CAPTION_RULE =
+  "IMPORTANT: The `caption` field is rendered by the host page UNDER the visual. " +
+  "Do NOT embed the caption text inside the SVG/HTML. Use the plan's structured " +
+  "fields (nodes, edges, comparison, timeline, stat, illustrativeBrief) for content " +
+  "inside the visual; never paste the caption sentence(s) into it.";
+
 function buildSystemPrompt(format: "svg" | "html"): string {
   if (format === "html") {
     return [
       "You are the render stage. Convert ONE PanelPlan into a clean self-contained HTML block",
       "(a table for comparison, a vertical timeline for timeline). Output ONLY the HTML block.",
       "No <html>/<head>/<body> wrapper. No <script>. No <style> tags — use inline styles only.",
+      "",
+      CAPTION_RULE,
       "",
       DESIGN_SYSTEM_PROMPT,
       "",
@@ -34,6 +42,8 @@ function buildSystemPrompt(format: "svg" | "html"): string {
     "You are the render stage. Convert ONE PanelPlan into clean SVG.",
     "Output MUST be a single <svg>...</svg> with viewBox=\"0 0 680 H\".",
     "Real vector text (no <foreignObject>). No <script>. No external refs.",
+    "",
+    CAPTION_RULE,
     "",
     DESIGN_SYSTEM_PROMPT,
     "",

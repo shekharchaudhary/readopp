@@ -12,6 +12,17 @@ export interface AgentNodeView {
   state: AgentNodeState;
   summary?: string;
   lastNote?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export type LogKind = "start" | "progress" | "done";
+
+export interface LogEntry {
+  ts: string;
+  agent: AgentName;
+  note: string;
+  kind: LogKind;
 }
 
 export interface PanelSlot {
@@ -30,7 +41,7 @@ export interface SceneState {
   explainer?: Explainer;
   error?: JobError;
   lastSeq: number;
-  log: { ts: string; agent: AgentName; note: string }[];
+  log: LogEntry[];
 }
 
 export const AGENT_KEYS: AgentName[] = [
@@ -89,17 +100,32 @@ export function applyEvent(prev: SceneState, ev: StreamEvent): SceneState {
       for (const k of AGENT_KEYS) {
         if (k === a) break;
         if (next.agents[k].state === "pending") {
-          next.agents[k] = { ...next.agents[k], state: "done" };
+          next.agents[k] = {
+            ...next.agents[k],
+            state: "done",
+            completedAt: next.agents[k].completedAt ?? ev.ts,
+          };
         }
       }
-      next.agents[a] = { ...next.agents[a], state: "active" };
+      next.agents[a] = {
+        ...next.agents[a],
+        state: "active",
+        startedAt: next.agents[a].startedAt ?? ev.ts,
+      };
       next.activeAgent = a;
+      next.log = [
+        ...next.log,
+        { ts: ev.ts, agent: a, note: `${AGENT_LABEL[a]} started`, kind: "start" },
+      ];
       return next;
     }
     case "agent.progress": {
       const a = ev.data.agent;
       next.agents[a] = { ...next.agents[a], lastNote: ev.data.note };
-      next.log = [...next.log, { ts: ev.ts, agent: a, note: ev.data.note }];
+      next.log = [
+        ...next.log,
+        { ts: ev.ts, agent: a, note: ev.data.note, kind: "progress" },
+      ];
       return next;
     }
     case "agent.done": {
@@ -108,8 +134,13 @@ export function applyEvent(prev: SceneState, ev: StreamEvent): SceneState {
         ...next.agents[a],
         state: "done",
         summary: ev.data.summary,
+        completedAt: ev.ts,
       };
       if (next.activeAgent === a) next.activeAgent = null;
+      next.log = [
+        ...next.log,
+        { ts: ev.ts, agent: a, note: ev.data.summary, kind: "done" },
+      ];
       return next;
     }
     case "panel.start": {
@@ -144,7 +175,11 @@ export function applyEvent(prev: SceneState, ev: StreamEvent): SceneState {
       // ensure all agent nodes are marked done
       for (const k of AGENT_KEYS) {
         if (next.agents[k].state !== "done") {
-          next.agents[k] = { ...next.agents[k], state: "done" };
+          next.agents[k] = {
+            ...next.agents[k],
+            state: "done",
+            completedAt: next.agents[k].completedAt ?? ev.ts,
+          };
         }
       }
       next.activeAgent = null;
