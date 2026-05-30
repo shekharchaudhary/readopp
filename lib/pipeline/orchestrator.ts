@@ -1,17 +1,26 @@
-import { randomUUID } from "node:crypto";
+import { runAssembly } from "../agents/assembly";
+import { runComprehension, summarizeComprehension } from "../agents/comprehension";
+import { IngestError, runIngest } from "../agents/ingest";
+import { runPlanner } from "../agents/planner";
+import { runRenderPanel } from "../agents/render";
+import { runStructure, summarizeOutline } from "../agents/structure";
+import { agentIndex, type AgentName } from "../events";
+import { buildFallbackPanel } from "../render/fallbackPanel";
 import {
   appendProgress,
   completeJob,
+  emitEvent,
   failJob,
   findCachedExplainer,
   getJob,
   setJobStatus,
-  updateJob,
 } from "../store";
-import { IngestError, ingestUrl } from "../ingest";
-import { planExplainer } from "./plan";
-import { renderAllPanels } from "./render";
-import type { Explainer, JobError, RenderedPanel } from "../shared/schemas";
+import type {
+  Explainer,
+  JobError,
+  JobStatus,
+  RenderedPanel,
+} from "../shared/schemas";
 
 function toJobError(e: unknown): JobError {
   if (e instanceof IngestError) return e.error;
@@ -23,6 +32,12 @@ function toJobError(e: unknown): JobError {
         "The server is missing ANTHROPIC_API_KEY — add it to .env.local and restart.",
     };
   }
+  if (/comprehension failed/i.test(msg)) {
+    return { reason: "comprehension_failed", message: msg };
+  }
+  if (/structure failed|planner\[/i.test(msg)) {
+    return { reason: "comprehension_failed", message: msg };
+  }
   if (/timeout|aborted/i.test(msg)) {
     return { reason: "timeout", message: "The pipeline timed out." };
   }
@@ -32,11 +47,35 @@ function toJobError(e: unknown): JobError {
   };
 }
 
+function emitStatus(jobId: string, status: JobStatus) {
+  setJobStatus(jobId, status);
+  emitEvent(jobId, { type: "job.status", data: { status } });
+}
+
+function emitAgentStart(jobId: string, agent: AgentName) {
+  emitEvent(jobId, {
+    type: "agent.start",
+    data: { agent, index: agentIndex(agent) },
+  });
+}
+
+function emitAgentProgress(jobId: string, agent: AgentName, note: string) {
+  appendProgress(jobId, note);
+  emitEvent(jobId, { type: "agent.progress", data: { agent, note } });
+}
+
+function emitAgentDone(jobId: string, agent: AgentName, summary: string) {
+  emitEvent(jobId, {
+    type: "agent.done",
+    data: { agent, index: agentIndex(agent), summary },
+  });
+}
+
+const RENDER_CONCURRENCY = 4;
+
 /**
- * Runs the full Phase 1 pipeline for a job:
- *  ingest -> single plan call -> parallel panel render -> assemble.
- * Mutates the in-memory store; the API exposes job state via polling.
- * Errors are caught and persisted onto the job as `failed`.
+ * Drives the full 6-agent pipeline for a job. Mutates the in-memory store and
+ * pushes SSE events via emitEvent. Errors are caught and recorded on the job.
  */
 export async function runJob(jobId: string): Promise<void> {
   const job = getJob(jobId);
@@ -46,66 +85,156 @@ export async function runJob(jobId: string): Promise<void> {
   const cached = findCachedExplainer(job.cacheKey);
   if (cached) {
     completeJob(jobId, cached);
+    emitEvent(jobId, {
+      type: "job.completed",
+      data: { explainer: cached },
+    });
     return;
   }
 
   try {
     // 1. Ingest
-    setJobStatus(jobId, "ingesting");
-    appendProgress(jobId, "Fetching article…");
-    const article = await ingestUrl(job.url);
-    appendProgress(
+    emitStatus(jobId, "ingesting");
+    emitAgentStart(jobId, "ingest");
+    emitAgentProgress(jobId, "ingest", "Fetching article…");
+    const article = await runIngest(job.url);
+    emitAgentProgress(
       jobId,
+      "ingest",
+      `Stripped nav & ads, ${article.wordCount.toLocaleString()} words`
+    );
+    emitAgentDone(
+      jobId,
+      "ingest",
       `Read “${article.title}” — ${article.wordCount.toLocaleString()} words`
     );
 
-    // 2. Plan (collapsed comprehension + structure + planner)
-    setJobStatus(jobId, "planning");
-    appendProgress(jobId, "Reading and planning the panels…");
-    const plan = await planExplainer(article, job.audienceLevel);
-    appendProgress(
+    // 2. Comprehension
+    emitStatus(jobId, "comprehending");
+    emitAgentStart(jobId, "comprehension");
+    emitAgentProgress(jobId, "comprehension", "Reading for the core idea…");
+    const comprehension = await runComprehension(article, job.audienceLevel);
+    emitAgentDone(
       jobId,
-      `Planned ${plan.panels.length} panel${plan.panels.length === 1 ? "" : "s"}`
+      "comprehension",
+      summarizeComprehension(comprehension)
     );
 
-    // Persist plan metadata onto the job so the UI can show the title early
-    updateJob(jobId, {
-      explainerId: undefined,
-    });
+    // 3. Structure
+    emitStatus(jobId, "structuring");
+    emitAgentStart(jobId, "structure");
+    emitAgentProgress(jobId, "structure", "Choosing panel types…");
+    const outline = await runStructure(comprehension);
+    emitAgentDone(jobId, "structure", summarizeOutline(outline));
 
-    // 3. Render (fan out, capped concurrency, with fallback per panel)
-    setJobStatus(jobId, "rendering");
-    appendProgress(jobId, "Rendering panels…");
-    const headings: Record<string, string> = {};
-    plan.panels.forEach((p, i) => {
-      headings[p.sectionId] = `Panel ${i + 1}`;
-    });
-    const panels: RenderedPanel[] = await renderAllPanels(
-      plan.panels,
-      job.audienceLevel,
-      headings
+    // 4. Planner — one call per section, sequential is fine and cheaper to debug
+    emitStatus(jobId, "planning");
+    emitAgentStart(jobId, "planner");
+    const plans = [];
+    for (let i = 0; i < outline.sections.length; i++) {
+      const section = outline.sections[i];
+      emitAgentProgress(
+        jobId,
+        "planner",
+        `Designing panel ${i + 1} of ${outline.sections.length}…`
+      );
+      const plan = await runPlanner(section, comprehension, job.audienceLevel);
+      plans.push(plan);
+    }
+    emitAgentDone(
+      jobId,
+      "planner",
+      `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`
     );
 
-    // 4. Assemble
-    setJobStatus(jobId, "assembling");
-    const explainer: Explainer = {
-      id: randomUUID(),
+    // 5. Render — fan out per panel; emit panel.start / panel.done
+    emitStatus(jobId, "rendering");
+    emitAgentStart(jobId, "render");
+    const panels: RenderedPanel[] = await renderAllPanelsStreaming({
+      jobId,
+      plans,
+      audience: job.audienceLevel,
+      headings: Object.fromEntries(
+        outline.sections.map((s) => [s.id, s.heading])
+      ),
+    });
+    emitAgentDone(jobId, "render", `Rendered ${panels.length} panels`);
+
+    // 6. Assembly
+    emitStatus(jobId, "assembling");
+    emitAgentStart(jobId, "assembly");
+    const explainer: Explainer = runAssembly({
       jobId,
       url: job.url,
-      title: plan.title,
-      summary: plan.summary,
       audienceLevel: job.audienceLevel,
+      outline,
+      comprehension,
       panels,
-      createdAt: new Date().toISOString(),
-    };
-
+    });
     completeJob(jobId, explainer);
-    appendProgress(jobId, "Done.");
+    emitAgentDone(jobId, "assembly", "Assembled explainer");
+    emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {
     const err = toJobError(e);
     appendProgress(jobId, `Failed: ${err.message}`);
     failJob(jobId, err);
+    emitEvent(jobId, { type: "job.failed", data: { error: err } });
     // eslint-disable-next-line no-console
     console.error("[lucidread] job failed", { jobId, error: e });
   }
+}
+
+/**
+ * Per-panel render with streaming events. Capped concurrency.
+ * Each panel emits panel.start before its render begins and panel.done when it lands.
+ */
+async function renderAllPanelsStreaming(input: {
+  jobId: string;
+  plans: import("../shared/schemas").PanelPlan[];
+  audience: import("../shared/schemas").AudienceLevel;
+  headings: Record<string, string>;
+}): Promise<RenderedPanel[]> {
+  const { jobId, plans, audience, headings } = input;
+  const total = plans.length;
+  const out: RenderedPanel[] = new Array(total);
+  let cursor = 0;
+
+  async function worker() {
+    while (true) {
+      const i = cursor++;
+      if (i >= total) return;
+      const plan = plans[i];
+      emitEvent(jobId, {
+        type: "panel.start",
+        data: { sectionId: plan.sectionId, index: i + 1, total },
+      });
+      let panel: RenderedPanel;
+      try {
+        panel = await runRenderPanel(
+          plan,
+          audience,
+          headings[plan.sectionId] || `Panel ${i + 1}`
+        );
+      } catch (e) {
+        // Never propagate — fall back so the rest of the explainer survives
+        panel = buildFallbackPanel(
+          plan.sectionId,
+          headings[plan.sectionId] || `Panel ${i + 1}`,
+          plan.caption || ""
+        );
+      }
+      out[i] = panel;
+      emitEvent(jobId, {
+        type: "panel.done",
+        data: { panel, index: i + 1, total },
+      });
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(RENDER_CONCURRENCY, total) },
+    worker
+  );
+  await Promise.all(workers);
+  return out;
 }

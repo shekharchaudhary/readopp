@@ -1,55 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { PanelCard } from "@/components/PanelCard";
-import { StatusStrip } from "@/components/StatusStrip";
+import { useEffect, useState } from "react";
+import { PanelStream } from "@/components/PanelStream";
+import { WorkingScene } from "@/components/WorkingScene";
+import { useJobStream } from "@/lib/scene/useJobStream";
 import type { Job } from "@/lib/shared/schemas";
-
-const POLL_INTERVAL_MS = 1200;
-
-function useJob(jobId: string) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    async function tick() {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Job not found.");
-            return;
-          }
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const data: { job: Job } = await res.json();
-        if (cancelled) return;
-        setJob(data.job);
-        if (
-          data.job.status !== "completed" &&
-          data.job.status !== "failed"
-        ) {
-          timer = setTimeout(tick, POLL_INTERVAL_MS);
-        }
-      } catch (e) {
-        if (cancelled) return;
-        setError((e as Error).message);
-        timer = setTimeout(tick, POLL_INTERVAL_MS * 2);
-      }
-    }
-    tick();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [jobId]);
-
-  return { job, error };
-}
 
 function sourceDomain(url: string): string {
   try {
@@ -59,16 +15,65 @@ function sourceDomain(url: string): string {
   }
 }
 
+/**
+ * One-shot fetch of the persisted job record. We use this just to get the
+ * URL + audienceLevel for the header before any events have arrived (and as
+ * an existence check — 404s render a clean "not found" state).
+ */
+function useJobMeta(jobId: string) {
+  const [job, setJob] = useState<Job | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+        if (res.status === 404) {
+          if (!cancelled) setNotFound(true);
+          return;
+        }
+        const data: { job: Job } = await res.json();
+        if (!cancelled) setJob(data.job);
+      } catch {
+        // ignore — the stream will surface real failures
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+  return { job, notFound };
+}
+
 export default function JobPage({ params }: { params: { jobId: string } }) {
-  const { job, error } = useJob(params.jobId);
+  const { job, notFound } = useJobMeta(params.jobId);
+  const { scene, error: streamError } = useJobStream(params.jobId);
 
-  const explainer = job?.explainer;
+  const completed = scene.status === "completed";
+  const failed = scene.status === "failed";
 
-  const headerTitle = useMemo(() => {
-    if (explainer) return explainer.title;
-    if (job?.status === "failed") return "Couldn’t build an explainer";
-    return "Building your explainer";
-  }, [explainer, job?.status]);
+  const headerTitle = scene.explainer?.title
+    ? scene.explainer.title
+    : failed
+    ? "Couldn’t build an explainer"
+    : "Building your explainer";
+
+  if (notFound) {
+    return (
+      <main className="space-y-6">
+        <Link
+          href="/"
+          className="inline-block text-sm text-ink-muted hover:text-ink"
+        >
+          ← New explainer
+        </Link>
+        <p className="text-base text-ink-soft">
+          That job ID doesn’t exist (or the dev server restarted — in-memory jobs
+          don’t survive a restart).
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="space-y-8">
@@ -90,48 +95,34 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
             <span>audience: {job.audienceLevel}</span>
           </p>
         )}
-        {explainer?.summary && (
+        {scene.explainer?.summary && (
           <p className="max-w-2xl text-base text-ink-soft">
-            {explainer.summary}
+            {scene.explainer.summary}
           </p>
         )}
       </header>
 
-      {!job && !error && (
-        <p className="text-sm text-ink-muted">Loading job…</p>
-      )}
-
-      {error && (
-        <div className="rounded-md border border-paper-line bg-paper-soft px-4 py-3 text-sm text-ink-soft">
-          {error}
+      {streamError && (
+        <div className="rounded-md border border-paper-line bg-paper-soft px-3 py-2 text-sm text-ink-soft">
+          {streamError}
         </div>
       )}
 
-      {job && !explainer && (
-        <section className="rounded-lg border border-paper-line bg-white px-4 py-4">
-          <StatusStrip job={job} />
-        </section>
-      )}
+      <WorkingScene scene={scene} collapsed={completed} />
 
-      {job?.status === "failed" && job.error && (
+      {failed && scene.error && (
         <section className="rounded-lg border border-paper-line bg-paper-soft px-4 py-4 text-sm text-ink-soft">
           <p className="font-medium text-ink">
-            {failureTitle(job.error.reason)}
+            {failureTitle(scene.error.reason)}
           </p>
-          <p className="mt-1">{job.error.message}</p>
+          <p className="mt-1">{scene.error.message}</p>
           <p className="mt-3 text-xs text-ink-muted">
             Try a different article — clean technical blog posts work best.
           </p>
         </section>
       )}
 
-      {explainer && (
-        <section className="space-y-6">
-          {explainer.panels.map((panel, i) => (
-            <PanelCard key={panel.sectionId} panel={panel} index={i} />
-          ))}
-        </section>
-      )}
+      <PanelStream slots={scene.panels} />
     </main>
   );
 }
