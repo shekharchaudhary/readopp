@@ -6,6 +6,7 @@ import type { RenderedPanel } from "@/lib/shared/schemas";
 interface Props {
   panel: RenderedPanel;
   index: number;
+  onExport?: (panelId: string) => void;
 }
 
 function HtmlPanel({ html }: { html: string }) {
@@ -51,15 +52,26 @@ function HtmlPanel({ html }: { html: string }) {
   );
 }
 
-export function PanelCard({ panel, index }: Props) {
+export function PanelCard({ panel, index, onExport }: Props) {
   return (
     <article className="rounded-lg border border-paper-line bg-white">
-      <div className="border-b border-paper-line px-4 py-2 text-xs uppercase tracking-wide text-ink-muted">
-        Panel {index + 1}
-        {panel.fallback && (
-          <span className="ml-2 rounded-sm border border-paper-line bg-paper-soft px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-ink-muted">
-            fallback
-          </span>
+      <div className="flex items-center justify-between border-b border-paper-line px-4 py-2">
+        <div className="text-xs uppercase tracking-wide text-ink-muted">
+          Panel {index + 1}
+          {panel.fallback && (
+            <span className="ml-2 rounded-sm border border-paper-line bg-paper-soft px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-ink-muted">
+              fallback
+            </span>
+          )}
+        </div>
+        {onExport && (
+          <button
+            type="button"
+            onClick={() => onExport(panel.sectionId)}
+            className="rounded-md border border-paper-line bg-paper px-2.5 py-1 text-xs text-ink-soft hover:border-ink-muted"
+          >
+            Export
+          </button>
         )}
       </div>
 

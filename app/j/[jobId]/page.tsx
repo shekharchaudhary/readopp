@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ExportSheet } from "@/components/ExportSheet";
 import { PanelStream } from "@/components/PanelStream";
 import { WorkingScene } from "@/components/WorkingScene";
 import { useJobStream } from "@/lib/scene/useJobStream";
@@ -52,6 +53,20 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   const completed = scene.status === "completed";
   const failed = scene.status === "failed";
 
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPanelId, setExportPanelId] = useState<string | undefined>(
+    undefined
+  );
+
+  function openExportAll() {
+    setExportPanelId(undefined);
+    setExportOpen(true);
+  }
+  function openExportPanel(sectionId: string) {
+    setExportPanelId(sectionId);
+    setExportOpen(true);
+  }
+
   const headerTitle = scene.explainer?.title
     ? scene.explainer.title
     : failed
@@ -84,21 +99,34 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         ← New explainer
       </Link>
 
-      <header className="space-y-2">
-        <h1 className="text-2xl font-medium tracking-tight text-ink sm:text-3xl">
-          {headerTitle}
-        </h1>
-        {job && (
-          <p className="text-sm text-ink-muted">
-            <span>{sourceDomain(job.url)}</span>
-            <span className="mx-2">·</span>
-            <span>audience: {job.audienceLevel}</span>
-          </p>
-        )}
-        {scene.explainer?.summary && (
-          <p className="max-w-2xl text-base text-ink-soft">
-            {scene.explainer.summary}
-          </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2 min-w-0">
+          <h1 className="text-2xl font-medium tracking-tight text-ink sm:text-3xl">
+            {headerTitle}
+          </h1>
+          {job && (
+            <p className="text-sm text-ink-muted">
+              <span>{sourceDomain(job.url)}</span>
+              <span className="mx-2">·</span>
+              <span>audience: {job.audienceLevel}</span>
+            </p>
+          )}
+          {scene.explainer?.summary && (
+            <p className="max-w-2xl text-base text-ink-soft">
+              {scene.explainer.summary}
+            </p>
+          )}
+        </div>
+        {completed && scene.explainer && (
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={openExportAll}
+              className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+            >
+              Export all
+            </button>
+          </div>
         )}
       </header>
 
@@ -122,7 +150,19 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         </section>
       )}
 
-      <PanelStream slots={scene.panels} />
+      <PanelStream
+        slots={scene.panels}
+        onExportPanel={completed ? openExportPanel : undefined}
+      />
+
+      {scene.explainer && (
+        <ExportSheet
+          open={exportOpen}
+          onClose={() => setExportOpen(false)}
+          explainerId={scene.explainer.id}
+          panelId={exportPanelId}
+        />
+      )}
     </main>
   );
 }

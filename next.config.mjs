@@ -2,7 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ["@mozilla/readability", "jsdom"],
+    serverComponentsExternalPackages: [
+      "@mozilla/readability",
+      "jsdom",
+      "playwright",
+    ],
   },
 };
 

@@ -51,7 +51,7 @@ A web app where a user pastes an article URL and selects an audience level (e.g.
 
 ## Status
 
-Phase 0 + Phase 1 complete. Single-pass pipeline: URL → cleaned article → one Claude call that plans 3–6 panels → parallel SVG/HTML render → result page with polling. No Postgres, no SSE streaming, no PNG export yet (those land in Phase 2–4).
+Phases 0–4 complete. URL in → live agent pipeline → multi-panel SVG/HTML explainer → social PNG export. No DB yet (in-memory store).
 
 ## Run it
 
@@ -59,30 +59,36 @@ Phase 0 + Phase 1 complete. Single-pass pipeline: URL → cleaned article → on
    ```
    echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env.local
    ```
-2. Install and start the dev server:
+2. Install everything (first run downloads Chromium for export, ~150MB):
    ```
    npm install
+   npx playwright install chromium
+   ```
+3. Start the dev server:
+   ```
    npm run dev
    ```
-3. Open http://localhost:3000, paste an article URL, pick an audience level, hit Explain.
+4. Open http://localhost:3000, paste an article URL, pick an audience level, hit Explain.
 
 ### Model overrides (optional)
 
 ```
-ANTHROPIC_MODEL_STRONG=claude-sonnet-4-5      # default
-ANTHROPIC_MODEL_FAST=claude-haiku-4-5-20251001 # default (reserved; unused in Phase 1)
+ANTHROPIC_MODEL_STRONG=claude-sonnet-4-5        # default
+ANTHROPIC_MODEL_FAST=claude-haiku-4-5-20251001  # default
 ```
 
 ### What works today
 
-- Pasting a public, non-paywalled article URL produces a multi-panel explainer in ~30–90s.
-- Audience level threads into the planning prompt and changes caption depth + metaphor choice.
-- Per-panel render has a 1-retry self-correction loop; if both retries fail, a clean titled-card fallback panel keeps the explainer whole.
-- Paywall / login-wall / 404 / invalid-URL paths surface friendly error messages on the result page.
+- Live working scene: 6 agent nodes light up in order, with a real progress line from the active agent. Panels stream in one by one as the render agent finishes each.
+- Real 6-agent pipeline: ingest, comprehension, structure, planner (per-section), render (per-panel, parallel, capped at 4), assembly. Each step is Zod-validated with 1-retry self-correction; per-panel hard failure renders a clean titled-card fallback.
+- Per-panel and whole-explainer PNG export via headless Chromium at exact dimensions: square 1080×1080 (Instagram), vertical 1080×1920 (TikTok/Reels), landscape 1200×627 (LinkedIn). Light-locked theme, text-only branding frame. Exports are cached on disk under `.lucidread-exports/`.
+- SSE streaming with replay-on-reconnect — refresh `/j/[jobId]` mid-job and the scene rebuilds losslessly.
+- Audience level threads into comprehension + planner + caption tone.
+- Typed error states surface friendly messages for paywall / login / 404 / invalid URL / empty content / timeout.
 
-### What's intentionally not in v0.1
+### What's intentionally not here
 
-- No DB persistence — jobs live in process memory and vanish on restart.
-- No SSE streaming — the result page polls every ~1.2s.
-- No PNG export.
-- No comprehension/structure/planner agents split out yet — collapsed into one call (per `docs/BUILD_PLAN.md` Phase 1).
+- No DB persistence — jobs and explainers live in process memory and vanish on restart.
+- No object storage — exports are served from the local filesystem via `/api/exports/[filename]`. Fine for dev; for prod you'd swap in R2.
+- No example gallery on the home screen (Phase 5 polish).
+- No worker split — orchestrator and Playwright run inside the Next.js process. For prod with serverless timeouts you'd want a Fly.io worker.
