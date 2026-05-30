@@ -1,4 +1,4 @@
-import { anthropic, MODEL_STRONG } from "../anthropic";
+import { callMessages, MODEL_STRONG } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import {
@@ -54,9 +54,9 @@ function userMessage(plan: PanelPlan, audience: AudienceLevel): string {
 export async function renderPanel(
   plan: PanelPlan,
   audience: AudienceLevel,
-  heading: string
+  heading: string,
+  jobId?: string
 ): Promise<RenderedPanel> {
-  const client = anthropic();
   const format = targetFormat(plan);
   const system = buildSystemPrompt(format);
 
@@ -75,13 +75,16 @@ export async function renderPanel(
 
     let text = "";
     try {
-      const res = await client.messages.create({
-        model: MODEL_STRONG,
-        max_tokens: 4096,
-        temperature: 0.3,
-        system,
-        messages,
-      });
+      const res = await callMessages(
+        {
+          model: MODEL_STRONG,
+          max_tokens: 4096,
+          temperature: 0.3,
+          system,
+          messages,
+        },
+        { jobId, label: `render[${plan.sectionId}]` }
+      );
       text = res.content
         .map((b) => (b.type === "text" ? b.text : ""))
         .join("")
@@ -115,7 +118,8 @@ export async function renderPanel(
 export async function renderAllPanels(
   plans: PanelPlan[],
   audience: AudienceLevel,
-  headings: Record<string, string>
+  headings: Record<string, string>,
+  jobId?: string
 ): Promise<RenderedPanel[]> {
   const CONCURRENCY = 4;
   const out: RenderedPanel[] = new Array(plans.length);
@@ -127,7 +131,7 @@ export async function renderAllPanels(
       if (i >= plans.length) return;
       const plan = plans[i];
       const heading = headings[plan.sectionId] || "Panel";
-      out[i] = await renderPanel(plan, audience, heading);
+      out[i] = await renderPanel(plan, audience, heading, jobId);
     }
   }
 

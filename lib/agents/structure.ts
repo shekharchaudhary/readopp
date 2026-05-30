@@ -1,4 +1,4 @@
-import { anthropic, MODEL_FAST } from "../anthropic";
+import { callMessages, MODEL_FAST } from "../anthropic";
 import {
   ExplainerOutlineSchema,
   type Comprehension,
@@ -67,9 +67,9 @@ function userMessage(c: Comprehension): string {
 }
 
 export async function runStructure(
-  comprehension: Comprehension
+  comprehension: Comprehension,
+  jobId?: string
 ): Promise<ExplainerOutline> {
-  const client = anthropic();
   return withRetry("structure", async (retryHint) => {
     const messages = [
       {
@@ -80,13 +80,16 @@ export async function runStructure(
             : "") + userMessage(comprehension),
       },
     ];
-    const res = await client.messages.create({
-      model: MODEL_FAST,
-      max_tokens: 1024,
-      temperature: 0.3,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
+    const res = await callMessages(
+      {
+        model: MODEL_FAST,
+        max_tokens: 1024,
+        temperature: 0.3,
+        system: SYSTEM_PROMPT,
+        messages,
+      },
+      { jobId, label: "structure" }
+    );
     const text = res.content
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("");

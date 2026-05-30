@@ -1,3 +1,4 @@
+import { ExampleGallery } from "@/components/ExampleGallery";
 import { UrlInput } from "@/components/UrlInput";
 
 export default function HomePage() {
@@ -17,11 +18,12 @@ export default function HomePage() {
         <UrlInput />
       </section>
 
+      <ExampleGallery />
+
       <section className="border-t border-paper-line pt-6 text-sm text-ink-muted">
         <p>
-          v0.1 — single-pass pipeline. Works best on focused technical blog
-          posts and explanatory articles. Paywalled or login-only pages can&apos;t
-          be read.
+          Works best on focused technical blog posts and explanatory articles.
+          Paywalled or login-only pages can&apos;t be read.
         </p>
       </section>
     </main>

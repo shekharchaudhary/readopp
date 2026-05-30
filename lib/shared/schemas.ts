@@ -179,6 +179,15 @@ export const ExplainerSchema = z.object({
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 
+// ---------- Token usage ----------
+
+export const TokenUsageSchema = z.object({
+  inputTokens: z.number().int().nonnegative().default(0),
+  outputTokens: z.number().int().nonnegative().default(0),
+  calls: z.number().int().nonnegative().default(0),
+});
+export type TokenUsage = z.infer<typeof TokenUsageSchema>;
+
 // ---------- Job ----------
 
 export const JobSchema = z.object({
@@ -193,6 +202,7 @@ export const JobSchema = z.object({
   progress: z
     .array(z.object({ ts: z.string(), note: z.string() }))
     .default([]),
+  usage: TokenUsageSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

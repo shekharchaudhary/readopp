@@ -1,4 +1,4 @@
-import { anthropic, MODEL_STRONG } from "../anthropic";
+import { callMessages, MODEL_STRONG } from "../anthropic";
 import {
   ComprehensionSchema,
   type AudienceLevel,
@@ -156,9 +156,9 @@ function cleanComprehensionJson(
 
 export async function runComprehension(
   article: CleanArticle,
-  audience: AudienceLevel
+  audience: AudienceLevel,
+  jobId?: string
 ): Promise<Comprehension> {
-  const client = anthropic();
   return withRetry("comprehension", async (retryHint) => {
     const messages = [
       {
@@ -169,13 +169,16 @@ export async function runComprehension(
             : "") + userMessage(article, audience),
       },
     ];
-    const res = await client.messages.create({
-      model: MODEL_STRONG,
-      max_tokens: 2048,
-      temperature: 0.3,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
+    const res = await callMessages(
+      {
+        model: MODEL_STRONG,
+        max_tokens: 2048,
+        temperature: 0.3,
+        system: SYSTEM_PROMPT,
+        messages,
+      },
+      { jobId, label: "comprehension" }
+    );
     const text = res.content
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("");

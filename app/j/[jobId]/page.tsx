@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ExportSheet } from "@/components/ExportSheet";
 import { PanelStream } from "@/components/PanelStream";
 import { WorkingScene } from "@/components/WorkingScene";
+import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
 import type { Job } from "@/lib/shared/schemas";
 
@@ -17,11 +18,10 @@ function sourceDomain(url: string): string {
 }
 
 /**
- * One-shot fetch of the persisted job record. We use this just to get the
- * URL + audienceLevel for the header before any events have arrived (and as
- * an existence check — 404s render a clean "not found" state).
+ * Re-fetches the persisted job record. Initial fetch gets URL + audienceLevel
+ * for the header; a re-fetch after completion gets final usage counts.
  */
-function useJobMeta(jobId: string) {
+function useJobMeta(jobId: string, refetchKey: number) {
   const [job, setJob] = useState<Job | null>(null);
   const [notFound, setNotFound] = useState(false);
   useEffect(() => {
@@ -42,16 +42,19 @@ function useJobMeta(jobId: string) {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [jobId, refetchKey]);
   return { job, notFound };
 }
 
 export default function JobPage({ params }: { params: { jobId: string } }) {
-  const { job, notFound } = useJobMeta(params.jobId);
   const { scene, error: streamError } = useJobStream(params.jobId);
-
   const completed = scene.status === "completed";
   const failed = scene.status === "failed";
+  // Re-fetch job meta once when terminal so we get the final usage tally.
+  const { job, notFound } = useJobMeta(
+    params.jobId,
+    completed || failed ? 1 : 0
+  );
 
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPanelId, setExportPanelId] = useState<string | undefined>(
@@ -118,7 +121,8 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
           )}
         </div>
         {completed && scene.explainer && (
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <CopyLinkButton explainerId={scene.explainer.id} />
             <button
               type="button"
               onClick={openExportAll}
@@ -139,21 +143,24 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
       <WorkingScene scene={scene} collapsed={completed} />
 
       {failed && scene.error && (
-        <section className="rounded-lg border border-paper-line bg-paper-soft px-4 py-4 text-sm text-ink-soft">
-          <p className="font-medium text-ink">
-            {failureTitle(scene.error.reason)}
-          </p>
-          <p className="mt-1">{scene.error.message}</p>
-          <p className="mt-3 text-xs text-ink-muted">
-            Try a different article — clean technical blog posts work best.
-          </p>
-        </section>
+        <FailureBlock
+          reason={scene.error.reason}
+          message={scene.error.message}
+        />
       )}
 
       <PanelStream
         slots={scene.panels}
         onExportPanel={completed ? openExportPanel : undefined}
       />
+
+      {completed && job?.usage && job.usage.calls > 0 && (
+        <UsageFooter
+          inputTokens={job.usage.inputTokens}
+          outputTokens={job.usage.outputTokens}
+          calls={job.usage.calls}
+        />
+      )}
 
       {scene.explainer && (
         <ExportSheet
@@ -167,25 +174,62 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   );
 }
 
-function failureTitle(reason: string): string {
-  switch (reason) {
-    case "invalid_url":
-      return "That URL didn’t look right.";
-    case "fetch_failed":
-      return "The page couldn’t be fetched.";
-    case "paywalled":
-      return "This article is behind a paywall.";
-    case "login_required":
-      return "This page needs a login.";
-    case "empty_content":
-      return "There wasn’t enough text to explain.";
-    case "timeout":
-      return "It took too long.";
-    case "comprehension_failed":
-      return "The pipeline couldn’t understand the article.";
-    case "render_failed":
-      return "The pipeline couldn’t render the panels.";
-    default:
-      return "Something went wrong.";
+function UsageFooter({
+  inputTokens,
+  outputTokens,
+  calls,
+}: {
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+}) {
+  const total = inputTokens + outputTokens;
+  return (
+    <footer className="border-t border-paper-line pt-4 text-xs text-ink-muted">
+      {calls} model call{calls === 1 ? "" : "s"} ·{" "}
+      {inputTokens.toLocaleString()} in · {outputTokens.toLocaleString()} out ·{" "}
+      {total.toLocaleString()} total tokens
+    </footer>
+  );
+}
+
+function CopyLinkButton({ explainerId }: { explainerId: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/e/${explainerId}`
+      );
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
   }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+    >
+      {copied ? "Copied" : "Copy link"}
+    </button>
+  );
+}
+
+function FailureBlock({
+  reason,
+  message,
+}: {
+  reason: string;
+  message: string;
+}) {
+  const copy = failureCopy(reason);
+  return (
+    <section className="rounded-lg border border-paper-line bg-paper-soft px-4 py-4 text-sm text-ink-soft">
+      <p className="font-medium text-ink">{copy.title}</p>
+      <p className="mt-1">{message}</p>
+      <p className="mt-3 text-xs text-ink-muted">{copy.hint}</p>
+    </section>
+  );
 }

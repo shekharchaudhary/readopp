@@ -113,7 +113,11 @@ export async function runJob(jobId: string): Promise<void> {
     emitStatus(jobId, "comprehending");
     emitAgentStart(jobId, "comprehension");
     emitAgentProgress(jobId, "comprehension", "Reading for the core idea…");
-    const comprehension = await runComprehension(article, job.audienceLevel);
+    const comprehension = await runComprehension(
+      article,
+      job.audienceLevel,
+      jobId
+    );
     emitAgentDone(
       jobId,
       "comprehension",
@@ -124,7 +128,7 @@ export async function runJob(jobId: string): Promise<void> {
     emitStatus(jobId, "structuring");
     emitAgentStart(jobId, "structure");
     emitAgentProgress(jobId, "structure", "Choosing panel types…");
-    const outline = await runStructure(comprehension);
+    const outline = await runStructure(comprehension, jobId);
     emitAgentDone(jobId, "structure", summarizeOutline(outline));
 
     // 4. Planner — one call per section, sequential is fine and cheaper to debug
@@ -138,7 +142,12 @@ export async function runJob(jobId: string): Promise<void> {
         "planner",
         `Designing panel ${i + 1} of ${outline.sections.length}…`
       );
-      const plan = await runPlanner(section, comprehension, job.audienceLevel);
+      const plan = await runPlanner(
+        section,
+        comprehension,
+        job.audienceLevel,
+        jobId
+      );
       plans.push(plan);
     }
     emitAgentDone(
@@ -213,7 +222,8 @@ async function renderAllPanelsStreaming(input: {
         panel = await runRenderPanel(
           plan,
           audience,
-          headings[plan.sectionId] || `Panel ${i + 1}`
+          headings[plan.sectionId] || `Panel ${i + 1}`,
+          jobId
         );
       } catch (e) {
         // Never propagate — fall back so the rest of the explainer survives

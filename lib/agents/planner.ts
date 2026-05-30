@@ -1,4 +1,4 @@
-import { anthropic, MODEL_STRONG } from "../anthropic";
+import { callMessages, MODEL_STRONG } from "../anthropic";
 import {
   PanelPlanSchema,
   type AudienceLevel,
@@ -64,9 +64,9 @@ function userMessage(
 export async function runPlanner(
   section: OutlineSection,
   comprehension: Comprehension,
-  audience: AudienceLevel
+  audience: AudienceLevel,
+  jobId?: string
 ): Promise<PanelPlan> {
-  const client = anthropic();
   return withRetry(`planner[${section.id}]`, async (retryHint) => {
     const messages = [
       {
@@ -77,13 +77,16 @@ export async function runPlanner(
             : "") + userMessage(section, comprehension, audience),
       },
     ];
-    const res = await client.messages.create({
-      model: MODEL_STRONG,
-      max_tokens: 1536,
-      temperature: 0.4,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
+    const res = await callMessages(
+      {
+        model: MODEL_STRONG,
+        max_tokens: 1536,
+        temperature: 0.4,
+        system: SYSTEM_PROMPT,
+        messages,
+      },
+      { jobId, label: `planner[${section.id}]` }
+    );
     const text = res.content
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("");

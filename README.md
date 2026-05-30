@@ -51,7 +51,7 @@ A web app where a user pastes an article URL and selects an audience level (e.g.
 
 ## Status
 
-Phases 0–4 complete. URL in → live agent pipeline → multi-panel SVG/HTML explainer → social PNG export. No DB yet (in-memory store).
+Phases 0–5 complete. URL in → live agent pipeline → multi-panel SVG/HTML explainer → shareable permalink + social PNG export, with disk persistence and retry-aware Anthropic calls.
 
 ## Run it
 
@@ -86,9 +86,17 @@ ANTHROPIC_MODEL_FAST=claude-haiku-4-5-20251001  # default
 - Audience level threads into comprehension + planner + caption tone.
 - Typed error states surface friendly messages for paywall / login / 404 / invalid URL / empty content / timeout.
 
+### Phase 5 additions
+
+- **Disk persistence** — jobs, explainers, and the event log are flushed atomically to `.lucidread-data/store.json` and reloaded on startup. Jobs now survive `npm run dev` restarts. (Swap to Postgres later per `docs/TECH_STACK.md`.)
+- **Permalink** — `/e/[explainerId]` is the canonical shareable URL. **Copy link** button on both `/j/[jobId]` and `/e/[id]`.
+- **Recent gallery** — the home page lists your last 6 completed explainers as cards.
+- **Anthropic retry/backoff** — every model call goes through `callMessages()`, which retries on 429 / 5xx / overloaded / transient network errors with exponential backoff + jitter, honoring `Retry-After`.
+- **Token usage** — input/output tokens accumulate on the job; the result page shows a small footer when complete.
+- **Friendlier errors** — per-reason hint text for paywall / login / 404 / empty / timeout / API issues.
+
 ### What's intentionally not here
 
-- No DB persistence — jobs and explainers live in process memory and vanish on restart.
 - No object storage — exports are served from the local filesystem via `/api/exports/[filename]`. Fine for dev; for prod you'd swap in R2.
-- No example gallery on the home screen (Phase 5 polish).
 - No worker split — orchestrator and Playwright run inside the Next.js process. For prod with serverless timeouts you'd want a Fly.io worker.
+- No Sentry / PostHog — observability hooks aren't wired (intentionally; they're third-party services).
