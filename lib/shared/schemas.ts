@@ -58,24 +58,33 @@ export type CleanArticle = z.infer<typeof CleanArticleSchema>;
 
 // ---------- Agent 2: Comprehension ----------
 
+// Both Entity and Jargon are tolerant of missing/extra fields — the model
+// sometimes drops `plainDefinition` or `kind`. We'd rather coerce + downstream-ignore
+// than hard-fail the whole comprehension stage on a cosmetic field.
+
 export const EntitySchema = z.object({
-  name: z.string(),
-  kind: z.enum(["concept", "tool", "person", "org", "metric"]),
+  name: z.string().min(1),
+  kind: z
+    .enum(["concept", "tool", "person", "org", "metric"])
+    .catch("concept"),
   note: z.string().optional(),
 });
 
 export const JargonSchema = z.object({
-  term: z.string(),
-  plainDefinition: z.string(),
+  term: z.string().min(1),
+  // model occasionally outputs `definition` instead of `plainDefinition`
+  // or drops the field entirely; default to empty string and we just don't
+  // display it downstream.
+  plainDefinition: z.string().default(""),
 });
 
 export const ComprehensionSchema = z.object({
-  oneLineSummary: z.string().max(180),
-  coreIdea: z.string(),
+  oneLineSummary: z.string().min(1).max(220),
+  coreIdea: z.string().min(1),
   keyClaims: z.array(z.string()).min(1).max(10),
   entities: z.array(EntitySchema).default([]),
   jargon: z.array(JargonSchema).default([]),
-  narrativeArc: z.string(),
+  narrativeArc: z.string().default(""),
   audienceLevel: AudienceLevelSchema,
 });
 export type Comprehension = z.infer<typeof ComprehensionSchema>;
