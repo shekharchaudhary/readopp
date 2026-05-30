@@ -12,18 +12,18 @@ import { loadSnapshot, schedulePersist, type PersistedSnapshot } from "./persist
 
 /**
  * In-process store backed by a JSON file. Reads are O(1) from memory; every
- * mutation schedules a debounced flush to .lucidread-data/store.json so jobs +
+ * mutation schedules a debounced flush to .readopp-data/store.json so jobs +
  * explainers survive `npm run dev` restarts.
  */
 
 declare global {
   // eslint-disable-next-line no-var
-  var __lucidread_store__: LucidreadStore | undefined;
+  var __readopp_store__: ReadoppStore | undefined;
 }
 
 type Subscriber = (event: StreamEvent) => void;
 
-class LucidreadStore {
+class ReadoppStore {
   jobs = new Map<string, Job>();
   cacheKeyToExplainerId = new Map<string, string>();
   explainers = new Map<string, Explainer>();
@@ -49,11 +49,11 @@ class LucidreadStore {
   }
 }
 
-function getStore(): LucidreadStore {
-  if (!globalThis.__lucidread_store__) {
-    globalThis.__lucidread_store__ = new LucidreadStore();
+function getStore(): ReadoppStore {
+  if (!globalThis.__readopp_store__) {
+    globalThis.__readopp_store__ = new ReadoppStore();
   }
-  return globalThis.__lucidread_store__;
+  return globalThis.__readopp_store__;
 }
 
 function persist(): void {

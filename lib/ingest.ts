@@ -4,7 +4,7 @@ import type { CleanArticle, JobError } from "./shared/schemas";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 Lucidread/0.1";
+  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 Readopp/0.1";
 
 const FETCH_TIMEOUT_MS = 15_000;
 

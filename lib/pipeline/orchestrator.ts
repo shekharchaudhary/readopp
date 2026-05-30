@@ -189,7 +189,7 @@ export async function runJob(jobId: string): Promise<void> {
     failJob(jobId, err);
     emitEvent(jobId, { type: "job.failed", data: { error: err } });
     // eslint-disable-next-line no-console
-    console.error("[lucidread] job failed", { jobId, error: e });
+    console.error("[readopp] job failed", { jobId, error: e });
   }
 }
 

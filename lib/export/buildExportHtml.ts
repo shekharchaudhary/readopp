@@ -95,7 +95,7 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
         : ""
     }
     <footer class="footer">
-      <span class="wordmark">Lucidread</span>
+      <span class="wordmark">Readopp</span>
       <span class="dot">·</span>
       <span class="source">${escapeHtml(domain)}</span>
       <span class="spacer"></span>
@@ -164,7 +164,7 @@ export function buildStackedExportHtml(input: AllExportInput): string {
         .join("")}
     </div>
     <footer class="footer">
-      <span class="wordmark">Lucidread</span>
+      <span class="wordmark">Readopp</span>
       <span class="dot">·</span>
       <span class="source">${escapeHtml(domain)}</span>
       <span class="spacer"></span>

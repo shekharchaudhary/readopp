@@ -116,7 +116,7 @@ export async function callMessages(
       const wait = backoffMs(attempt, e.headers?.["retry-after"]);
       // eslint-disable-next-line no-console
       console.warn(
-        `[lucidread] ${ctx.label} transient error (status=${e.status ?? "?"}), retrying in ${wait}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})`
+        `[readopp] ${ctx.label} transient error (status=${e.status ?? "?"}), retrying in ${wait}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})`
       );
       await sleep(wait);
     }

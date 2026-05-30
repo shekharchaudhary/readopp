@@ -1,8 +1,8 @@
-# Lucidread
+# Readopp
 
 > Paste a URL. Watch a team of AI agents read it, understand it, and turn it into a visual explanation anyone can follow — then export it as a social post for Instagram, TikTok, or LinkedIn.
 
-This folder is the **complete build specification** for the Lucidread web app. It is written to be handed directly to Claude Code. Read the files in the order listed below.
+This folder is the **complete build specification** for the Readopp web app (originally named Lucidread; the spec docs in `docs/` still reference the old name). Read the files in the order listed below.
 
 ---
 
@@ -11,6 +11,7 @@ This folder is the **complete build specification** for the Lucidread web app. I
 A web app where a user pastes an article URL and selects an audience level (e.g. "explain like I'm not technical"). A pipeline of specialized AI agents then runs **visibly, one after another** — the user watches each agent light up, do its job, and hand off to the next — and the result is a **multi-panel visual explanation** of the article (clean SVG/HTML diagrams + short prose, not garbled AI images). The user can then **export** any panel or the whole explainer as a social-ready graphic in three aspect ratios: square (Instagram), vertical (TikTok / Reels / Stories), and landscape (LinkedIn).
 
 ## The two things that make this different from Napkin / ConceptViz / Mapify
+
 
 1. **The working scene.** Competitors hide the AI behind a spinner. We make the multi-agent process the *experience* — a live, animated "control room" where you watch agents collaborate. This is also inherently shareable content.
 2. **Structured vector rendering, not image generation.** We render diagrams as SVG/HTML with a validate-and-self-correct loop. This avoids the #1 complaint about every competitor: garbled text and misaligned labels inside AI-generated images.
@@ -81,14 +82,14 @@ ANTHROPIC_MODEL_FAST=claude-haiku-4-5-20251001  # default
 
 - Live working scene: 6 agent nodes light up in order, with a real progress line from the active agent. Panels stream in one by one as the render agent finishes each.
 - Real 6-agent pipeline: ingest, comprehension, structure, planner (per-section), render (per-panel, parallel, capped at 4), assembly. Each step is Zod-validated with 1-retry self-correction; per-panel hard failure renders a clean titled-card fallback.
-- Per-panel and whole-explainer PNG export via headless Chromium at exact dimensions: square 1080×1080 (Instagram), vertical 1080×1920 (TikTok/Reels), landscape 1200×627 (LinkedIn). Light-locked theme, text-only branding frame. Exports are cached on disk under `.lucidread-exports/`.
+- Per-panel and whole-explainer PNG export via headless Chromium at exact dimensions: square 1080×1080 (Instagram), vertical 1080×1920 (TikTok/Reels), landscape 1200×627 (LinkedIn). Light-locked theme, text-only branding frame. Exports are cached on disk under `.readopp-exports/`.
 - SSE streaming with replay-on-reconnect — refresh `/j/[jobId]` mid-job and the scene rebuilds losslessly.
 - Audience level threads into comprehension + planner + caption tone.
 - Typed error states surface friendly messages for paywall / login / 404 / invalid URL / empty content / timeout.
 
 ### Phase 5 additions
 
-- **Disk persistence** — jobs, explainers, and the event log are flushed atomically to `.lucidread-data/store.json` and reloaded on startup. Jobs now survive `npm run dev` restarts. (Swap to Postgres later per `docs/TECH_STACK.md`.)
+- **Disk persistence** — jobs, explainers, and the event log are flushed atomically to `.readopp-data/store.json` and reloaded on startup. Jobs now survive `npm run dev` restarts. (Swap to Postgres later per `docs/TECH_STACK.md`.)
 - **Permalink** — `/e/[explainerId]` is the canonical shareable URL. **Copy link** button on both `/j/[jobId]` and `/e/[id]`.
 - **Recent gallery** — the home page lists your last 6 completed explainers as cards.
 - **Anthropic retry/backoff** — every model call goes through `callMessages()`, which retries on 429 / 5xx / overloaded / transient network errors with exponential backoff + jitter, honoring `Retry-After`.

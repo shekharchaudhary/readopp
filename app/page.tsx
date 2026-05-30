@@ -6,7 +6,7 @@ export default function HomePage() {
     <main className="space-y-12">
       <header className="space-y-3">
         <h1 className="text-3xl font-medium tracking-tight text-ink sm:text-4xl">
-          Lucidread
+          Readopp
         </h1>
         <p className="max-w-xl text-base text-ink-soft">
           Paste a URL. A small team of agents reads it, understands it, and

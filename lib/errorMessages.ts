@@ -16,11 +16,11 @@ const COPY: Record<JobErrorReason, FailureCopy> = {
   },
   paywalled: {
     title: "This article is behind a paywall.",
-    hint: "Lucidread only reads what an anonymous visitor can see. Try a non-paywalled source.",
+    hint: "Readopp only reads what an anonymous visitor can see. Try a non-paywalled source.",
   },
   login_required: {
     title: "This page needs a login.",
-    hint: "Lucidread can’t sign in. Try a publicly-readable version of the article.",
+    hint: "Readopp can’t sign in. Try a publicly-readable version of the article.",
   },
   empty_content: {
     title: "There wasn’t enough text to explain.",

@@ -12,7 +12,7 @@ import type { Explainer, Job } from "./shared/schemas";
  * interim store for local dev that survives `npm run dev` restarts.
  */
 
-export const DATA_DIR = join(process.cwd(), ".lucidread-data");
+export const DATA_DIR = join(process.cwd(), ".readopp-data");
 const STORE_FILE = join(DATA_DIR, "store.json");
 const STORE_TMP = join(DATA_DIR, "store.json.tmp");
 
@@ -52,7 +52,7 @@ export function loadSnapshot(): PersistedSnapshot {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[lucidread] could not load persisted store, starting empty:",
+      "[readopp] could not load persisted store, starting empty:",
       (e as Error).message
     );
     return emptySnapshot();
@@ -76,7 +76,7 @@ function flushNow(): void {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[lucidread] failed to persist store:",
+      "[readopp] failed to persist store:",
       (e as Error).message
     );
   }

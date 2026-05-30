@@ -200,7 +200,7 @@ function ExportPreview({
             <a
               key={img.url}
               href={img.url}
-              download={`lucidread-${format}-${img.panelIndex}.png`}
+              download={`readopp-${format}-${img.panelIndex}.png`}
               className="block overflow-hidden rounded-md border border-paper-line bg-white"
             >
               <img
@@ -229,7 +229,7 @@ function ExportPreview({
       </div>
       <a
         href={result.url}
-        download={`lucidread-${format}.png`}
+        download={`readopp-${format}.png`}
         className="inline-block rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
       >
         Download PNG

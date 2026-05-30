@@ -137,7 +137,7 @@ export async function POST(
     });
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error("[lucidread] export failed", e);
+    console.error("[readopp] export failed", e);
     return NextResponse.json(
       {
         error:

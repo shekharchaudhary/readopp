@@ -27,5 +27,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 coverage
-.lucidread-exports/
-.lucidread-data/
+.readopp-exports/
+.readopp-data/

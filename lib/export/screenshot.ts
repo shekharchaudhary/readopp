@@ -17,7 +17,7 @@ async function getBrowser(): Promise<Browser> {
   return _browserPromise;
 }
 
-export const EXPORTS_DIR = join(process.cwd(), ".lucidread-exports");
+export const EXPORTS_DIR = join(process.cwd(), ".readopp-exports");
 
 /** Public URL prefix the dev server uses to serve PNGs. */
 export const EXPORTS_PUBLIC_PREFIX = "/api/exports";
