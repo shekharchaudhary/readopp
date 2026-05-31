@@ -40,6 +40,11 @@ const config: Config = {
           soft: "#f1efe8",
           line: "#e3e1d8",
         },
+        accent: {
+          DEFAULT: "#0F6E56",
+          soft: "#E1F5EE",
+          deep: "#085041",
+        },
       },
       keyframes: {
         scan: {
@@ -68,6 +73,14 @@ const config: Config = {
             opacity: "1",
           },
         },
+        "rise-in": {
+          "0%": { opacity: "0", transform: "translateY(14px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "draw-in": {
+          "0%": { opacity: "0", transform: "translateY(6px) scale(0.985)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
       },
       animation: {
         scan: "scan 1.8s ease-in-out infinite",
@@ -75,6 +88,8 @@ const config: Config = {
         blink: "blink 1s steps(2, start) infinite",
         "fade-up": "fade-up 240ms ease-out both",
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
+        "rise-in": "rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        "draw-in": "draw-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

@@ -61,7 +61,7 @@ export async function POST(
         );
       }
       const panel = explainer.panels[panelIndex];
-      const html = buildPanelExportHtml({
+      const html = await buildPanelExportHtml({
         explainer,
         panel,
         format,
@@ -84,7 +84,7 @@ export async function POST(
 
     // Whole-explainer export.
     if (format === "vertical") {
-      const html = buildStackedExportHtml({ explainer, format });
+      const html = await buildStackedExportHtml({ explainer, format });
       const result = await htmlToPng({
         html,
         format,
@@ -110,7 +110,7 @@ export async function POST(
     }[];
     for (let i = 0; i < explainer.panels.length; i++) {
       const panel = explainer.panels[i];
-      const html = buildPanelExportHtml({
+      const html = await buildPanelExportHtml({
         explainer,
         panel,
         format,

@@ -1,5 +1,8 @@
+import QRCode from "qrcode";
 import type { Explainer, RenderedPanel } from "../shared/schemas";
 import { EXPORT_DIMENSIONS, type ExportFormat } from "./dimensions";
+
+const ACCENT = "#0F6E56";
 
 function escapeHtml(s: string): string {
   return s
@@ -18,12 +21,30 @@ function sourceDomain(url: string): string {
   }
 }
 
+function siteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "http://localhost:3000"
+  );
+}
+
+async function qrSvg(target: string, size: number): Promise<string> {
+  return QRCode.toString(target, {
+    type: "svg",
+    margin: 0,
+    width: size,
+    color: { dark: "#1a1a1a", light: "#00000000" },
+    errorCorrectionLevel: "M",
+  });
+}
+
 interface Layout {
   titleSize: number;
   overlineSize: number;
   captionSize: number;
   padding: number;
   metaSize: number;
+  qrSize: number;
 }
 
 function layoutFor(format: ExportFormat): Layout {
@@ -35,6 +56,7 @@ function layoutFor(format: ExportFormat): Layout {
         captionSize: 22,
         padding: 64,
         metaSize: 18,
+        qrSize: 96,
       };
     case "vertical":
       return {
@@ -43,6 +65,7 @@ function layoutFor(format: ExportFormat): Layout {
         captionSize: 30,
         padding: 80,
         metaSize: 22,
+        qrSize: 132,
       };
     case "landscape":
       return {
@@ -51,13 +74,13 @@ function layoutFor(format: ExportFormat): Layout {
         captionSize: 18,
         padding: 48,
         metaSize: 16,
+        qrSize: 80,
       };
   }
 }
 
 function panelHtml(panel: RenderedPanel): string {
   if (panel.format === "svg") return panel.content;
-  // HTML panels are already a self-contained block; wrap so they sit cleanly.
   return `<div class="html-panel">${panel.content}</div>`;
 }
 
@@ -65,21 +88,27 @@ interface PanelExportInput {
   explainer: Explainer;
   panel: RenderedPanel;
   format: ExportFormat;
-  panelIndex: number; // 1-based
+  panelIndex: number;
   totalPanels: number;
 }
 
 /**
- * Single-panel export HTML. Light-locked theme. Title + visual + caption +
- * a thin branding frame at the bottom (wordmark + source domain). No icons.
+ * Single-panel export HTML. The shared-asset case: when someone screenshots
+ * this on Instagram/TikTok/LinkedIn, the QR + wordmark in the corner is the
+ * only way the panel pulls traffic back to the site.
  */
-export function buildPanelExportHtml(input: PanelExportInput): string {
+export async function buildPanelExportHtml(
+  input: PanelExportInput
+): Promise<string> {
   const { explainer, panel, format, panelIndex, totalPanels } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
   const domain = sourceDomain(explainer.url);
   const heading = panel.heading?.trim() || explainer.title;
   const showOverline = Boolean(panel.heading?.trim());
+
+  const shareUrl = `${siteUrl()}/e/${explainer.id}`;
+  const qr = await qrSvg(shareUrl, L.qrSize);
 
   return `<!doctype html>
 <html lang="en">
@@ -105,13 +134,18 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
   .title { font-size: ${L.titleSize}px; line-height: 1.1; color: #1a1a1a; font-weight: 500; letter-spacing: -0.015em; max-width: ${
     dims.w - L.padding * 2
   }px; }
-  .index-tag { font-size: ${L.overlineSize}px; color: #a3a3a3; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .index-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .index-dot { width: 8px; height: 8px; border-radius: 999px; background: ${ACCENT}; }
+  .index-tag { font-size: ${L.overlineSize}px; color: #6b6b6b; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
 </style>
 </head>
 <body>
   <main class="page">
     <header class="header">
-      <div class="index-tag">${String(panelIndex).padStart(2, "0")} / ${String(totalPanels).padStart(2, "0")}</div>
+      <div class="index-row">
+        <span class="index-dot"></span>
+        <span class="index-tag">${String(panelIndex).padStart(2, "0")} / ${String(totalPanels).padStart(2, "0")}</span>
+      </div>
       ${
         showOverline
           ? `<div class="overline">${escapeHtml(explainer.title)}</div>`
@@ -125,12 +159,7 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
         ? `<p class="caption">${escapeHtml(panel.caption)}</p>`
         : ""
     }
-    <footer class="footer">
-      <span class="wordmark">Readopp</span>
-      <span class="dot">·</span>
-      <span class="source">${escapeHtml(domain)}</span>
-      <span class="spacer"></span>
-    </footer>
+    ${brandedFooter({ domain, L, qr, shareLabel: "scan to read all panels" })}
   </main>
 </body>
 </html>`;
@@ -141,17 +170,17 @@ interface AllExportInput {
   format: ExportFormat;
 }
 
-/**
- * Multi-panel export (single image). Used for vertical (1080x1920) where we
- * can comfortably stack panels. Square/landscape callers should iterate
- * buildPanelExportHtml per panel instead.
- */
-export function buildStackedExportHtml(input: AllExportInput): string {
+export async function buildStackedExportHtml(
+  input: AllExportInput
+): Promise<string> {
   const { explainer, format } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
   const domain = sourceDomain(explainer.url);
-  const panels = explainer.panels.slice(0, 4); // keep it readable
+  const panels = explainer.panels.slice(0, 4);
+
+  const shareUrl = `${siteUrl()}/e/${explainer.id}`;
+  const qr = await qrSvg(shareUrl, L.qrSize);
 
   return `<!doctype html>
 <html lang="en">
@@ -172,7 +201,7 @@ export function buildStackedExportHtml(input: AllExportInput): string {
   .title { font-size: ${L.titleSize}px; line-height: 1.1; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
   .summary { font-size: ${L.captionSize}px; color: #6b6b6b; margin-top: 12px; }
   .panel-heading { font-size: ${Math.round(L.captionSize * 1.1)}px; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
-  .panel-num { font-size: ${L.metaSize}px; color: #a3a3a3; font-variant-numeric: tabular-nums; margin-right: 8px; }
+  .panel-num { font-size: ${L.metaSize}px; color: ${ACCENT}; font-variant-numeric: tabular-nums; margin-right: 8px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -202,16 +231,39 @@ export function buildStackedExportHtml(input: AllExportInput): string {
         )
         .join("")}
     </div>
-    <footer class="footer">
-      <span class="wordmark">Readopp</span>
-      <span class="dot">·</span>
-      <span class="source">${escapeHtml(domain)}</span>
-      <span class="spacer"></span>
-      <span class="meta">${panels.length} of ${explainer.panels.length} panels</span>
-    </footer>
+    ${brandedFooter({
+      domain,
+      L,
+      qr,
+      shareLabel: `scan for full explainer · ${panels.length} of ${explainer.panels.length} panels shown`,
+    })}
   </main>
 </body>
 </html>`;
+}
+
+function brandedFooter({
+  domain,
+  L,
+  qr,
+  shareLabel,
+}: {
+  domain: string;
+  L: Layout;
+  qr: string;
+  shareLabel: string;
+}): string {
+  return `<footer class="footer">
+    <div class="brand">
+      <div class="wordmark"><span class="brand-dot"></span>Readopp</div>
+      <div class="brand-meta">
+        <span>${escapeHtml(domain)}</span>
+        <span class="sep">·</span>
+        <span class="share-label">${escapeHtml(shareLabel)}</span>
+      </div>
+    </div>
+    <div class="qr" aria-hidden="true">${qr}</div>
+  </footer>`;
 }
 
 function baseStyles(w: number, h: number, L: Layout): string {
@@ -228,13 +280,27 @@ function baseStyles(w: number, h: number, L: Layout): string {
     .header { flex: 0 0 auto; }
     .footer {
       flex: 0 0 auto; margin-top: 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      border-top: 1px solid #e3e1d8; padding-top: 16px;
+    }
+    .brand { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .wordmark {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: #1a1a1a; font-weight: 600; letter-spacing: -0.01em;
+      font-size: ${Math.round(L.metaSize * 1.4)}px;
+    }
+    .brand-dot {
+      width: ${Math.round(L.metaSize * 0.55)}px;
+      height: ${Math.round(L.metaSize * 0.55)}px;
+      border-radius: 999px;
+      background: ${ACCENT};
+    }
+    .brand-meta {
       display: flex; align-items: center; gap: 8px;
       font-size: ${L.metaSize}px; color: #6b6b6b;
-      border-top: 1px solid #e3e1d8; padding-top: 14px;
     }
-    .footer .wordmark { color: #1a1a1a; font-weight: 500; letter-spacing: -0.005em; }
-    .footer .dot { color: #a3a3a3; }
-    .footer .spacer { flex: 1; }
-    .footer .meta { color: #6b6b6b; }
+    .brand-meta .sep { color: #a3a3a3; }
+    .qr { flex-shrink: 0; line-height: 0; padding: 6px; background: #ffffff; border: 1px solid #e3e1d8; border-radius: 6px; }
+    .qr svg { display: block; width: ${L.qrSize}px; height: ${L.qrSize}px; }
   `;
 }

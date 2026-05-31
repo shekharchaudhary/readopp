@@ -1,18 +1,26 @@
 import { ExampleGallery } from "@/components/ExampleGallery";
+import { HeroPreview } from "@/components/HeroPreview";
 import { UrlInput } from "@/components/UrlInput";
 
 export default function HomePage() {
   return (
-    <main className="space-y-12">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-medium tracking-tight text-ink sm:text-4xl">
-          Readopp
+    <main className="space-y-14">
+      <header className="space-y-6">
+        <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
+          <span className="inline-block h-2 w-2 rounded-full bg-accent" />
+          <span>Readopp</span>
+        </div>
+        <h1 className="max-w-3xl text-4xl font-medium leading-[1.05] tracking-tight text-ink sm:text-6xl">
+          Turn any article into a <span className="text-accent-deep">short visual explainer</span> you can share.
         </h1>
-        <p className="max-w-xl text-base text-ink-soft">
-          Paste a URL. A small team of agents reads it, understands it, and
-          turns it into a short visual explainer you can share.
+        <p className="max-w-2xl text-base text-ink-soft sm:text-lg">
+          Paste a URL. A team of agents reads it, distills the core ideas, and
+          composes a sequence of clean panels — ready for Instagram, TikTok,
+          LinkedIn, or your own deck.
         </p>
       </header>
+
+      <HeroPreview />
 
       <section>
         <UrlInput />

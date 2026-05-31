@@ -55,7 +55,10 @@ function HtmlPanel({ html }: { html: string }) {
 export function PanelCard({ panel, index, onExport }: Props) {
   const heading = panel.heading?.trim() || `Panel ${index + 1}`;
   return (
-    <article className="rounded-lg border border-paper-line bg-white">
+    <article
+      className="rounded-lg border border-paper-line bg-white motion-safe:animate-rise-in"
+      style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
+    >
       <div className="flex items-start justify-between gap-4 border-b border-paper-line px-5 py-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] text-ink-faint tabular-nums">

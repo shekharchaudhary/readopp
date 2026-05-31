@@ -63,9 +63,9 @@ function MiniStep({
   const isActive = node.state === "active";
   const isDone = node.state === "done";
   const markerColor = isActive
-    ? "border-ink bg-ink text-paper"
+    ? "border-accent bg-accent text-paper"
     : isDone
-    ? "border-ink bg-paper text-ink"
+    ? "border-accent bg-paper text-accent-deep"
     : "border-paper-line bg-paper text-ink-faint";
   return (
     <li className="flex min-w-0 items-center gap-2" title={node.summary}>
@@ -107,8 +107,9 @@ function StepStrip({ scene }: { scene: SceneState }) {
         const isDone = node.state === "done";
 
         const next = AGENT_KEYS[i + 1];
-        const connectorFilled =
-          next && scene.agents[next].state !== "pending";
+        const connectorFilled = Boolean(
+          next && scene.agents[next].state !== "pending"
+        );
 
         const markerColor = isActive
           ? "border-ink bg-ink text-paper"
@@ -133,7 +134,7 @@ function StepStrip({ scene }: { scene: SceneState }) {
               {isActive && (
                 <span
                   aria-hidden
-                  className="absolute -inset-1 rounded-full border border-ink/25 motion-safe:animate-breathe"
+                  className="absolute -inset-1 rounded-full border border-accent/40 motion-safe:animate-breathe"
                 />
               )}
               <span
@@ -158,7 +159,7 @@ function StepStrip({ scene }: { scene: SceneState }) {
                 aria-hidden
                 className={
                   "mx-1 hidden h-px flex-1 transition-colors sm:block " +
-                  (connectorFilled ? "bg-ink/40" : "bg-paper-line")
+                  (connectorFilled ? "bg-accent/50" : "bg-paper-line")
                 }
               />
             )}
@@ -220,7 +221,7 @@ function ScannerBar() {
       aria-hidden
       className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden bg-paper-soft"
     >
-      <span className="block h-full w-1/3 bg-ink/60 motion-safe:animate-scan" />
+      <span className="block h-full w-1/3 bg-accent/70 motion-safe:animate-scan" />
     </div>
   );
 }

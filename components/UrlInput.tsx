@@ -115,7 +115,7 @@ export function UrlInput() {
                 className={
                   "rounded-md border px-3 py-2 text-sm transition-colors " +
                   (selected
-                    ? "border-ink bg-ink text-paper"
+                    ? "border-accent bg-accent text-paper"
                     : "border-paper-line bg-white text-ink-soft hover:border-ink-muted")
                 }
                 aria-pressed={selected}
@@ -142,7 +142,7 @@ export function UrlInput() {
       <button
         type="submit"
         disabled={!valid || submitting}
-        className="w-full rounded-md bg-ink px-4 py-3 text-base font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-faint"
+        className="w-full rounded-md bg-accent px-4 py-3 text-base font-medium text-paper shadow-[0_1px_0_rgba(8,80,65,0.3)] transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:bg-ink-faint disabled:shadow-none"
       >
         {submitting ? "Starting…" : "Explain"}
       </button>
