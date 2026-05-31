@@ -163,6 +163,22 @@ export function getExplainer(id: string): Explainer | undefined {
 }
 
 /**
+ * Remove an explainer and the cache-key pointer that targets it. Jobs that
+ * inlined this explainer keep their copy — the /e/:id permalink 404s cleanly
+ * via the page's notFound() path.
+ */
+export function deleteExplainer(id: string): boolean {
+  const store = getStore();
+  if (!store.explainers.has(id)) return false;
+  store.explainers.delete(id);
+  for (const [key, eid] of store.cacheKeyToExplainerId.entries()) {
+    if (eid === id) store.cacheKeyToExplainerId.delete(key);
+  }
+  persist();
+  return true;
+}
+
+/**
  * Recent completed explainers, newest first, for the home-screen gallery.
  */
 export function listRecentExplainers(limit = 6): Explainer[] {
