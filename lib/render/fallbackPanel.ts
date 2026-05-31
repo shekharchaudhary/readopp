@@ -63,6 +63,7 @@ export function buildFallbackPanel(
 
   return {
     sectionId,
+    heading,
     caption,
     format: "svg",
     content: svg,

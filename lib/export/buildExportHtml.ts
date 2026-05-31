@@ -20,6 +20,7 @@ function sourceDomain(url: string): string {
 
 interface Layout {
   titleSize: number;
+  overlineSize: number;
   captionSize: number;
   padding: number;
   metaSize: number;
@@ -28,11 +29,29 @@ interface Layout {
 function layoutFor(format: ExportFormat): Layout {
   switch (format) {
     case "square":
-      return { titleSize: 38, captionSize: 22, padding: 64, metaSize: 18 };
+      return {
+        titleSize: 44,
+        overlineSize: 16,
+        captionSize: 22,
+        padding: 64,
+        metaSize: 18,
+      };
     case "vertical":
-      return { titleSize: 56, captionSize: 30, padding: 80, metaSize: 22 };
+      return {
+        titleSize: 64,
+        overlineSize: 22,
+        captionSize: 30,
+        padding: 80,
+        metaSize: 22,
+      };
     case "landscape":
-      return { titleSize: 32, captionSize: 18, padding: 48, metaSize: 16 };
+      return {
+        titleSize: 36,
+        overlineSize: 14,
+        captionSize: 18,
+        padding: 48,
+        metaSize: 16,
+      };
   }
 }
 
@@ -59,6 +78,8 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
   const domain = sourceDomain(explainer.url);
+  const heading = panel.heading?.trim() || explainer.title;
+  const showOverline = Boolean(panel.heading?.trim());
 
   return `<!doctype html>
 <html lang="en">
@@ -78,15 +99,25 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
   .caption { font-size: ${L.captionSize}px; line-height: 1.4; color: #3a3a3a; margin-top: 28px; max-width: ${
     dims.w - L.padding * 2
   }px; }
-  .title { font-size: ${L.titleSize}px; line-height: 1.15; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; max-width: ${
+  .overline { font-size: ${L.overlineSize}px; color: #6b6b6b; letter-spacing: 0.02em; margin-bottom: 10px; max-width: ${
     dims.w - L.padding * 2
   }px; }
+  .title { font-size: ${L.titleSize}px; line-height: 1.1; color: #1a1a1a; font-weight: 500; letter-spacing: -0.015em; max-width: ${
+    dims.w - L.padding * 2
+  }px; }
+  .index-tag { font-size: ${L.overlineSize}px; color: #a3a3a3; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
 </style>
 </head>
 <body>
   <main class="page">
     <header class="header">
-      <div class="title">${escapeHtml(explainer.title)}</div>
+      <div class="index-tag">${String(panelIndex).padStart(2, "0")} / ${String(totalPanels).padStart(2, "0")}</div>
+      ${
+        showOverline
+          ? `<div class="overline">${escapeHtml(explainer.title)}</div>`
+          : ""
+      }
+      <div class="title">${escapeHtml(heading)}</div>
     </header>
     <div class="panel-host">${panelHtml(panel)}</div>
     ${
@@ -99,7 +130,6 @@ export function buildPanelExportHtml(input: PanelExportInput): string {
       <span class="dot">·</span>
       <span class="source">${escapeHtml(domain)}</span>
       <span class="spacer"></span>
-      <span class="meta">${panelIndex} / ${totalPanels}</span>
     </footer>
   </main>
 </body>
@@ -141,6 +171,8 @@ export function buildStackedExportHtml(input: AllExportInput): string {
   .caption { font-size: ${Math.round(L.captionSize * 0.85)}px; color: #3a3a3a; line-height: 1.4; }
   .title { font-size: ${L.titleSize}px; line-height: 1.1; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
   .summary { font-size: ${L.captionSize}px; color: #6b6b6b; margin-top: 12px; }
+  .panel-heading { font-size: ${Math.round(L.captionSize * 1.1)}px; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
+  .panel-num { font-size: ${L.metaSize}px; color: #a3a3a3; font-variant-numeric: tabular-nums; margin-right: 8px; }
 </style>
 </head>
 <body>
@@ -157,6 +189,13 @@ export function buildStackedExportHtml(input: AllExportInput): string {
       ${panels
         .map(
           (p, i) => `<section class="panel">
+            ${
+              p.heading?.trim()
+                ? `<div class="panel-heading"><span class="panel-num">${String(
+                    i + 1
+                  ).padStart(2, "0")}</span>${escapeHtml(p.heading)}</div>`
+                : ""
+            }
             <div class="panel-host">${panelHtml(p)}</div>
             ${p.caption ? `<p class="caption">${escapeHtml(p.caption)}</p>` : ""}
           </section>`

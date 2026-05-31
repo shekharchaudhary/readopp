@@ -140,7 +140,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         </div>
       )}
 
-      <WorkingScene scene={scene} collapsed={completed} />
+      {!completed && <WorkingScene scene={scene} />}
 
       {failed && scene.error && (
         <FailureBlock

@@ -35,11 +35,13 @@ function SkeletonCard({ index }: { index: number }) {
       className="rounded-lg border border-paper-line bg-white"
       aria-busy="true"
     >
-      <div className="border-b border-paper-line px-4 py-2 text-xs uppercase tracking-wide text-ink-muted">
-        Panel {index}
+      <div className="border-b border-paper-line px-5 py-4">
+        <div className="text-[11px] text-ink-faint tabular-nums">
+          {String(index).padStart(2, "0")}
+        </div>
+        <div className="mt-2 h-5 w-1/2 motion-safe:animate-pulse rounded bg-paper-soft" />
       </div>
       <div className="space-y-3 p-4">
-        <div className="h-3 w-2/5 motion-safe:animate-pulse rounded bg-paper-soft" />
         <div className="h-44 motion-safe:animate-pulse rounded bg-paper-soft" />
         <div className="h-3 w-3/4 motion-safe:animate-pulse rounded bg-paper-soft" />
       </div>

@@ -157,6 +157,9 @@ export type PanelPlan = z.infer<typeof PanelPlanSchema>;
 
 export const RenderedPanelSchema = z.object({
   sectionId: z.string(),
+  // Section heading from the Outline agent; falls back to "" for explainers
+  // persisted before this field existed.
+  heading: z.string().default(""),
   caption: z.string(),
   format: z.enum(["svg", "html"]),
   content: z.string(),

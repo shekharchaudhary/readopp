@@ -111,6 +111,7 @@ export async function renderPanel(
     if (v.ok) {
       return {
         sectionId: plan.sectionId,
+        heading,
         caption: plan.caption,
         format,
         content,
