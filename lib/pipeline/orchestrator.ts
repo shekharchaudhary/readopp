@@ -131,10 +131,13 @@ export async function runJob(jobId: string): Promise<void> {
     const outline = await runStructure(comprehension, jobId);
     emitAgentDone(jobId, "structure", summarizeOutline(outline));
 
-    // 4. Planner — one call per section, sequential is fine and cheaper to debug
+    // 4. Planner — one call per section, sequential is fine and cheaper to debug.
+    // If one section's planner fails after retries we skip it and continue, so
+    // a single bad panel can't kill the whole explainer.
     emitStatus(jobId, "planning");
     emitAgentStart(jobId, "planner");
     const plans = [];
+    let skipped = 0;
     for (let i = 0; i < outline.sections.length; i++) {
       const section = outline.sections[i];
       emitAgentProgress(
@@ -142,19 +145,40 @@ export async function runJob(jobId: string): Promise<void> {
         "planner",
         `Designing panel ${i + 1} of ${outline.sections.length}…`
       );
-      const plan = await runPlanner(
-        section,
-        comprehension,
-        job.audienceLevel,
-        jobId
-      );
-      plans.push(plan);
+      try {
+        const plan = await runPlanner(
+          section,
+          comprehension,
+          job.audienceLevel,
+          jobId
+        );
+        plans.push(plan);
+      } catch (e) {
+        skipped++;
+        const msg = (e as Error).message?.slice(0, 200) ?? "unknown";
+        emitAgentProgress(
+          jobId,
+          "planner",
+          `Skipped panel ${i + 1} (${section.heading}) — ${msg}`
+        );
+        // eslint-disable-next-line no-console
+        console.warn("[readopp] planner skipped section", {
+          jobId,
+          sectionId: section.id,
+          error: e,
+        });
+      }
     }
-    emitAgentDone(
-      jobId,
-      "planner",
-      `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`
-    );
+    if (plans.length === 0) {
+      throw new Error(
+        "planner produced no valid panels for any section of the outline"
+      );
+    }
+    const doneNote =
+      skipped > 0
+        ? `Designed ${plans.length} panel${plans.length === 1 ? "" : "s"} (skipped ${skipped})`
+        : `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`;
+    emitAgentDone(jobId, "planner", doneNote);
 
     // 5. Render — fan out per panel; emit panel.start / panel.done
     emitStatus(jobId, "rendering");

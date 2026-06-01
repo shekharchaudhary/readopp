@@ -144,8 +144,17 @@ export const PanelPlanSchema = z.object({
   edges: z.array(PanelEdgeSchema).nullish(),
   comparison: z
     .object({
-      columns: z.array(z.string()),
-      rows: z.array(z.object({ label: z.string(), cells: z.array(z.string()) })),
+      columns: z.array(z.string()).default([]),
+      // Defaults on label + cells so the model's occasional `[{}, {}]` payload
+      // still parses; the planner filters empty rows before returning.
+      rows: z
+        .array(
+          z.object({
+            label: z.string().default(""),
+            cells: z.array(z.string()).default([]),
+          })
+        )
+        .default([]),
     })
     .nullish(),
   timeline: z

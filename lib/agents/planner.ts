@@ -94,11 +94,30 @@ export async function runPlanner(
     parsed.sectionId = section.id;
     parsed.visualType = section.visualType;
     const plan = PanelPlanSchema.parse(parsed);
+
     // Sanity: edges reference existing node ids; if not, drop the bad ones.
     if (plan.nodes && plan.edges) {
       const ids = new Set(plan.nodes.map((n) => n.id));
       plan.edges = plan.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
     }
+
+    // Sanity: drop comparison rows missing either a label or any cells. If the
+    // table collapses to fewer than two real rows, the plan is degenerate —
+    // throw a clear retry hint so the model can re-emit a valid table.
+    if (plan.comparison) {
+      const realRows = plan.comparison.rows.filter(
+        (r) =>
+          r.label.trim().length > 0 ||
+          r.cells.some((c) => c.trim().length > 0)
+      );
+      if (realRows.length < 2 && section.visualType === "comparison") {
+        throw new Error(
+          "comparison.rows must contain at least 2 rows, each with a non-empty label and at least one non-empty cell"
+        );
+      }
+      plan.comparison = { ...plan.comparison, rows: realRows };
+    }
+
     return plan;
   });
 }
