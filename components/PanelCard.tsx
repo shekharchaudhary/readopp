@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RenderedPanel } from "@/lib/shared/schemas";
 import { themeSvg } from "@/lib/svg/theme";
+import { EditableHtmlTablePanel } from "./EditableHtmlTablePanel";
 import { EditableSvgPanel } from "./EditableSvgPanel";
 import { EditableText } from "./EditableText";
 import { PanelThemePopover, type ColorTriple } from "./NodeEditPopover";
@@ -167,6 +168,11 @@ export function PanelCard({ panel, index, onExport, onEdit }: Props) {
               dangerouslySetInnerHTML={{ __html: panel.content }}
             />
           )
+        ) : editable && /<table[\s>]/i.test(panel.content) ? (
+          <EditableHtmlTablePanel
+            content={panel.content}
+            onSave={(next) => onEdit!(panel.sectionId, { content: next })}
+          />
         ) : (
           <HtmlPanel html={panel.content} />
         )}
