@@ -118,38 +118,42 @@ export type ExplainerOutline = z.infer<typeof ExplainerOutlineSchema>;
 
 // ---------- Agent 4: Visual Planner ----------
 
+// Optional fields use .nullish() (accepts null + undefined) instead of
+// .optional() (undefined only) because the model frequently emits explicit
+// null for fields that don't apply to a given panel type.
+
 export const PanelNodeSchema = z.object({
   id: z.string(),
   label: z.string(),
-  subtitle: z.string().optional(),
-  group: z.string().optional(),
-  role: z.enum(["start", "end", "normal", "highlight"]).optional(),
+  subtitle: z.string().nullish(),
+  group: z.string().nullish(),
+  role: z.enum(["start", "end", "normal", "highlight"]).nullish(),
 });
 
 export const PanelEdgeSchema = z.object({
   from: z.string(),
   to: z.string(),
-  label: z.string().optional(),
+  label: z.string().nullish(),
 });
 
 export const PanelPlanSchema = z.object({
   sectionId: z.string(),
   visualType: VisualTypeSchema,
   caption: z.string().max(600),
-  nodes: z.array(PanelNodeSchema).optional(),
-  edges: z.array(PanelEdgeSchema).optional(),
+  nodes: z.array(PanelNodeSchema).nullish(),
+  edges: z.array(PanelEdgeSchema).nullish(),
   comparison: z
     .object({
       columns: z.array(z.string()),
       rows: z.array(z.object({ label: z.string(), cells: z.array(z.string()) })),
     })
-    .optional(),
+    .nullish(),
   timeline: z
     .array(z.object({ when: z.string(), what: z.string() }))
-    .optional(),
-  illustrativeBrief: z.string().optional(),
-  stat: z.object({ value: z.string(), label: z.string() }).optional(),
-  layoutHint: z.enum(["horizontal", "vertical"]).optional(),
+    .nullish(),
+  illustrativeBrief: z.string().nullish(),
+  stat: z.object({ value: z.string(), label: z.string() }).nullish(),
+  layoutHint: z.enum(["horizontal", "vertical"]).nullish(),
 });
 export type PanelPlan = z.infer<typeof PanelPlanSchema>;
 
