@@ -27,7 +27,7 @@ export default function HomePage() {
             <Reveal delayMs={80}>
               <h1 className="mt-8 max-w-4xl text-4xl font-medium leading-[1.05] tracking-tight text-ink sm:text-6xl">
                 Turn a careful article into a{" "}
-                <span className="text-accent-deep">visual explainer</span>{" "}
+                <span className="text-[#1E9EEF]">visual explainer</span>{" "}
                 you can share.
               </h1>
             </Reveal>

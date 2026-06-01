@@ -53,6 +53,14 @@ export function EditableSvgPanel({ content, onSave }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<NodeSelection | null>(null);
+  // True for one click event after a drag, so the subsequent click on the
+  // dragged rect doesn't also open the selection popover.
+  const justDraggedRef = useRef(false);
+  // Mirror of `editing` for read inside per-rect listeners (stable closure).
+  const editingRef = useRef(false);
+  useEffect(() => {
+    editingRef.current = !!editing;
+  }, [editing]);
 
   useEffect(() => {
     const root = containerRef.current?.querySelector("svg");
@@ -84,13 +92,156 @@ export function EditableSvgPanel({ content, onSave }: Props) {
       });
     });
 
-    // ---- Rect affordances (Phase 2b) ----
+    // ---- Drag state (Phase 2c) — one in-flight session at a time ----
+    // Held in closure scope (not React state) so per-frame mousemove updates
+    // don't trigger re-renders. We mutate live DOM attributes directly and
+    // serialize once on mouseup.
+    interface DragSession {
+      rect: SVGRectElement;
+      origRectX: number;
+      origRectY: number;
+      origBBox: { x: number; y: number; width: number; height: number };
+      texts: Array<{ el: Element; origX: number; origY: number }>;
+      paths: Array<{
+        el: SVGPathElement;
+        which: "start" | "end" | "both";
+        origStart: { x: number; y: number };
+        origEnd: { x: number; y: number };
+        origD: string;
+      }>;
+      origin: { x: number; y: number };
+      moved: boolean;
+    }
+    let dragSession: DragSession | null = null;
+
+    const onDragMove = (e: MouseEvent) => {
+      const s = dragSession;
+      if (!s) return;
+      const cur = clientToSvg(root, e.clientX, e.clientY);
+      const dx = cur.x - s.origin.x;
+      const dy = cur.y - s.origin.y;
+      if (!s.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        s.moved = true;
+        s.rect.style.cursor = "grabbing";
+        s.rect.style.outline = "2px solid rgba(31,151,220,0.85)";
+        s.rect.style.outlineOffset = "2px";
+      }
+      if (!s.moved) return;
+      s.rect.setAttribute("x", fmt(s.origRectX + dx));
+      s.rect.setAttribute("y", fmt(s.origRectY + dy));
+      s.texts.forEach(({ el, origX, origY }) => {
+        el.setAttribute("x", fmt(origX + dx));
+        el.setAttribute("y", fmt(origY + dy));
+      });
+      s.paths.forEach((p) => {
+        let d = p.origD;
+        if (p.which === "start" || p.which === "both") {
+          d = rewritePathStart(d, p.origStart.x + dx, p.origStart.y + dy);
+        }
+        if (p.which === "end" || p.which === "both") {
+          d = rewritePathEnd(d, p.origEnd.x + dx, p.origEnd.y + dy);
+        }
+        p.el.setAttribute("d", d);
+      });
+    };
+
+    const onDragEnd = async () => {
+      window.removeEventListener("mousemove", onDragMove);
+      window.removeEventListener("mouseup", onDragEnd);
+      const s = dragSession;
+      dragSession = null;
+      if (!s) return;
+      if (!s.moved) return; // a click, not a drag — let click fire normally
+
+      justDraggedRef.current = true;
+      setSaving(true);
+      setError(null);
+      try {
+        const serialized = root.outerHTML;
+        await onSave(serialized);
+      } catch (err) {
+        // Revert live DOM
+        s.rect.setAttribute("x", fmt(s.origRectX));
+        s.rect.setAttribute("y", fmt(s.origRectY));
+        s.texts.forEach(({ el, origX, origY }) => {
+          el.setAttribute("x", fmt(origX));
+          el.setAttribute("y", fmt(origY));
+        });
+        s.paths.forEach((p) => p.el.setAttribute("d", p.origD));
+        setError((err as Error).message || "Move failed.");
+      } finally {
+        s.rect.style.cursor = "";
+        s.rect.style.outline = "";
+        s.rect.style.outlineOffset = "";
+        setSaving(false);
+      }
+    };
+
+    const startDrag = (rect: SVGRectElement, e: MouseEvent) => {
+      if (editingRef.current) return; // don't drag while a text edit is open
+      const origBBox = getRectBBox(rect);
+      const origRectX = parseFloat(rect.getAttribute("x") || "0");
+      const origRectY = parseFloat(rect.getAttribute("y") || "0");
+
+      const texts: Array<{ el: Element; origX: number; origY: number }> = [];
+      root.querySelectorAll("text, tspan").forEach((t) => {
+        const cx = parseFloat(t.getAttribute("x") || "NaN");
+        const cy = parseFloat(t.getAttribute("y") || "NaN");
+        if (
+          Number.isFinite(cx) &&
+          Number.isFinite(cy) &&
+          pointInBBox({ x: cx, y: cy }, origBBox)
+        ) {
+          texts.push({ el: t, origX: cx, origY: cy });
+        }
+      });
+
+      const paths: DragSession["paths"] = [];
+      root.querySelectorAll("path").forEach((p) => {
+        const path = p as SVGPathElement;
+        const d = path.getAttribute("d") || "";
+        if (!pathIsSafeForRewrite(d)) return;
+        try {
+          const len = path.getTotalLength();
+          if (!Number.isFinite(len) || len === 0) return;
+          const a = path.getPointAtLength(0);
+          const b = path.getPointAtLength(len);
+          const startIn = pointInBBox({ x: a.x, y: a.y }, origBBox);
+          const endIn = pointInBBox({ x: b.x, y: b.y }, origBBox);
+          if (!startIn && !endIn) return;
+          paths.push({
+            el: path,
+            which: startIn && endIn ? "both" : startIn ? "start" : "end",
+            origStart: { x: a.x, y: a.y },
+            origEnd: { x: b.x, y: b.y },
+            origD: d,
+          });
+        } catch {
+          // ignore
+        }
+      });
+
+      dragSession = {
+        rect,
+        origRectX,
+        origRectY,
+        origBBox,
+        texts,
+        paths,
+        origin: clientToSvg(root, e.clientX, e.clientY),
+        moved: false,
+      };
+      window.addEventListener("mousemove", onDragMove);
+      window.addEventListener("mouseup", onDragEnd);
+    };
+
+    // ---- Rect affordances (Phase 2b + 2c) ----
     root.querySelectorAll("rect").forEach((rectEl) => {
       const rect = rectEl as SVGRectElement;
       // Skip rects that are clearly not nodes (no fill or fill="none").
       const fill = rect.getAttribute("fill") || "";
       if (!fill || fill.toLowerCase() === "none" || fill === "transparent") return;
-      rect.style.cursor = "pointer";
+      rect.style.cursor = "grab";
       const onEnter = () => {
         if (selectedRectRef.current === rect) return;
         rect.dataset.readoppPrevStroke = rect.getAttribute("stroke") || "";
@@ -101,24 +252,40 @@ export function EditableSvgPanel({ content, onSave }: Props) {
       };
       const onLeave = () => {
         if (selectedRectRef.current === rect) return;
+        if (dragSession && dragSession.rect === rect) return;
         rect.style.outline = "";
         rect.style.outlineOffset = "";
       };
+      const onMouseDown = (e: MouseEvent) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        startDrag(rect, e);
+      };
       const onClick = (e: MouseEvent) => {
+        if (justDraggedRef.current) {
+          justDraggedRef.current = false;
+          return;
+        }
         e.stopPropagation();
         selectNode(rect);
       };
       rect.addEventListener("mouseenter", onEnter);
       rect.addEventListener("mouseleave", onLeave);
+      rect.addEventListener("mousedown", onMouseDown);
       rect.addEventListener("click", onClick);
       teardown.push(() => {
         rect.removeEventListener("mouseenter", onEnter);
         rect.removeEventListener("mouseleave", onLeave);
+        rect.removeEventListener("mousedown", onMouseDown);
         rect.removeEventListener("click", onClick);
       });
     });
 
-    return () => teardown.forEach((fn) => fn());
+    return () => {
+      window.removeEventListener("mousemove", onDragMove);
+      window.removeEventListener("mouseup", onDragEnd);
+      teardown.forEach((fn) => fn());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
 
@@ -555,4 +722,77 @@ function deleteNodeAndAssociated(
   }
 
   toRemove.forEach((el) => el.remove());
+}
+
+// ---------- Phase 2c drag helpers ----------
+
+function clientToSvg(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number
+): { x: number; y: number } {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: clientX, y: clientY };
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const t = pt.matrixTransform(ctm.inverse());
+  return { x: t.x, y: t.y };
+}
+
+function fmt(n: number): string {
+  return (Math.round(n * 100) / 100).toString();
+}
+
+/**
+ * Whether we can safely rewrite the first/last numeric XY pair of this path's
+ * `d` attribute as an endpoint. We reject relative commands (lowercase) and
+ * single-coord H/V commands, which would invalidate naive endpoint logic.
+ * Skipped paths simply don't follow the dragged node.
+ */
+function pathIsSafeForRewrite(d: string): boolean {
+  if (/[a-y]/.test(d)) return false;
+  if (/[HV]/.test(d)) return false;
+  return true;
+}
+
+const NUM_PATTERN = /-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g;
+
+function findAllNumberMatches(
+  d: string
+): Array<{ start: number; end: number }> {
+  const out: Array<{ start: number; end: number }> = [];
+  const re = new RegExp(NUM_PATTERN.source, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d)) !== null) {
+    out.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return out;
+}
+
+function rewritePathStart(d: string, x: number, y: number): string {
+  const nums = findAllNumberMatches(d);
+  if (nums.length < 2) return d;
+  const [a, b] = nums;
+  return (
+    d.slice(0, a.start) +
+    fmt(x) +
+    d.slice(a.end, b.start) +
+    fmt(y) +
+    d.slice(b.end)
+  );
+}
+
+function rewritePathEnd(d: string, x: number, y: number): string {
+  const nums = findAllNumberMatches(d);
+  if (nums.length < 2) return d;
+  const a = nums[nums.length - 2];
+  const b = nums[nums.length - 1];
+  return (
+    d.slice(0, a.start) +
+    fmt(x) +
+    d.slice(a.end, b.start) +
+    fmt(y) +
+    d.slice(b.end)
+  );
 }
