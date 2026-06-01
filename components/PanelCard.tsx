@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RenderedPanel } from "@/lib/shared/schemas";
+import { EditableSvgPanel } from "./EditableSvgPanel";
 import { EditableText } from "./EditableText";
 
 interface Props {
@@ -9,13 +10,13 @@ interface Props {
   index: number;
   onExport?: (panelId: string) => void;
   /**
-   * Called when the user commits an inline text edit. Resolve with the patched
+   * Called when the user commits an inline edit. Resolve with the patched
    * panel (or anything) — the caller is responsible for persisting and
    * refreshing parent state. Omit to disable editing.
    */
   onEdit?: (
     sectionId: string,
-    patch: { heading?: string; caption?: string }
+    patch: { heading?: string; caption?: string; content?: string }
   ) => Promise<void>;
 }
 
@@ -107,13 +108,20 @@ export function PanelCard({ panel, index, onExport, onEdit }: Props) {
 
       <div className="p-4">
         {panel.format === "svg" ? (
-          <div
-            className="panel-svg-wrap"
-            // SVG comes from the model. We validated it parses + viewBox. We also
-            // strip <script> via the validator. Rendering inline is intentional so
-            // text is real vector text (the whole point of this app).
-            dangerouslySetInnerHTML={{ __html: panel.content }}
-          />
+          editable ? (
+            <EditableSvgPanel
+              content={panel.content}
+              onSave={(next) => onEdit!(panel.sectionId, { content: next })}
+            />
+          ) : (
+            <div
+              className="panel-svg-wrap"
+              // SVG comes from the model. We validated it parses + viewBox.
+              // We also strip <script> via the validator. Rendering inline is
+              // intentional so text is real vector text.
+              dangerouslySetInnerHTML={{ __html: panel.content }}
+            />
+          )
         ) : (
           <HtmlPanel html={panel.content} />
         )}

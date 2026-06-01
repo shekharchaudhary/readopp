@@ -178,6 +178,11 @@ export const RenderedPanelSchema = z.object({
   content: z.string(),
   validated: z.boolean().default(false),
   fallback: z.boolean().default(false),
+  // The PanelPlan that produced this content. Optional because older
+  // persisted explainers were saved before this field existed. New panels
+  // attach it so structured editors (recolor, delete, drag) can mutate the
+  // plan and re-render rather than parsing the SVG.
+  plan: PanelPlanSchema.optional(),
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
 

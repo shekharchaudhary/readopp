@@ -28,7 +28,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
 
   async function patchPanel(
     sectionId: string,
-    patch: { heading?: string; caption?: string }
+    patch: { heading?: string; caption?: string; content?: string }
   ) {
     const res = await fetch(
       `/api/explainers/${explainer.id}/panels/${sectionId}`,

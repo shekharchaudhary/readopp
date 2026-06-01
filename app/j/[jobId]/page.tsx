@@ -63,7 +63,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   // Local override layer for inline edits. Keyed by sectionId. Merged on top of
   // the streamed panel slots so edits show immediately and persist via API.
   const [edits, setEdits] = useState<
-    Record<string, { heading?: string; caption?: string }>
+    Record<string, { heading?: string; caption?: string; content?: string }>
   >({});
 
   function openExportAll() {
@@ -77,7 +77,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
 
   async function patchPanel(
     sectionId: string,
-    patch: { heading?: string; caption?: string }
+    patch: { heading?: string; caption?: string; content?: string }
   ) {
     const explainerId = scene.explainer?.id;
     if (!explainerId) throw new Error("Explainer not ready yet.");
@@ -108,6 +108,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         ...slot.panel,
         heading: o.heading ?? slot.panel.heading,
         caption: o.caption ?? slot.panel.caption,
+        content: o.content ?? slot.panel.content,
       },
     };
   });

@@ -8,7 +8,7 @@ interface Props {
   onExportPanel?: (sectionId: string) => void;
   onEditPanel?: (
     sectionId: string,
-    patch: { heading?: string; caption?: string }
+    patch: { heading?: string; caption?: string; content?: string }
   ) => Promise<void>;
 }
 

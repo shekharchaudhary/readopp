@@ -117,6 +117,7 @@ export async function renderPanel(
         content,
         validated: true,
         fallback: false,
+        plan,
       };
     }
     lastError = v.reason;

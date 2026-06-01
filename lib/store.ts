@@ -170,7 +170,7 @@ export function getExplainer(id: string): Explainer | undefined {
 export function updatePanel(
   explainerId: string,
   sectionId: string,
-  patch: { heading?: string; caption?: string }
+  patch: { heading?: string; caption?: string; content?: string }
 ): Explainer | undefined {
   const store = getStore();
   const existing = store.explainers.get(explainerId);
@@ -183,6 +183,7 @@ export function updatePanel(
     ...panel,
     heading: patch.heading !== undefined ? patch.heading : panel.heading,
     caption: patch.caption !== undefined ? patch.caption : panel.caption,
+    content: patch.content !== undefined ? patch.content : panel.content,
   };
   const nextPanels = existing.panels.slice();
   nextPanels[i] = nextPanel;
