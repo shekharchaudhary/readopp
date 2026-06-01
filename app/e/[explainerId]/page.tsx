@@ -15,7 +15,7 @@ export default function ExplainerPermalink({
   if (!explainer) notFound();
 
   return (
-    <main className="space-y-8">
+    <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
       <Link
         href="/"
         className="inline-block text-sm text-ink-muted hover:text-ink"

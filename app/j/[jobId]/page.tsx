@@ -78,7 +78,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
 
   if (notFound) {
     return (
-      <main className="space-y-6">
+      <main className="mx-auto max-w-4xl space-y-6 px-6 py-10">
         <Link
           href="/"
           className="inline-block text-sm text-ink-muted hover:text-ink"
@@ -94,7 +94,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   }
 
   return (
-    <main className="space-y-8">
+    <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
       <Link
         href="/"
         className="inline-block text-sm text-ink-muted hover:text-ink"

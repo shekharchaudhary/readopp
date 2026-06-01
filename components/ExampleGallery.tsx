@@ -70,9 +70,8 @@ export function ExampleGallery() {
   if (items === null || items.length === 0) return null;
 
   return (
-    <section aria-label="Recent explainers" className="space-y-3">
-      <h2 className="text-sm font-medium text-ink-soft">Recent</h2>
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div aria-label="Recent explainers">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((it) => {
           const isDeleting = deletingId === it.id;
           return (
@@ -115,7 +114,7 @@ export function ExampleGallery() {
           );
         })}
       </ul>
-    </section>
+    </div>
   );
 }
 
