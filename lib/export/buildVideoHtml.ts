@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import type { Explainer, RenderedPanel } from "../shared/schemas";
 
-const ACCENT = "#0F6E56";
+const ACCENT = "#1F97DC";
 const PAPER = "#fafaf7";
 const INK = "#1a1a1a";
 const INK_SOFT = "#3a3a3a";

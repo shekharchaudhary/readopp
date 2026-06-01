@@ -86,18 +86,18 @@ export function ExampleGallery() {
                 href={`/e/${it.id}`}
                 className="block h-full p-4 pr-10"
               >
-                <div className="text-sm font-medium text-ink line-clamp-2">
+                <div className="text-sm font-medium text-ink transition-colors line-clamp-2 group-hover:text-accent-deep">
                   {it.title}
                 </div>
                 <div className="mt-1 line-clamp-2 text-xs text-ink-muted">
                   {it.summary}
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-xs text-ink-faint">
-                  <span>{sourceDomain(it.url)}</span>
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
+                  <span className="min-w-0 truncate">{sourceDomain(it.url)}</span>
                   <span aria-hidden>·</span>
-                  <span>{it.panelCount} panels</span>
+                  <span className="whitespace-nowrap">{it.panelCount} panels</span>
                   <span aria-hidden>·</span>
-                  <span>{it.audienceLevel}</span>
+                  <span className="whitespace-nowrap">{it.audienceLevel}</span>
                 </div>
               </Link>
               <button

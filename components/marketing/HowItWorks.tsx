@@ -48,7 +48,7 @@ export function HowItWorks() {
           {STEPS.map((step, i) => (
             <Reveal key={step.n} delayMs={i * 60}>
               <li className="grid gap-2 py-8 sm:grid-cols-[120px_1fr] sm:gap-10 sm:py-10">
-                <div className="font-mono text-sm tabular-nums text-ink-faint">
+                <div className="font-mono text-base font-medium tabular-nums text-accent sm:text-lg">
                   {step.n}
                 </div>
                 <div>

@@ -48,7 +48,7 @@ export function UseCases() {
           {CASES.map((c, i) => (
             <Reveal key={c.title} delayMs={i * 60}>
               <article className="flex h-full flex-col bg-white p-8">
-                <h3 className="text-lg font-medium tracking-tight text-ink">
+                <h3 className="text-lg font-medium tracking-tight text-accent-deep">
                   {c.title}
                 </h3>
                 <p className="mt-3 text-base leading-relaxed text-ink-soft">

@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import type { Explainer, RenderedPanel } from "../shared/schemas";
 import { EXPORT_DIMENSIONS, type ExportFormat } from "./dimensions";
 
-const ACCENT = "#0F6E56";
+const ACCENT = "#1F97DC";
 
 function escapeHtml(s: string): string {
   return s

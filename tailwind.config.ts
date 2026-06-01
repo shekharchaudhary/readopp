@@ -41,9 +41,9 @@ const config: Config = {
           line: "#e3e1d8",
         },
         accent: {
-          DEFAULT: "#0F6E56",
-          soft: "#E1F5EE",
-          deep: "#085041",
+          DEFAULT: "#1F97DC",
+          soft: "#E2F0FB",
+          deep: "#0D5786",
         },
       },
       keyframes: {
