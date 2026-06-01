@@ -4,22 +4,10 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Browser } from "playwright";
 import ffmpegPkg from "@ffmpeg-installer/ffmpeg";
+import { getBrowser } from "../playwright";
 import { EXPORTS_DIR, EXPORTS_PUBLIC_PREFIX } from "./screenshot";
 import { VIDEO_DIMENSIONS, type VideoFormat } from "./buildVideoHtml";
-
-// Reuse a single headless Chromium across requests.
-let _browserPromise: Promise<Browser> | null = null;
-async function getBrowser(): Promise<Browser> {
-  if (!_browserPromise) {
-    _browserPromise = (async () => {
-      const { chromium } = await import("playwright");
-      return chromium.launch({ headless: true });
-    })();
-  }
-  return _browserPromise;
-}
 
 async function ensureExportsDir(): Promise<void> {
   if (!existsSync(EXPORTS_DIR)) await mkdir(EXPORTS_DIR, { recursive: true });

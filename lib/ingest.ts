@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
+import { getBrowser } from "./playwright";
 import type { CleanArticle, JobError } from "./shared/schemas";
 
 const USER_AGENT =
@@ -7,6 +8,10 @@ const USER_AGENT =
   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 Readopp/0.1";
 
 const FETCH_TIMEOUT_MS = 15_000;
+const RENDER_TIMEOUT_MS = 25_000;
+// Word threshold under which we consider raw-HTML extraction "too thin" and
+// retry by rendering the page in Chromium (handles JS-heavy SPAs).
+const MIN_WORDS_BEFORE_FALLBACK = 80;
 
 export class IngestError extends Error {
   readonly error: JobError;
@@ -79,6 +84,31 @@ async function fetchHtml(url: string): Promise<string> {
   }
 }
 
+/**
+ * Fallback path for JS-rendered sites. Loads the page in headless Chromium,
+ * waits for network idle, and returns the post-hydration DOM. Used only when
+ * the raw HTML returns less than MIN_WORDS_BEFORE_FALLBACK readable words.
+ */
+async function fetchHtmlRendered(url: string): Promise<string> {
+  const browser = await getBrowser();
+  const ctx = await browser.newContext({
+    userAgent: USER_AGENT,
+    viewport: { width: 1280, height: 900 },
+    javaScriptEnabled: true,
+  });
+  const page = await ctx.newPage();
+  try {
+    await page.goto(url, {
+      waitUntil: "networkidle",
+      timeout: RENDER_TIMEOUT_MS,
+    });
+    return await page.content();
+  } finally {
+    await page.close().catch(() => {});
+    await ctx.close().catch(() => {});
+  }
+}
+
 const PAYWALL_HINTS = [
   "subscribe to continue",
   "subscribers only",
@@ -103,7 +133,6 @@ function extractCodeBlocks(doc: Document): string[] {
     const text = el.textContent?.trim() ?? "";
     if (text.length > 20) out.push(text);
   });
-  // Dedupe shorter snippets contained in longer ones
   return Array.from(new Set(out));
 }
 
@@ -121,6 +150,30 @@ function extractImageUrls(doc: Document, baseUrl: string): string[] {
   return Array.from(new Set(out)).slice(0, 12);
 }
 
+interface Parsed {
+  doc: Document;
+  text: string;
+  title: string;
+  byline?: string;
+  words: number;
+}
+
+function parseArticleFromHtml(html: string, url: string): Parsed | null {
+  const dom = new JSDOM(html, { url });
+  const doc = dom.window.document;
+  const reader = new Readability(doc.cloneNode(true) as Document);
+  const article = reader.parse();
+  if (!article || !article.textContent) return null;
+  const text = article.textContent.trim();
+  return {
+    doc,
+    text,
+    title: (article.title || doc.title || "Untitled").trim(),
+    byline: article.byline?.trim() || undefined,
+    words: countWords(text),
+  };
+}
+
 export async function ingestUrl(url: string): Promise<CleanArticle> {
   if (!isValidHttpUrl(url)) {
     throw new IngestError({
@@ -129,34 +182,45 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
     });
   }
 
-  const html = await fetchHtml(url);
+  // Fast path — plain HTTP fetch + Readability.
+  let html = await fetchHtml(url);
+  let parsed = parseArticleFromHtml(html, url);
 
-  const dom = new JSDOM(html, { url });
-  const doc = dom.window.document;
-
-  // Heuristic: detect login-wall by HTML cues (e.g. cookie/login forms with no article body)
-  const reader = new Readability(doc.cloneNode(true) as Document);
-  const article = reader.parse();
-
-  if (!article || !article.textContent) {
-    if (detectPaywall(doc.body?.textContent ?? "")) {
-      throw new IngestError({
-        reason: "paywalled",
-        message:
-          "This article seems to be behind a paywall and can't be read.",
+  // Fallback path — if extraction was too thin (JS-rendered SPA, hydrated
+  // content, etc.) re-render the page with a real browser and try again.
+  if (!parsed || parsed.words < MIN_WORDS_BEFORE_FALLBACK) {
+    try {
+      // eslint-disable-next-line no-console
+      console.log("[readopp] ingest falling back to JS render", { url });
+      html = await fetchHtmlRendered(url);
+      const rendered = parseArticleFromHtml(html, url);
+      if (rendered && rendered.words >= MIN_WORDS_BEFORE_FALLBACK) {
+        parsed = rendered;
+      } else if (rendered && (!parsed || rendered.words > parsed.words)) {
+        // Render yielded more text than raw HTML even if still under
+        // threshold — prefer it so paywall detection runs against the
+        // richer copy.
+        parsed = rendered;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[readopp] JS-render fallback failed", {
+        url,
+        error: (e as Error).message,
       });
+      // Keep going — we'll surface the original empty/paywall error below.
     }
+  }
+
+  if (!parsed) {
     throw new IngestError({
       reason: "empty_content",
       message: "Couldn't extract readable content from this page.",
     });
   }
 
-  const text = article.textContent.trim();
-  const words = countWords(text);
-
-  if (words < 80) {
-    if (detectPaywall(text)) {
+  if (parsed.words < MIN_WORDS_BEFORE_FALLBACK) {
+    if (detectPaywall(parsed.text)) {
       throw new IngestError({
         reason: "paywalled",
         message:
@@ -172,12 +236,12 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
 
   return {
     url,
-    title: (article.title || doc.title || "Untitled").trim(),
-    byline: article.byline?.trim() || undefined,
+    title: parsed.title,
+    byline: parsed.byline,
     publishedAt: undefined,
-    text,
-    codeBlocks: extractCodeBlocks(doc),
-    imageUrls: extractImageUrls(doc, url),
-    wordCount: words,
+    text: parsed.text,
+    codeBlocks: extractCodeBlocks(parsed.doc),
+    imageUrls: extractImageUrls(parsed.doc, url),
+    wordCount: parsed.words,
   };
 }

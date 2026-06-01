@@ -2,20 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { Browser } from "playwright";
+import { getBrowser } from "../playwright";
 import { EXPORT_DIMENSIONS, type ExportFormat } from "./dimensions";
-
-// Lazy import so the dev server doesn't pull Playwright on every cold start.
-let _browserPromise: Promise<Browser> | null = null;
-async function getBrowser(): Promise<Browser> {
-  if (!_browserPromise) {
-    _browserPromise = (async () => {
-      const { chromium } = await import("playwright");
-      return chromium.launch({ headless: true });
-    })();
-  }
-  return _browserPromise;
-}
 
 export const EXPORTS_DIR = join(process.cwd(), ".readopp-exports");
 
