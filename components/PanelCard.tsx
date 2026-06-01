@@ -2,11 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RenderedPanel } from "@/lib/shared/schemas";
+import { EditableText } from "./EditableText";
 
 interface Props {
   panel: RenderedPanel;
   index: number;
   onExport?: (panelId: string) => void;
+  /**
+   * Called when the user commits an inline text edit. Resolve with the patched
+   * panel (or anything) — the caller is responsible for persisting and
+   * refreshing parent state. Omit to disable editing.
+   */
+  onEdit?: (
+    sectionId: string,
+    patch: { heading?: string; caption?: string }
+  ) => Promise<void>;
 }
 
 function HtmlPanel({ html }: { html: string }) {
@@ -28,7 +38,6 @@ function HtmlPanel({ html }: { html: string }) {
       th{font-weight:500;background:#F1EFE8;text-align:left}
     </style></head><body>${html}</body></html>`);
     doc.close();
-    // Resize observer
     const resize = () => {
       const h = doc.documentElement.scrollHeight;
       if (h && Math.abs(h - height) > 2) setHeight(h);
@@ -52,15 +61,16 @@ function HtmlPanel({ html }: { html: string }) {
   );
 }
 
-export function PanelCard({ panel, index, onExport }: Props) {
+export function PanelCard({ panel, index, onExport, onEdit }: Props) {
   const heading = panel.heading?.trim() || `Panel ${index + 1}`;
+  const editable = Boolean(onEdit);
   return (
     <article
       className="rounded-lg border border-paper-line bg-white motion-safe:animate-rise-in"
       style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
     >
       <div className="flex items-start justify-between gap-4 border-b border-paper-line px-5 py-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[11px] text-ink-faint tabular-nums">
             <span>{String(index + 1).padStart(2, "0")}</span>
             {panel.fallback && (
@@ -70,7 +80,18 @@ export function PanelCard({ panel, index, onExport }: Props) {
             )}
           </div>
           <h2 className="mt-1 text-lg font-medium leading-snug tracking-tight text-ink sm:text-xl">
-            {heading}
+            {editable ? (
+              <EditableText
+                value={heading}
+                onSave={(next) => onEdit!(panel.sectionId, { heading: next })}
+                maxLength={140}
+                ariaLabel="Panel heading"
+                className="inline-block"
+                editClassName="text-lg font-medium tracking-tight sm:text-xl"
+              />
+            ) : (
+              heading
+            )}
           </h2>
         </div>
         {onExport && (
@@ -98,9 +119,22 @@ export function PanelCard({ panel, index, onExport }: Props) {
         )}
       </div>
 
-      {panel.caption && (
+      {(panel.caption || editable) && (
         <div className="border-t border-paper-line px-5 py-3 text-sm leading-relaxed text-ink-soft">
-          {panel.caption}
+          {editable ? (
+            <EditableText
+              value={panel.caption || ""}
+              onSave={(next) => onEdit!(panel.sectionId, { caption: next })}
+              multiline
+              maxLength={600}
+              placeholder="Add a caption…"
+              ariaLabel="Panel caption"
+              className="block"
+              editClassName="text-sm leading-relaxed"
+            />
+          ) : (
+            panel.caption
+          )}
         </div>
       )}
     </article>

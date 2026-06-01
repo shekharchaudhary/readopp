@@ -18,12 +18,30 @@ interface Props {
   canExport?: boolean;
 }
 
-export function ExplainerView({ explainer, canExport = true }: Props) {
+export function ExplainerView({ explainer: initial, canExport = true }: Props) {
+  const [explainer, setExplainer] = useState<Explainer>(initial);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPanelId, setExportPanelId] = useState<string | undefined>(
     undefined
   );
   const [copied, setCopied] = useState(false);
+
+  async function patchPanel(
+    sectionId: string,
+    patch: { heading?: string; caption?: string }
+  ) {
+    const res = await fetch(
+      `/api/explainers/${explainer.id}/panels/${sectionId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `Save failed (${res.status})`);
+    if (data.explainer) setExplainer(data.explainer as Explainer);
+  }
 
   function openExportAll() {
     setExportPanelId(undefined);
@@ -97,6 +115,7 @@ export function ExplainerView({ explainer, canExport = true }: Props) {
             panel={panel}
             index={i}
             onExport={canExport ? openExportPanel : undefined}
+            onEdit={canExport ? patchPanel : undefined}
           />
         ))}
       </section>

@@ -192,6 +192,8 @@ export const ExplainerSchema = z.object({
   audienceLevel: AudienceLevelSchema,
   panels: z.array(RenderedPanelSchema).min(1),
   createdAt: z.string(),
+  // Bumped on every edit; used as a cache-buster for PNG/MP4 exports.
+  updatedAt: z.string().optional(),
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 

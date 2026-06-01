@@ -60,6 +60,11 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   const [exportPanelId, setExportPanelId] = useState<string | undefined>(
     undefined
   );
+  // Local override layer for inline edits. Keyed by sectionId. Merged on top of
+  // the streamed panel slots so edits show immediately and persist via API.
+  const [edits, setEdits] = useState<
+    Record<string, { heading?: string; caption?: string }>
+  >({});
 
   function openExportAll() {
     setExportPanelId(undefined);
@@ -69,6 +74,43 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
     setExportPanelId(sectionId);
     setExportOpen(true);
   }
+
+  async function patchPanel(
+    sectionId: string,
+    patch: { heading?: string; caption?: string }
+  ) {
+    const explainerId = scene.explainer?.id;
+    if (!explainerId) throw new Error("Explainer not ready yet.");
+    const res = await fetch(
+      `/api/explainers/${explainerId}/panels/${sectionId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `Save failed (${res.status})`);
+    setEdits((prev) => ({
+      ...prev,
+      [sectionId]: { ...prev[sectionId], ...patch },
+    }));
+  }
+
+  // Apply local edit overrides to the streamed slot panels.
+  const slotsWithEdits = scene.panels.map((slot) => {
+    if (!slot.panel) return slot;
+    const o = edits[slot.panel.sectionId];
+    if (!o) return slot;
+    return {
+      ...slot,
+      panel: {
+        ...slot.panel,
+        heading: o.heading ?? slot.panel.heading,
+        caption: o.caption ?? slot.panel.caption,
+      },
+    };
+  });
 
   const headerTitle = scene.explainer?.title
     ? scene.explainer.title
@@ -150,8 +192,9 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
       )}
 
       <PanelStream
-        slots={scene.panels}
+        slots={slotsWithEdits}
         onExportPanel={completed ? openExportPanel : undefined}
+        onEditPanel={completed ? patchPanel : undefined}
       />
 
       {completed && job?.usage && job.usage.calls > 0 && (

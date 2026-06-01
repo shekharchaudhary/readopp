@@ -163,6 +163,53 @@ export function getExplainer(id: string): Explainer | undefined {
 }
 
 /**
+ * Patch a single panel's editable fields (heading + caption). Returns the
+ * updated explainer or undefined if the explainer or section is missing.
+ * Bumps explainer.updatedAt so export caches invalidate.
+ */
+export function updatePanel(
+  explainerId: string,
+  sectionId: string,
+  patch: { heading?: string; caption?: string }
+): Explainer | undefined {
+  const store = getStore();
+  const existing = store.explainers.get(explainerId);
+  if (!existing) return undefined;
+  const i = existing.panels.findIndex((p) => p.sectionId === sectionId);
+  if (i === -1) return undefined;
+
+  const panel = existing.panels[i];
+  const nextPanel = {
+    ...panel,
+    heading: patch.heading !== undefined ? patch.heading : panel.heading,
+    caption: patch.caption !== undefined ? patch.caption : panel.caption,
+  };
+  const nextPanels = existing.panels.slice();
+  nextPanels[i] = nextPanel;
+
+  const nextExplainer: Explainer = {
+    ...existing,
+    panels: nextPanels,
+    updatedAt: new Date().toISOString(),
+  };
+  store.explainers.set(explainerId, nextExplainer);
+
+  // Also reflect into the linked job, if any, so the /j/:id view stays consistent.
+  for (const [jobId, job] of store.jobs.entries()) {
+    if (job.explainerId === explainerId && job.explainer) {
+      store.jobs.set(jobId, {
+        ...job,
+        explainer: nextExplainer,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  persist();
+  return nextExplainer;
+}
+
+/**
  * Remove an explainer and the cache-key pointer that targets it. Jobs that
  * inlined this explainer keep their copy — the /e/:id permalink 404s cleanly
  * via the page's notFound() path.

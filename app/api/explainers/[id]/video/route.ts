@@ -53,7 +53,12 @@ export async function POST(
       html,
       format,
       durationMs,
-      cacheKeyParts: [explainer.id, format, "v1"],
+      cacheKeyParts: [
+        explainer.id,
+        format,
+        "v1",
+        explainer.updatedAt ?? explainer.createdAt ?? "v0",
+      ],
     });
     return NextResponse.json({
       url: result.url,

@@ -7,6 +7,12 @@ import {
 import { htmlToPng } from "@/lib/export/screenshot";
 import { isExportFormat } from "@/lib/export/dimensions";
 import { getExplainer } from "@/lib/store";
+import type { Explainer } from "@/lib/shared/schemas";
+
+/** Cache-buster token — bumps whenever a panel is edited. */
+function versionTag(e: Explainer): string {
+  return e.updatedAt ?? e.createdAt ?? "v0";
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +77,7 @@ export async function POST(
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, panelId, format],
+        cacheKeyParts: [explainer.id, panelId, format, versionTag(explainer)],
       });
       return NextResponse.json({
         url: result.url,
@@ -88,7 +94,7 @@ export async function POST(
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, "all", format],
+        cacheKeyParts: [explainer.id, "all", format, versionTag(explainer)],
       });
       return NextResponse.json({
         url: result.url,
@@ -120,7 +126,7 @@ export async function POST(
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, panel.sectionId, format],
+        cacheKeyParts: [explainer.id, panel.sectionId, format, versionTag(explainer)],
       });
       images.push({
         url: result.url,
