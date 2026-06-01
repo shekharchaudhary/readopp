@@ -86,7 +86,7 @@ export function ExampleGallery() {
                 href={`/e/${it.id}`}
                 className="block h-full p-4 pr-10"
               >
-                <div className="text-sm font-medium text-ink transition-colors line-clamp-2 group-hover:text-accent-deep">
+                <div className="text-sm font-medium text-ink transition-colors line-clamp-2 group-hover:text-accent">
                   {it.title}
                 </div>
                 <div className="mt-1 line-clamp-2 text-xs text-ink-muted">

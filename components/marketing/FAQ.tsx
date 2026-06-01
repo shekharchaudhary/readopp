@@ -46,7 +46,7 @@ export function FAQ() {
             <Reveal key={f.q} delayMs={i * 40}>
               <details className="group py-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left">
-                  <span className="text-base font-medium text-ink transition-colors group-open:text-accent-deep sm:text-lg">
+                  <span className="text-base font-medium text-ink transition-colors group-open:text-accent sm:text-lg">
                     {f.q}
                   </span>
                   <Chevron />
