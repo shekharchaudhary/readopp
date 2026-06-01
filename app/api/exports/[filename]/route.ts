@@ -7,7 +7,12 @@ import { EXPORTS_DIR } from "@/lib/export/screenshot";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FILENAME_OK = /^[a-z0-9._-]+\.png$/i;
+const FILENAME_OK = /^[a-z0-9._-]+\.(png|mp4)$/i;
+
+const CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  mp4: "video/mp4",
+};
 
 export async function GET(
   _req: Request,
@@ -24,11 +29,13 @@ export async function GET(
   if (!existsSync(filePath)) {
     return new NextResponse("not found", { status: 404 });
   }
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const contentType = CONTENT_TYPES[ext] ?? "application/octet-stream";
   const buf = await readFile(filePath);
   return new NextResponse(buf, {
     status: 200,
     headers: {
-      "Content-Type": "image/png",
+      "Content-Type": contentType,
       "Cache-Control": "public, max-age=86400, immutable",
       "Content-Disposition": `inline; filename="${name}"`,
     },

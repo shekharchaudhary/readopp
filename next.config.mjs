@@ -6,6 +6,8 @@ const nextConfig = {
       "@mozilla/readability",
       "jsdom",
       "playwright",
+      "@ffmpeg-installer/ffmpeg",
+      "qrcode",
     ],
   },
 };
