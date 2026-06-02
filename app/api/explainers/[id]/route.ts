@@ -8,7 +8,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const ok = deleteExplainer(params.id);
+  const ok = await deleteExplainer(params.id);
   if (!ok) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

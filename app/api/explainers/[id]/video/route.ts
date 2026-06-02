@@ -36,7 +36,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
   }
 
-  const explainer = getExplainer(params.id);
+  const explainer = await getExplainer(params.id);
   if (!explainer) {
     return NextResponse.json(
       { error: "Explainer not found." },

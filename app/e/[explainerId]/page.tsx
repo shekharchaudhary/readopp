@@ -6,12 +6,12 @@ import { getExplainer } from "@/lib/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default function ExplainerPermalink({
+export default async function ExplainerPermalink({
   params,
 }: {
   params: { explainerId: string };
 }) {
-  const explainer = getExplainer(params.explainerId);
+  const explainer = await getExplainer(params.explainerId);
   if (!explainer) notFound();
 
   return (

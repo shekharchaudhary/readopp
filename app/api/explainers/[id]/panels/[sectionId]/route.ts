@@ -47,7 +47,7 @@ export async function PATCH(
   // — block <script>, malformed SVG, or wrong viewBox so a bad edit can't
   // corrupt the persisted panel.
   if (parsed.data.content !== undefined) {
-    const explainer = getExplainer(params.id);
+    const explainer = await getExplainer(params.id);
     if (!explainer) {
       return NextResponse.json(
         { error: "Explainer not found." },
@@ -73,7 +73,7 @@ export async function PATCH(
     }
   }
 
-  const updated = updatePanel(params.id, params.sectionId, parsed.data);
+  const updated = await updatePanel(params.id, params.sectionId, parsed.data);
   if (!updated) {
     return NextResponse.json(
       { error: "Explainer or panel not found." },

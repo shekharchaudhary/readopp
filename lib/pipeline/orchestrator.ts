@@ -81,10 +81,14 @@ export async function runJob(jobId: string): Promise<void> {
   const job = getJob(jobId);
   if (!job) return;
 
-  // Cache hit shortcut
-  const cached = findCachedExplainer(job.cacheKey);
+  // Cache hit shortcut (per-user — RLS scoping happens inside the store)
+  if (!job.userId) {
+    failJob(jobId, { reason: "unknown", message: "Job has no owner." });
+    return;
+  }
+  const cached = await findCachedExplainer(job.userId, job.cacheKey);
   if (cached) {
-    completeJob(jobId, cached);
+    await completeJob(jobId, cached);
     emitEvent(jobId, {
       type: "job.completed",
       data: { explainer: cached },
@@ -204,7 +208,7 @@ export async function runJob(jobId: string): Promise<void> {
       comprehension,
       panels,
     });
-    completeJob(jobId, explainer);
+    await completeJob(jobId, explainer);
     emitAgentDone(jobId, "assembly", "Assembled explainer");
     emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {

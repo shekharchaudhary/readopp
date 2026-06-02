@@ -1,19 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import type {
-  AudienceLevel,
-  Explainer,
-  Job,
-  JobError,
-  JobStatus,
-  TokenUsage,
-} from "./shared/schemas";
+import { ExplainerSchema, type AudienceLevel, type Explainer, type Job, type JobError, type JobStatus, type TokenUsage } from "./shared/schemas";
 import type { StreamEvent, StreamEventInput } from "./events";
-import { loadSnapshot, schedulePersist, type PersistedSnapshot } from "./persistence";
+import { getAdminSupabase, getServerSupabase } from "./supabase/server";
 
 /**
- * In-process store backed by a JSON file. Reads are O(1) from memory; every
- * mutation schedules a debounced flush to .readopp-data/store.json so jobs +
- * explainers survive `npm run dev` restarts.
+ * Hybrid store: jobs + event streams stay in process memory (transient,
+ * 60-90 sec lifecycle); explainers (the durable artifact) live in Supabase
+ * Postgres tagged with the owning auth.users id.
  */
 
 declare global {
@@ -25,28 +18,8 @@ type Subscriber = (event: StreamEvent) => void;
 
 class ReadoppStore {
   jobs = new Map<string, Job>();
-  cacheKeyToExplainerId = new Map<string, string>();
-  explainers = new Map<string, Explainer>();
   events = new Map<string, StreamEvent[]>(); // jobId -> ordered events
-  subscribers = new Map<string, Set<Subscriber>>(); // not persisted
-
-  constructor() {
-    const snap = loadSnapshot();
-    this.jobs = new Map(snap.jobs);
-    this.cacheKeyToExplainerId = new Map(snap.cacheKeyToExplainerId);
-    this.explainers = new Map(snap.explainers);
-    this.events = new Map(snap.events);
-  }
-
-  snapshot(): PersistedSnapshot {
-    return {
-      version: 1,
-      jobs: Array.from(this.jobs.entries()),
-      cacheKeyToExplainerId: Array.from(this.cacheKeyToExplainerId.entries()),
-      explainers: Array.from(this.explainers.entries()),
-      events: Array.from(this.events.entries()),
-    };
-  }
+  subscribers = new Map<string, Set<Subscriber>>();
 }
 
 function getStore(): ReadoppStore {
@@ -56,11 +29,6 @@ function getStore(): ReadoppStore {
   return globalThis.__readopp_store__;
 }
 
-function persist(): void {
-  const store = getStore();
-  schedulePersist(() => store.snapshot());
-}
-
 export function cacheKeyFor(url: string, audienceLevel: AudienceLevel): string {
   return createHash("sha256")
     .update(`${url}::${audienceLevel}`)
@@ -68,12 +36,15 @@ export function cacheKeyFor(url: string, audienceLevel: AudienceLevel): string {
     .slice(0, 16);
 }
 
+// ---------- Jobs (in-memory) ----------
+
 export function createJob(input: {
   url: string;
   audienceLevel: AudienceLevel;
-}): Job {
+  userId: string;
+}): Job & { userId: string } {
   const now = new Date().toISOString();
-  const job: Job = {
+  const job: Job & { userId: string } = {
     id: randomUUID(),
     url: input.url,
     audienceLevel: input.audienceLevel,
@@ -83,14 +54,14 @@ export function createJob(input: {
     usage: { inputTokens: 0, outputTokens: 0, calls: 0 },
     createdAt: now,
     updatedAt: now,
+    userId: input.userId,
   };
   getStore().jobs.set(job.id, job);
-  persist();
   return job;
 }
 
-export function getJob(id: string): Job | undefined {
-  return getStore().jobs.get(id);
+export function getJob(id: string): (Job & { userId?: string }) | undefined {
+  return getStore().jobs.get(id) as (Job & { userId?: string }) | undefined;
 }
 
 export function updateJob(id: string, patch: Partial<Job>): Job | undefined {
@@ -103,7 +74,6 @@ export function updateJob(id: string, patch: Partial<Job>): Job | undefined {
     updatedAt: new Date().toISOString(),
   };
   store.jobs.set(id, merged);
-  persist();
   return merged;
 }
 
@@ -134,47 +104,157 @@ export function failJob(id: string, error: JobError): Job | undefined {
   return updateJob(id, { status: "failed", error });
 }
 
-export function completeJob(
+/**
+ * Persist the finished explainer (Supabase) and mark the in-memory job
+ * complete with an inline copy for the immediate /j/:id render.
+ */
+export async function completeJob(
   id: string,
   explainer: Explainer
-): Job | undefined {
-  const store = getStore();
-  store.explainers.set(explainer.id, explainer);
-  const key = getJob(id)?.cacheKey ?? "";
-  if (key) store.cacheKeyToExplainerId.set(key, explainer.id);
-  const updated = updateJob(id, {
+): Promise<Job | undefined> {
+  const job = getJob(id);
+  if (!job) return undefined;
+  const userId = job.userId;
+  if (!userId) {
+    throw new Error(`Job ${id} has no userId — cannot persist explainer.`);
+  }
+  await insertExplainer(explainer, {
+    userId,
+    cacheKey: job.cacheKey,
+    jobId: id,
+  });
+  return updateJob(id, {
     status: "completed",
     explainerId: explainer.id,
     explainer,
   });
-  persist();
-  return updated;
 }
 
-export function findCachedExplainer(cacheKey: string): Explainer | undefined {
-  const store = getStore();
-  const explainerId = store.cacheKeyToExplainerId.get(cacheKey);
-  if (!explainerId) return undefined;
-  return store.explainers.get(explainerId);
+// ---------- Explainers (Supabase) ----------
+
+interface ExplainerRow {
+  id: string;
+  user_id: string;
+  job_id: string;
+  url: string;
+  audience_level: string;
+  cache_key: string;
+  title: string;
+  summary: string;
+  panels: unknown;
+  usage: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
-export function getExplainer(id: string): Explainer | undefined {
-  return getStore().explainers.get(id);
+function rowToExplainer(row: ExplainerRow): Explainer {
+  const parsed = ExplainerSchema.safeParse({
+    id: row.id,
+    jobId: row.job_id,
+    url: row.url,
+    title: row.title,
+    summary: row.summary,
+    audienceLevel: row.audience_level,
+    panels: row.panels,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+  if (!parsed.success) {
+    throw new Error(
+      `Stored explainer ${row.id} failed schema parse: ${parsed.error.issues[0]?.message}`
+    );
+  }
+  return parsed.data;
+}
+
+async function insertExplainer(
+  explainer: Explainer,
+  meta: { userId: string; cacheKey: string; jobId: string }
+): Promise<void> {
+  const admin = getAdminSupabase();
+  // We don't run supabase-gen-types in CI, so the client infers row shape
+  // as `never`. Cast the payload through `unknown` to keep type-safety
+  // localised to the Explainer + meta inputs.
+  const row = {
+    id: explainer.id,
+    user_id: meta.userId,
+    job_id: meta.jobId,
+    url: explainer.url,
+    audience_level: explainer.audienceLevel,
+    cache_key: meta.cacheKey,
+    title: explainer.title,
+    summary: explainer.summary,
+    panels: explainer.panels,
+  } as unknown as never;
+  const { error } = await admin.from("explainers").insert(row);
+  if (error) {
+    throw new Error(`Failed to persist explainer ${explainer.id}: ${error.message}`);
+  }
 }
 
 /**
- * Patch a single panel's editable fields (heading + caption). Returns the
- * updated explainer or undefined if the explainer or section is missing.
- * Bumps explainer.updatedAt so export caches invalidate.
+ * Find a previously-generated explainer for the same (user, url, audience).
+ * Per-user so an edit one user made doesn't leak to another.
  */
-export function updatePanel(
+export async function findCachedExplainer(
+  userId: string,
+  cacheKey: string
+): Promise<Explainer | undefined> {
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from("explainers")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("cache_key", cacheKey)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  try {
+    return rowToExplainer(data as ExplainerRow);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Public read — anyone with the id can fetch (the /e/:id share link).
+ * RLS policy allows SELECT for everyone.
+ */
+export async function getExplainer(id: string): Promise<Explainer | undefined> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  try {
+    return rowToExplainer(data as ExplainerRow);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Patch a single panel's editable fields. RLS enforces ownership — a request
+ * from a non-owner will simply update 0 rows.
+ */
+export async function updatePanel(
   explainerId: string,
   sectionId: string,
   patch: { heading?: string; caption?: string; content?: string }
-): Explainer | undefined {
-  const store = getStore();
-  const existing = store.explainers.get(explainerId);
-  if (!existing) return undefined;
+): Promise<Explainer | undefined> {
+  const supabase = getServerSupabase();
+  // Read-modify-write on the panels jsonb. Two round-trips; acceptable for
+  // a once-per-edit operation.
+  const { data: existingRow } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("id", explainerId)
+    .maybeSingle();
+  if (!existingRow) return undefined;
+  const existing = rowToExplainer(existingRow as ExplainerRow);
   const i = existing.panels.findIndex((p) => p.sectionId === sectionId);
   if (i === -1) return undefined;
 
@@ -188,55 +268,72 @@ export function updatePanel(
   const nextPanels = existing.panels.slice();
   nextPanels[i] = nextPanel;
 
-  const nextExplainer: Explainer = {
-    ...existing,
-    panels: nextPanels,
-    updatedAt: new Date().toISOString(),
-  };
-  store.explainers.set(explainerId, nextExplainer);
+  const { data: updatedRow, error } = await supabase
+    .from("explainers")
+    .update({ panels: nextPanels })
+    .eq("id", explainerId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updatedRow) return undefined;
+  const next = rowToExplainer(updatedRow as ExplainerRow);
 
-  // Also reflect into the linked job, if any, so the /j/:id view stays consistent.
+  // Mirror back into the in-memory job copy so /j/:id stays consistent
+  // within the dev session.
+  const store = getStore();
   for (const [jobId, job] of store.jobs.entries()) {
     if (job.explainerId === explainerId && job.explainer) {
       store.jobs.set(jobId, {
         ...job,
-        explainer: nextExplainer,
+        explainer: next,
         updatedAt: new Date().toISOString(),
       });
     }
   }
-
-  persist();
-  return nextExplainer;
+  return next;
 }
 
 /**
- * Remove an explainer and the cache-key pointer that targets it. Jobs that
- * inlined this explainer keep their copy — the /e/:id permalink 404s cleanly
- * via the page's notFound() path.
+ * Delete an explainer. RLS enforces ownership.
  */
-export function deleteExplainer(id: string): boolean {
-  const store = getStore();
-  if (!store.explainers.has(id)) return false;
-  store.explainers.delete(id);
-  for (const [key, eid] of store.cacheKeyToExplainerId.entries()) {
-    if (eid === id) store.cacheKeyToExplainerId.delete(key);
+export async function deleteExplainer(id: string): Promise<boolean> {
+  const supabase = getServerSupabase();
+  const { error, count } = await supabase
+    .from("explainers")
+    .delete({ count: "exact" })
+    .eq("id", id);
+  return !error && (count ?? 0) > 0;
+}
+
+/**
+ * The current user's recent explainers — newest first. With RLS we don't
+ * have to thread userId here; the session-bound client filters for us via
+ * the SELECT policy (which is public-read) — so we ALSO add an explicit
+ * user filter for the gallery view.
+ */
+export async function listRecentExplainers(
+  userId: string,
+  limit = 6
+): Promise<Explainer[]> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  const out: Explainer[] = [];
+  for (const row of data) {
+    try {
+      out.push(rowToExplainer(row as ExplainerRow));
+    } catch {
+      // Skip any row that fails schema parse rather than 500 the gallery.
+    }
   }
-  persist();
-  return true;
+  return out;
 }
 
-/**
- * Recent completed explainers, newest first, for the home-screen gallery.
- */
-export function listRecentExplainers(limit = 6): Explainer[] {
-  const store = getStore();
-  return Array.from(store.explainers.values())
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .slice(0, limit);
-}
-
-// ---------- Event log + pub/sub ----------
+// ---------- Event log + pub/sub (in-memory) ----------
 
 export function emitEvent(jobId: string, input: StreamEventInput): StreamEvent {
   const store = getStore();
@@ -250,7 +347,6 @@ export function emitEvent(jobId: string, input: StreamEventInput): StreamEvent {
   } as StreamEvent;
   list.push(event);
   store.events.set(jobId, list);
-  persist();
   const subs = store.subscribers.get(jobId);
   if (subs) {
     for (const fn of subs) {

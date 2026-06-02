@@ -3,6 +3,7 @@ import { CreateJobRequestSchema } from "@/lib/shared/schemas";
 import { createJob, findCachedExplainer, cacheKeyFor, completeJob } from "@/lib/store";
 import { runJob } from "@/lib/pipeline/orchestrator";
 import { isApiKeyConfigured } from "@/lib/anthropic";
+import { getOrCreateUserId } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,20 +39,30 @@ export async function POST(req: Request) {
 
   const { url, audienceLevel } = parsed.data;
 
-  // Cache-key short-circuit: if we already have an explainer for this (url+audience),
-  // create a "completed" job that points at it so the UI just renders.
-  const key = cacheKeyFor(url, audienceLevel);
-  const cached = findCachedExplainer(key);
+  // Anonymous sign-in if needed. Every job has an owner from this point on,
+  // even before the user signs in with a real identity.
+  let userId: string;
+  try {
+    userId = await getOrCreateUserId();
+  } catch (e) {
+    return NextResponse.json(
+      { error: (e as Error).message },
+      { status: 500 }
+    );
+  }
 
-  const job = createJob({ url, audienceLevel });
+  // Cache-key short-circuit (per-user): if this user has already generated
+  // this exact (url + audience), reuse it.
+  const key = cacheKeyFor(url, audienceLevel);
+  const cached = await findCachedExplainer(userId, key);
+
+  const job = createJob({ url, audienceLevel, userId });
 
   if (cached) {
-    completeJob(job.id, cached);
+    await completeJob(job.id, cached);
     return NextResponse.json({ jobId: job.id, cached: true }, { status: 201 });
   }
 
-  // Fire-and-forget. The route returns immediately; the client polls /api/jobs/[id].
-  // (Phase 1: no SSE yet.)
   void runJob(job.id);
 
   return NextResponse.json({ jobId: job.id, cached: false }, { status: 201 });

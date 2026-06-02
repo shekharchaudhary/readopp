@@ -42,7 +42,7 @@ export async function POST(
     );
   }
 
-  const explainer = getExplainer(params.id);
+  const explainer = await getExplainer(params.id);
   if (!explainer) {
     return NextResponse.json(
       { error: "Explainer not found." },
