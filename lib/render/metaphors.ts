@@ -14,12 +14,40 @@ import type { MetaphorKind, MetaphorPlan, PanelPlan } from "../shared/schemas";
 type TemplateFn = (plan: MetaphorPlan) => string;
 
 const REGISTRY: Partial<Record<MetaphorKind, TemplateFn>> = {
+  // Duality / tension
   iceberg: renderIceberg,
-  mountain: renderMountain,
-  confluence: renderConfluence,
   bridge: renderBridge,
   scale: renderScale,
+  tug_of_war: renderTugOfWar,
+  spectrum: renderSpectrum,
+  // Sequence
+  mountain: renderMountain,
+  staircase: renderStaircase,
+  garden: renderGarden,
+  domino: renderDomino,
+  weaving: renderWeaving,
+  // Many-to-one
+  confluence: renderConfluence,
+  funnel: renderFunnel,
+  // One-to-many
   branching: renderBranching,
+  ripple: renderRipple,
+  crossroads: renderCrossroads,
+  // Focus
+  lighthouse: renderLighthouse,
+  spotlight: renderSpotlight,
+  orbits: renderOrbits,
+  // Cycle
+  loop: renderLoop,
+  tide: renderTide,
+  engine: renderEngine,
+  gears: renderGears,
+  // Stack
+  layers: renderLayers,
+  pyramid: renderPyramid,
+  // Spatial
+  compass: renderCompass,
+  maze: renderMaze,
 };
 
 export function renderMetaphor(plan: PanelPlan): string | null {
@@ -403,4 +431,778 @@ function renderBranching(m: MetaphorPlan): string {
     ${branchEls.join("")}
   `;
   return svgWrap(H, root.name, branches.map((b) => b.name).join(", "), body);
+}
+
+// ===== Duality (remaining) =====
+
+function renderTugOfWar(m: MetaphorPlan): string {
+  const left = m.poles[0] ?? { label: "Side A", sub: null };
+  const right = m.poles[1] ?? { label: "Side B", sub: null };
+  const prize = m.outcome?.name || "";
+  const H = 380;
+  const body = `
+    ${prize ? `<text x="340" y="60" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle">${esc(prize)}</text>` : ""}
+    <rect x="80" y="200" width="60" height="60" rx="6" ry="6" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+    <line x1="60" y1="260" x2="160" y2="260" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+    <rect x="540" y="200" width="60" height="60" rx="6" ry="6" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    <line x1="520" y1="260" x2="620" y2="260" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    <line x1="140" y1="230" x2="540" y2="230" stroke="${C.gray.stroke}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="140" y1="230" x2="540" y2="230" stroke="${C.paper}" stroke-width="1" stroke-dasharray="2 4"/>
+    <line x1="340" y1="215" x2="340" y2="245" stroke="${C.ink}" stroke-width="2"/>
+    <polygon points="340,215 352,225 340,235 328,225" fill="${C.ink}"/>
+    <text x="110" y="180" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(left.label)}</text>
+    ${left.sub ? `<text x="110" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
+    <text x="570" y="180" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
+    ${right.sub ? `<text x="570" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
+  `;
+  return svgWrap(H, `${left.label} vs ${right.label}`, prize, body);
+}
+
+function renderSpectrum(m: MetaphorPlan): string {
+  const left = m.poles[0] ?? { label: "Pole A", sub: null };
+  const right = m.poles[1] ?? { label: "Pole B", sub: null };
+  const marker = (m.hint || "").trim();
+  const H = 320;
+  const pctMatch = marker.match(/(\d+)\s*%/);
+  const pct = pctMatch ? Math.min(100, Math.max(0, parseInt(pctMatch[1], 10))) : 50;
+  const markerX = 80 + (pct / 100) * 520;
+  const body = `
+    <rect x="80" y="170" width="173" height="6" rx="3" ry="3" fill="${C.blue.stroke}" opacity="0.75"/>
+    <rect x="253" y="170" width="174" height="6" fill="${C.gray.stroke}" opacity="0.4"/>
+    <rect x="427" y="170" width="173" height="6" rx="3" ry="3" fill="${C.amber.stroke}" opacity="0.75"/>
+    <line x1="80" y1="160" x2="80" y2="186" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+    <line x1="600" y1="160" x2="600" y2="186" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    <line x1="${markerX}" y1="150" x2="${markerX}" y2="196" stroke="${C.ink}" stroke-width="2"/>
+    <circle cx="${markerX}" cy="173" r="8" fill="${C.paper}" stroke="${C.ink}" stroke-width="2"/>
+    ${marker ? `<text x="${markerX}" y="140" font-size="12" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(marker)}</text>` : ""}
+    <text x="80" y="220" font-size="14" font-weight="500" fill="${C.blue.text}">${esc(left.label)}</text>
+    ${left.sub ? `<text x="80" y="238" font-size="12" fill="${C.inkSoft}">${esc(left.sub)}</text>` : ""}
+    <text x="600" y="220" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="end">${esc(right.label)}</text>
+    ${right.sub ? `<text x="600" y="238" font-size="12" fill="${C.inkSoft}" text-anchor="end">${esc(right.sub)}</text>` : ""}
+  `;
+  return svgWrap(H, `${left.label} ↔ ${right.label}`, marker, body);
+}
+
+// ===== Sequence (remaining) =====
+
+function renderStaircase(m: MetaphorPlan): string {
+  const steps = m.items.slice(0, 5);
+  if (steps.length === 0) return svgWrap(200, "Staircase", "", "");
+  const top = m.outcome;
+  const H = 460;
+  const STEP_W = 100;
+  const STEP_H = 60;
+  const RISE = 50;
+  const RUN = 90;
+  const BASE_X = 80;
+  const BASE_Y = 380;
+  const stepEls = steps.map((s, i) => {
+    const x = BASE_X + i * RUN;
+    const y = BASE_Y - i * RISE;
+    const nameLines = wrap(s.name, 14, 2);
+    return `
+      <rect x="${x}" y="${y}" width="${STEP_W}" height="${STEP_H}" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+      <text x="${x + STEP_W / 2}" y="${y - 8}" font-size="12" font-weight="500" fill="${C.blue.stroke}" text-anchor="middle">STEP ${i + 1}</text>
+      ${nameLines.map((l, j) => `<text x="${x + STEP_W / 2}" y="${y + 26 + j * 16}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(l)}</text>`).join("")}
+      ${s.sub ? `<text x="${x + STEP_W / 2}" y="${y + STEP_H - 8}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(s.sub)}</text>` : ""}
+    `;
+  });
+  const topX = BASE_X + steps.length * RUN;
+  const topY = BASE_Y - steps.length * RISE;
+  const topEl = top
+    ? `<text x="${topX + 20}" y="${topY + 20}" font-size="14" font-weight="500" fill="${C.amber.text}">↑ ${esc(top.name)}</text>${top.sub ? `<text x="${topX + 20}" y="${topY + 38}" font-size="12" fill="${C.inkSoft}">${esc(top.sub)}</text>` : ""}`
+    : "";
+  return svgWrap(H, top?.name || "Stages", steps.map((s) => s.name).join(" → "), stepEls.join("") + topEl);
+}
+
+function renderGarden(m: MetaphorPlan): string {
+  const phases = m.items.slice(0, 5);
+  if (phases.length === 0) return svgWrap(200, "Garden", "", "");
+  const bloom = m.outcome;
+  const H = 460;
+  const STEM = "M 80 420 Q 200 380 280 320 T 480 200 T 620 100";
+  const POS: Record<number, Array<{ x: number; y: number }>> = {
+    1: [{ x: 340, y: 260 }],
+    2: [{ x: 180, y: 380 }, { x: 500, y: 160 }],
+    3: [{ x: 130, y: 400 }, { x: 340, y: 280 }, { x: 560, y: 140 }],
+    4: [{ x: 130, y: 400 }, { x: 280, y: 320 }, { x: 440, y: 220 }, { x: 580, y: 130 }],
+    5: [{ x: 130, y: 400 }, { x: 240, y: 340 }, { x: 360, y: 260 }, { x: 480, y: 190 }, { x: 600, y: 120 }],
+  };
+  const positions = POS[phases.length] || POS[3];
+  const SIZES = [10, 14, 18, 22, 26];
+  const phaseEls = phases.map((p, i) => {
+    const pos = positions[i];
+    const size = SIZES[Math.min(i, SIZES.length - 1)];
+    const above = i % 2 === 0;
+    const ly = above ? pos.y - size - 14 : pos.y + size + 22;
+    return `
+      <circle cx="${pos.x}" cy="${pos.y}" r="${size}" fill="${C.teal.fill}" stroke="${C.teal.stroke}" stroke-width="1.5"/>
+      <text x="${pos.x}" y="${ly}" font-size="14" font-weight="500" fill="${C.teal.text}" text-anchor="middle">${esc(p.name)}</text>
+      ${p.sub ? `<text x="${pos.x}" y="${ly + (above ? -16 : 16)}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(p.sub)}</text>` : ""}
+    `;
+  });
+  const bloomEl = bloom
+    ? `<text x="620" y="84" font-size="14" font-weight="500" fill="${C.teal.text}" text-anchor="end">→ ${esc(bloom.name)}</text>`
+    : "";
+  const body = `
+    <path d="${STEM}" fill="none" stroke="${C.teal.stroke}" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+    <path d="${STEM}" fill="none" stroke="${C.teal.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+    ${phaseEls.join("")}
+    ${bloomEl}
+  `;
+  return svgWrap(H, bloom?.name || "Growth", phases.map((p) => p.name).join(" → "), body);
+}
+
+function renderDomino(m: MetaphorPlan): string {
+  const events = m.items.slice(0, 5);
+  if (events.length === 0) return svgWrap(200, "Domino", "", "");
+  const H = 440;
+  const D_W = 30;
+  const D_H = 80;
+  const D_GAP = 90;
+  const BASE_Y = 280;
+  const totalW = events.length * D_W + (events.length - 1) * D_GAP;
+  const startX = (680 - totalW) / 2;
+  const dominoEls = events.map((e, i) => {
+    const x = startX + i * (D_W + D_GAP);
+    const transform = i === 0 ? `transform="rotate(-30 ${x + D_W / 2} ${BASE_Y + D_H})"` : "";
+    const nameLines = wrap(e.name, 14, 2);
+    return `
+      <rect x="${x}" y="${BASE_Y}" width="${D_W}" height="${D_H}" rx="2" ry="2" fill="${C.purple.fill}" stroke="${C.purple.stroke}" stroke-width="1.5" ${transform}/>
+      <text x="${x + D_W / 2}" y="${BASE_Y - 16}" font-size="12" font-weight="500" fill="${C.purple.stroke}" text-anchor="middle">${i + 1}</text>
+      ${nameLines.map((l, j) => `<text x="${x + D_W / 2}" y="${BASE_Y + D_H + 24 + j * 16}" font-size="13" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(l)}</text>`).join("")}
+      ${e.sub ? `<text x="${x + D_W / 2}" y="${BASE_Y + D_H + 24 + nameLines.length * 16 + 4}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(e.sub)}</text>` : ""}
+    `;
+  });
+  const arrowY = 100;
+  const arrowStart = startX + D_W;
+  const arrowEnd = startX + (events.length - 1) * (D_W + D_GAP);
+  return svgWrap(
+    H,
+    "Cascade",
+    events.map((e) => e.name).join(" → "),
+    `
+      <path d="M ${arrowStart} ${arrowY} Q ${(arrowStart + arrowEnd) / 2} 50, ${arrowEnd} ${arrowY}" fill="none" stroke="${C.purple.stroke}" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <path d="M ${arrowEnd - 10} ${arrowY - 6} L ${arrowEnd + 4} ${arrowY} L ${arrowEnd - 10} ${arrowY + 6} Z" fill="${C.purple.stroke}"/>
+      ${dominoEls.join("")}
+      <line x1="40" y1="${BASE_Y + D_H + 2}" x2="640" y2="${BASE_Y + D_H + 2}" stroke="${C.line}" stroke-width="1"/>
+    `
+  );
+}
+
+function renderWeaving(m: MetaphorPlan): string {
+  const threads = m.items.slice(0, 4);
+  if (threads.length === 0) return svgWrap(200, "Weaving", "", "");
+  const fabric = m.outcome;
+  const H = 420;
+  const PALETTES = [C.blue, C.amber, C.purple, C.teal];
+  const startX = 60;
+  const fabricX = 480;
+  const fabricW = 120;
+  const fabricY = 160;
+  const fabricH = 120;
+  const threadEls = threads.map((t, i) => {
+    const pal = PALETTES[i % PALETTES.length];
+    const sy = 120 + i * 40;
+    const wobble = i % 2 === 0 ? 40 : -40;
+    const d = `M ${startX} ${sy} C 200 ${sy + wobble}, 320 ${sy - wobble}, ${fabricX} ${fabricY + (i + 0.5) * (fabricH / threads.length)}`;
+    return `
+      <path d="${d}" fill="none" stroke="${pal.stroke}" stroke-width="3" stroke-linecap="round" opacity="0.75"/>
+      <text x="40" y="${sy + 4}" font-size="12" font-weight="500" fill="${pal.text}">${esc(t.name)}</text>
+    `;
+  });
+  const hLines = [0, 1, 2, 3, 4, 5]
+    .map(
+      (i) =>
+        `<line x1="${fabricX}" y1="${fabricY + 20 + i * 20}" x2="${fabricX + fabricW}" y2="${fabricY + 20 + i * 20}" stroke="${C.gray.stroke}" stroke-width="0.5" opacity="0.3"/>`
+    )
+    .join("");
+  const vLines = [0, 1, 2, 3, 4]
+    .map(
+      (i) =>
+        `<line x1="${fabricX + 20 + i * 20}" y1="${fabricY}" x2="${fabricX + 20 + i * 20}" y2="${fabricY + fabricH}" stroke="${C.gray.stroke}" stroke-width="0.5" opacity="0.3"/>`
+    )
+    .join("");
+  return svgWrap(
+    H,
+    fabric?.name || "Fabric",
+    threads.map((t) => t.name).join(" + "),
+    `
+      ${threadEls.join("")}
+      <rect x="${fabricX}" y="${fabricY}" width="${fabricW}" height="${fabricH}" rx="6" ry="6" fill="${C.gray.fill}" stroke="${C.gray.stroke}" stroke-width="1.5"/>
+      ${hLines}
+      ${vLines}
+      ${fabric ? `<text x="${fabricX + fabricW / 2}" y="${fabricY + fabricH + 28}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(fabric.name)}</text>` : ""}
+      ${fabric?.sub ? `<text x="${fabricX + fabricW / 2}" y="${fabricY + fabricH + 46}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(fabric.sub)}</text>` : ""}
+    `
+  );
+}
+
+// ===== Many-to-one / one-to-many (remaining) =====
+
+function renderFunnel(m: MetaphorPlan): string {
+  const stages = m.items.slice(0, 4);
+  if (stages.length === 0) return svgWrap(200, "Funnel", "", "");
+  const output = m.hub ?? m.outcome ?? { name: "Result", sub: null };
+  const H = 480;
+  const TOP_Y = 60;
+  const BOT_Y = 360;
+  const TOP_HALF = 180;
+  const BOT_HALF = 40;
+  const CENTER = 340;
+  const SECTION_H = (BOT_Y - TOP_Y) / stages.length;
+  const PAL_BY_INDEX = [C.blue, C.teal, C.purple, C.amber];
+  const stageEls = stages.map((s, i) => {
+    const y1 = TOP_Y + i * SECTION_H;
+    const y2 = TOP_Y + (i + 1) * SECTION_H;
+    const tFrac1 = (y1 - TOP_Y) / (BOT_Y - TOP_Y);
+    const tFrac2 = (y2 - TOP_Y) / (BOT_Y - TOP_Y);
+    const half1 = TOP_HALF - (TOP_HALF - BOT_HALF) * tFrac1;
+    const half2 = TOP_HALF - (TOP_HALF - BOT_HALF) * tFrac2;
+    const pal = PAL_BY_INDEX[i % PAL_BY_INDEX.length];
+    const poly = `${CENTER - half1},${y1} ${CENTER + half1},${y1} ${CENTER + half2},${y2} ${CENTER - half2},${y2}`;
+    const midY = (y1 + y2) / 2;
+    const nameLines = wrap(s.name, 22, 1);
+    return `
+      <polygon points="${poly}" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      <text x="${CENTER}" y="${midY + 5}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(nameLines[0])}</text>
+      ${s.sub ? `<text x="${CENTER + half1 + 16}" y="${midY + 4}" font-size="12" fill="${C.inkSoft}">${esc(s.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(
+    H,
+    output.name,
+    stages.map((s) => s.name).join(" → "),
+    `
+      ${stageEls.join("")}
+      <line x1="${CENTER}" y1="${BOT_Y}" x2="${CENTER}" y2="${BOT_Y + 24}" stroke="${C.gray.stroke}" stroke-width="2"/>
+      <path d="M ${CENTER - 8} ${BOT_Y + 20} L ${CENTER} ${BOT_Y + 32} L ${CENTER + 8} ${BOT_Y + 20} Z" fill="${C.gray.stroke}"/>
+      <text x="${CENTER}" y="${BOT_Y + 60}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(output.name)}</text>
+      ${output.sub ? `<text x="${CENTER}" y="${BOT_Y + 78}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(output.sub)}</text>` : ""}
+    `
+  );
+}
+
+function renderRipple(m: MetaphorPlan): string {
+  const waves = m.items.slice(0, 4);
+  if (waves.length === 0) return svgWrap(200, "Ripple", "", "");
+  const epicenter = m.hub ?? { name: "Event", sub: null };
+  const H = 460;
+  const CX = 220;
+  const CY = 230;
+  const RADII = [50, 100, 150, 200];
+  const ringEls = waves.map((_, i) => {
+    const r = RADII[i] ?? RADII[RADII.length - 1];
+    const opacity = (1 - i * 0.18).toFixed(2);
+    return `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none" stroke="${C.purple.stroke}" stroke-width="1.5" opacity="${opacity}"/>`;
+  });
+  const labelX = 460;
+  const labelEls = waves.map((w, i) => {
+    const r = RADII[i] ?? RADII[RADII.length - 1];
+    const ly = 100 + i * 80;
+    const lineY = CY + (i % 2 === 0 ? -20 : 20);
+    const lineX1 = CX + Math.round(r * 0.95);
+    return `
+      <line x1="${lineX1}" y1="${lineY}" x2="${labelX - 8}" y2="${ly - 4}" stroke="${C.inkMuted}" stroke-width="1" opacity="0.45"/>
+      <text x="${labelX}" y="${ly}" font-size="14" font-weight="500" fill="${C.purple.text}">${esc(w.name)}</text>
+      ${w.sub ? `<text x="${labelX}" y="${ly + 18}" font-size="12" fill="${C.inkSoft}">${esc(w.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(
+    H,
+    epicenter.name,
+    waves.map((w) => w.name).join(", "),
+    `
+      ${ringEls.join("")}
+      <circle cx="${CX}" cy="${CY}" r="8" fill="${C.purple.stroke}"/>
+      <circle cx="${CX}" cy="${CY}" r="14" fill="none" stroke="${C.purple.stroke}" stroke-width="2"/>
+      <text x="${CX}" y="${CY + 36}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(epicenter.name)}</text>
+      ${epicenter.sub ? `<text x="${CX}" y="${CY + 54}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(epicenter.sub)}</text>` : ""}
+      ${labelEls.join("")}
+    `
+  );
+}
+
+function renderCrossroads(m: MetaphorPlan): string {
+  const paths = m.items.slice(0, 3);
+  if (paths.length === 0) return svgWrap(200, "Crossroads", "", "");
+  const start = m.hub ?? { name: "Decision", sub: null };
+  const H = 480;
+  const ROAD_BOTTOM = 420;
+  const SPLIT_Y = 290;
+  const PATH_TOP_Y = 140;
+  const CX = 340;
+  const TOP_XS: Record<number, number[]> = { 1: [340], 2: [200, 480], 3: [120, 340, 560] };
+  const tops = TOP_XS[paths.length] || TOP_XS[3];
+  const PAL = [C.blue, C.amber, C.teal, C.purple];
+  const pathEls = paths.map((p, i) => {
+    const tx = tops[i] ?? CX;
+    const pal = PAL[i % PAL.length];
+    const d = `M ${CX} ${SPLIT_Y} C ${CX} ${SPLIT_Y - 60}, ${tx} ${SPLIT_Y - 40}, ${tx} ${PATH_TOP_Y}`;
+    const nameLines = wrap(p.name, 14, 2);
+    const subLines = p.sub ? wrap(p.sub, 18, 2) : [];
+    return `
+      <path d="${d}" fill="none" stroke="${pal.stroke}" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
+      <path d="${d}" fill="none" stroke="${pal.stroke}" stroke-width="2"/>
+      <rect x="${tx - 56}" y="${PATH_TOP_Y - 68}" width="112" height="54" rx="6" ry="6" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      ${nameLines.map((l, j) => `<text x="${tx}" y="${PATH_TOP_Y - 44 + j * 16}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(l)}</text>`).join("")}
+      ${subLines.map((l, j) => `<text x="${tx}" y="${PATH_TOP_Y + 14 + j * 16}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(l)}</text>`).join("")}
+    `;
+  });
+  return svgWrap(
+    H,
+    start.name,
+    paths.map((p) => p.name).join(" / "),
+    `
+      <line x1="${CX}" y1="${ROAD_BOTTOM}" x2="${CX}" y2="${SPLIT_Y}" stroke="${C.gray.stroke}" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+      <line x1="${CX}" y1="${ROAD_BOTTOM}" x2="${CX}" y2="${SPLIT_Y}" stroke="${C.gray.stroke}" stroke-width="2"/>
+      ${pathEls.join("")}
+      <circle cx="${CX}" cy="${SPLIT_Y}" r="10" fill="${C.paper}" stroke="${C.ink}" stroke-width="2"/>
+      <text x="${CX}" y="${ROAD_BOTTOM + 28}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(start.name)}</text>
+      ${start.sub ? `<text x="${CX}" y="${ROAD_BOTTOM + 46}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(start.sub)}</text>` : ""}
+    `
+  );
+}
+
+// ===== Focus =====
+
+function renderLighthouse(m: MetaphorPlan): string {
+  const noise = m.items.slice(0, 4);
+  const signal = m.hub ?? m.outcome ?? { name: "Signal", sub: null };
+  const H = 460;
+  const LH_X = 110;
+  const LH_BASE_Y = 380;
+  const LH_TOP_Y = 180;
+  const LIGHT_Y = LH_TOP_Y + 10;
+  const cone = `
+    <polygon points="${LH_X + 30},${LIGHT_Y} 620,${LIGHT_Y - 110} 620,${LIGHT_Y + 110}" fill="${C.amber.fill}" opacity="0.45"/>
+    <polygon points="${LH_X + 30},${LIGHT_Y} 620,${LIGHT_Y - 60} 620,${LIGHT_Y + 60}" fill="${C.amber.fill}" opacity="0.7"/>
+  `;
+  const lighthouse = `
+    <path d="M ${LH_X - 30} ${LH_BASE_Y} L ${LH_X + 30} ${LH_BASE_Y} L ${LH_X + 20} ${LH_TOP_Y + 30} L ${LH_X - 20} ${LH_TOP_Y + 30} Z" fill="${C.paper}" stroke="${C.ink}" stroke-width="1.5"/>
+    <rect x="${LH_X - 22}" y="${LH_TOP_Y + 20}" width="44" height="10" fill="${C.ink}"/>
+    <rect x="${LH_X - 16}" y="${LH_TOP_Y}" width="32" height="22" fill="${C.amber.stroke}" stroke="${C.ink}" stroke-width="1.5"/>
+    <polygon points="${LH_X - 18},${LH_TOP_Y} ${LH_X + 18},${LH_TOP_Y} ${LH_X},${LH_TOP_Y - 16}" fill="${C.ink}"/>
+    <line x1="${LH_X - 26}" y1="${LH_BASE_Y - 30}" x2="${LH_X + 26}" y2="${LH_BASE_Y - 30}" stroke="${C.ink}" stroke-width="1"/>
+    <line x1="${LH_X - 24}" y1="${LH_BASE_Y - 60}" x2="${LH_X + 24}" y2="${LH_BASE_Y - 60}" stroke="${C.ink}" stroke-width="1"/>
+  `;
+  const signalEl = `
+    <text x="620" y="${LIGHT_Y - 6}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="end">${esc(signal.name)}</text>
+    ${signal.sub ? `<text x="620" y="${LIGHT_Y + 12}" font-size="12" fill="${C.inkSoft}" text-anchor="end">${esc(signal.sub)}</text>` : ""}
+  `;
+  const NOISE_POS = [
+    { x: 280, y: 80 },
+    { x: 440, y: 110 },
+    { x: 340, y: 380 },
+    { x: 520, y: 410 },
+  ];
+  const noiseEls = noise.map((n, i) => {
+    const pos = NOISE_POS[i % NOISE_POS.length];
+    return `
+      <circle cx="${pos.x}" cy="${pos.y}" r="4" fill="${C.gray.stroke}" opacity="0.5"/>
+      <text x="${pos.x + 10}" y="${pos.y + 5}" font-size="12" fill="${C.inkMuted}">${esc(n.name)}</text>
+    `;
+  });
+  return svgWrap(H, signal.name, `Among ${noise.length} distractions`, `${cone}${lighthouse}${signalEl}${noiseEls.join("")}`);
+}
+
+function renderSpotlight(m: MetaphorPlan): string {
+  const others = m.items.slice(0, 6);
+  const focus = m.hub ?? m.outcome ?? { name: "Focus", sub: null };
+  const H = 460;
+  const CX = 340;
+  const CY = 240;
+  const OTHER_POS = [
+    { x: 100, y: 130 },
+    { x: 580, y: 130 },
+    { x: 80, y: 360 },
+    { x: 600, y: 360 },
+    { x: 340, y: 420 },
+    { x: 340, y: 60 },
+  ];
+  const otherEls = others.map((o, i) => {
+    const pos = OTHER_POS[i % OTHER_POS.length];
+    return `
+      <circle cx="${pos.x}" cy="${pos.y}" r="22" fill="${C.gray.fill}" stroke="${C.gray.stroke}" stroke-width="1" opacity="0.45"/>
+      <text x="${pos.x}" y="${pos.y + 5}" font-size="12" fill="${C.inkMuted}" text-anchor="middle" opacity="0.8">${esc(o.name.slice(0, 14))}</text>
+    `;
+  });
+  return svgWrap(
+    H,
+    focus.name,
+    `Picked out of ${others.length}`,
+    `
+      <rect x="0" y="0" width="680" height="${H}" fill="${C.gray.stroke}" opacity="0.04"/>
+      ${otherEls.join("")}
+      <polygon points="${CX - 30},20 ${CX + 30},20 ${CX + 110},${CY + 60} ${CX - 110},${CY + 60}" fill="${C.amber.fill}" opacity="0.5"/>
+      <circle cx="${CX}" cy="${CY}" r="60" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="2"/>
+      <circle cx="${CX}" cy="${CY}" r="50" fill="${C.amber.fill}" opacity="0.5"/>
+      <text x="${CX}" y="${CY + 4}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(focus.name)}</text>
+      ${focus.sub ? `<text x="${CX}" y="${CY + 22}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(focus.sub)}</text>` : ""}
+    `
+  );
+}
+
+function renderOrbits(m: MetaphorPlan): string {
+  const sats = m.items.slice(0, 5);
+  const center = m.hub ?? { name: "Core", sub: null };
+  const H = 460;
+  const CX = 340;
+  const CY = 230;
+  const ORBIT_RADII = [90, 140, 190, 230];
+  const SAT_ANGLES = [30, 100, 200, 280, 340];
+  const orbitRings = sats
+    .map((_, i) => {
+      const r = ORBIT_RADII[i % ORBIT_RADII.length];
+      return `<ellipse cx="${CX}" cy="${CY}" rx="${r}" ry="${Math.round(r * 0.65)}" fill="none" stroke="${C.gray.stroke}" stroke-width="1" opacity="0.3"/>`;
+    })
+    .join("");
+  const satEls = sats.map((s, i) => {
+    const r = ORBIT_RADII[i % ORBIT_RADII.length];
+    const angle = (SAT_ANGLES[i % SAT_ANGLES.length] * Math.PI) / 180;
+    const sx = Math.round(CX + r * Math.cos(angle));
+    const sy = Math.round(CY + r * 0.65 * Math.sin(angle));
+    const labelRight = sx > CX;
+    const lx = labelRight ? sx + 16 : sx - 16;
+    const anchor = labelRight ? "start" : "end";
+    const nameLines = wrap(s.name, 18, 2);
+    return `
+      <circle cx="${sx}" cy="${sy}" r="14" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+      <text x="${lx}" y="${sy + 5}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="${anchor}">${esc(nameLines[0])}</text>
+      ${s.sub ? `<text x="${lx}" y="${sy + 22}" font-size="12" fill="${C.inkSoft}" text-anchor="${anchor}">${esc(s.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(
+    H,
+    center.name,
+    sats.map((s) => s.name).join(", "),
+    `
+      ${orbitRings}
+      ${satEls.join("")}
+      <circle cx="${CX}" cy="${CY}" r="28" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="2"/>
+      <text x="${CX}" y="${CY + 5}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(center.name)}</text>
+    `
+  );
+}
+
+// ===== Cycle =====
+
+function renderLoop(m: MetaphorPlan): string {
+  const phases = m.items.slice(0, 5);
+  if (phases.length === 0) return svgWrap(200, "Loop", "", "");
+  const H = 460;
+  const CX = 340;
+  const CY = 230;
+  const R = 140;
+  const PALETTES = [C.blue, C.teal, C.amber, C.purple, C.gray];
+  const positions = phases.map((_, i) => {
+    const angle = ((-90 + (i * 360) / phases.length) * Math.PI) / 180;
+    return { x: CX + R * Math.cos(angle), y: CY + R * Math.sin(angle) };
+  });
+  const phaseEls = phases.map((p, i) => {
+    const pos = positions[i];
+    const pal = PALETTES[i % PALETTES.length];
+    const nameLines = wrap(p.name, 14, 2);
+    return `
+      <circle cx="${pos.x}" cy="${pos.y}" r="40" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1.5"/>
+      ${nameLines.map((l, j) => `<text x="${pos.x}" y="${pos.y + 4 + j * 14 - (nameLines.length - 1) * 7}" font-size="12" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(l)}</text>`).join("")}
+      ${p.sub ? `<text x="${pos.x}" y="${pos.y + 58}" font-size="12" fill="${C.inkMuted}" text-anchor="middle">${esc(p.sub)}</text>` : ""}
+    `;
+  });
+  const arrows = positions.map((p, i) => {
+    const next = positions[(i + 1) % positions.length];
+    // Straight line from edge to edge along the outer cycle
+    const dx = next.x - p.x;
+    const dy = next.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const fromX = Math.round(p.x + ux * 42);
+    const fromY = Math.round(p.y + uy * 42);
+    const toX = Math.round(next.x - ux * 50);
+    const toY = Math.round(next.y - uy * 50);
+    return `<line x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" stroke="${C.gray.stroke}" stroke-width="1.5" marker-end="url(#chev-loop)" opacity="0.7"/>`;
+  });
+  return svgWrap(
+    H,
+    "Cycle",
+    phases.map((p) => p.name).join(" → "),
+    `
+      <defs>
+        <marker id="chev-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 0 L10 5 L0 10" fill="none" stroke="${C.gray.stroke}" stroke-width="1.5"/>
+        </marker>
+      </defs>
+      ${arrows.join("")}
+      ${phaseEls.join("")}
+    `
+  );
+}
+
+function renderTide(m: MetaphorPlan): string {
+  const phases = m.items.slice(0, 4);
+  const period = m.hint || "";
+  const H = 400;
+  const POINTS = [
+    { x: 150, y: 100, side: "high" as const },
+    { x: 330, y: 300, side: "low" as const },
+    { x: 510, y: 100, side: "high" as const },
+    { x: 600, y: 200, side: "level" as const },
+  ];
+  const phaseEls = phases.map((p, i) => {
+    const pt = POINTS[i % POINTS.length];
+    const labelY = pt.side === "high" ? pt.y - 16 : pt.y + 30;
+    return `
+      <circle cx="${pt.x}" cy="${pt.y}" r="6" fill="${C.blue.stroke}"/>
+      <text x="${pt.x}" y="${labelY}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(p.name)}</text>
+      ${p.sub ? `<text x="${pt.x}" y="${labelY + (pt.side === "high" ? -16 : 16)}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(p.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(
+    H,
+    "Tide",
+    period,
+    `
+      ${period ? `<text x="340" y="40" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle">${esc(period)}</text>` : ""}
+      <line x1="40" y1="200" x2="640" y2="200" stroke="${C.line}" stroke-width="1" stroke-dasharray="3 4"/>
+      <path d="M 60 200 Q 150 100, 240 200 T 420 200 T 600 200" fill="none" stroke="${C.blue.stroke}" stroke-width="2.5" stroke-linecap="round"/>
+      ${phaseEls.join("")}
+    `
+  );
+}
+
+function renderEngine(m: MetaphorPlan): string {
+  const stages = m.items.slice(0, 4);
+  const process = m.hub ?? { name: "Process", sub: null };
+  const output = m.outcome ?? { name: "Output", sub: null };
+  const H = 380;
+  const BOX_X = 200;
+  const BOX_Y = 130;
+  const BOX_W = 280;
+  const BOX_H = 110;
+  const CENTER_Y = BOX_Y + BOX_H / 2;
+  const stageBadges = stages.map((s, i) => {
+    const gap = BOX_W / (stages.length + 1);
+    const cx = BOX_X + gap * (i + 1);
+    return `
+      <circle cx="${cx}" cy="${CENTER_Y - 10}" r="14" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+      <text x="${cx}" y="${CENTER_Y - 5}" font-size="12" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${i + 1}</text>
+      <text x="${cx}" y="${CENTER_Y + 24}" font-size="12" fill="${C.ink}" text-anchor="middle">${esc(s.name.slice(0, 14))}</text>
+    `;
+  });
+  return svgWrap(
+    H,
+    process.name,
+    stages.map((s) => s.name).join(" → "),
+    `
+      <line x1="60" y1="${CENTER_Y}" x2="${BOX_X - 22}" y2="${CENTER_Y}" stroke="${C.gray.stroke}" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M ${BOX_X - 28} ${CENTER_Y - 8} L ${BOX_X - 12} ${CENTER_Y} L ${BOX_X - 28} ${CENTER_Y + 8} Z" fill="${C.gray.stroke}"/>
+      <text x="60" y="${CENTER_Y - 14}" font-size="12" font-weight="500" fill="${C.inkMuted}">INPUT</text>
+      <rect x="${BOX_X}" y="${BOX_Y}" width="${BOX_W}" height="${BOX_H}" rx="10" ry="10" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+      <text x="${BOX_X + BOX_W / 2}" y="${BOX_Y + 22}" font-size="12" font-weight="500" fill="${C.amber.stroke}" text-anchor="middle">${esc(process.name)}</text>
+      ${stageBadges.join("")}
+      <line x1="${BOX_X + BOX_W + 12}" y1="${CENTER_Y}" x2="620" y2="${CENTER_Y}" stroke="${C.gray.stroke}" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M 614 ${CENTER_Y - 8} L 628 ${CENTER_Y} L 614 ${CENTER_Y + 8} Z" fill="${C.gray.stroke}"/>
+      <text x="620" y="${CENTER_Y - 14}" font-size="12" font-weight="500" fill="${C.ink}" text-anchor="end">${esc(output.name)}</text>
+    `
+  );
+}
+
+function renderGears(m: MetaphorPlan): string {
+  const gears = m.items.slice(0, 3);
+  if (gears.length === 0) return svgWrap(200, "Gears", "", "");
+  const H = 420;
+  const POSITIONS = [
+    { x: 200, y: 200, r: 60, teeth: 12 },
+    { x: 340, y: 200, r: 48, teeth: 10 },
+    { x: 470, y: 200, r: 40, teeth: 8 },
+  ];
+  const PALETTES = [C.amber, C.blue, C.teal];
+  function gearPath(cx: number, cy: number, r: number, teeth: number): string {
+    const depth = r * 0.18;
+    const step = (Math.PI * 2) / (teeth * 2);
+    const pts: string[] = [];
+    for (let i = 0; i < teeth * 2; i++) {
+      const radius = i % 2 === 0 ? r + depth : r;
+      const a = i * step;
+      pts.push(`${(cx + radius * Math.cos(a)).toFixed(1)},${(cy + radius * Math.sin(a)).toFixed(1)}`);
+    }
+    return `M ${pts.join(" L ")} Z`;
+  }
+  const gearEls = gears.map((g, i) => {
+    const pos = POSITIONS[i] ?? POSITIONS[POSITIONS.length - 1];
+    const pal = PALETTES[i % PALETTES.length];
+    return `
+      <path d="${gearPath(pos.x, pos.y, pos.r, pos.teeth)}" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1.5"/>
+      <circle cx="${pos.x}" cy="${pos.y}" r="${Math.round(pos.r * 0.3)}" fill="${C.paper}" stroke="${pal.stroke}" stroke-width="1.5"/>
+      <text x="${pos.x}" y="${pos.y + pos.r + 32}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(g.name)}</text>
+      ${g.sub ? `<text x="${pos.x}" y="${pos.y + pos.r + 50}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(g.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(H, "Mechanism", gears.map((g) => g.name).join(" + "), gearEls.join(""));
+}
+
+// ===== Stack =====
+
+function renderLayers(m: MetaphorPlan): string {
+  const layers = m.items.slice(0, 5);
+  if (layers.length === 0) return svgWrap(200, "Layers", "", "");
+  const LAYER_W = 480;
+  const LAYER_H = 60;
+  const GAP = 8;
+  const H = 60 + layers.length * (LAYER_H + GAP) + 20;
+  const LAYER_X = 100;
+  const BASE_Y = H - 20;
+  const PALETTES = [C.gray, C.blue, C.teal, C.amber, C.purple];
+  const layerEls = layers.map((l, i) => {
+    const y = BASE_Y - (i + 1) * (LAYER_H + GAP) + GAP;
+    const pal = PALETTES[i % PALETTES.length];
+    return `
+      <rect x="${LAYER_X}" y="${y}" width="${LAYER_W}" height="${LAYER_H}" rx="6" ry="6" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      <text x="${LAYER_X + 16}" y="${y + 32}" font-size="14" font-weight="500" fill="${pal.text}">${esc(l.name)}</text>
+      ${l.sub ? `<text x="${LAYER_X + 16}" y="${y + 50}" font-size="12" fill="${C.inkSoft}">${esc(l.sub)}</text>` : ""}
+      <text x="${LAYER_X - 12}" y="${y + 36}" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="end">${i + 1}</text>
+    `;
+  });
+  return svgWrap(H, "Stack", layers.map((l) => l.name).join(" / "), layerEls.join(""));
+}
+
+function renderPyramid(m: MetaphorPlan): string {
+  const levels = m.items.slice(0, 4);
+  if (levels.length === 0) return svgWrap(200, "Pyramid", "", "");
+  const H = 460;
+  const APEX_X = 340;
+  const APEX_Y = 80;
+  const BASE_Y = 400;
+  const BASE_HALF = 240;
+  const SLICE_H = (BASE_Y - APEX_Y) / levels.length;
+  const PALETTES = [C.amber, C.purple, C.blue, C.teal];
+  const sliceEls = levels.map((l, i) => {
+    const y1 = BASE_Y - (i + 1) * SLICE_H;
+    const y2 = BASE_Y - i * SLICE_H;
+    const tFrac1 = (y1 - APEX_Y) / (BASE_Y - APEX_Y);
+    const tFrac2 = (y2 - APEX_Y) / (BASE_Y - APEX_Y);
+    const half1 = BASE_HALF * tFrac1;
+    const half2 = BASE_HALF * tFrac2;
+    const pal = PALETTES[i % PALETTES.length];
+    const poly = `${APEX_X - half1},${y1} ${APEX_X + half1},${y1} ${APEX_X + half2},${y2} ${APEX_X - half2},${y2}`;
+    const midY = (y1 + y2) / 2;
+    return `
+      <polygon points="${poly}" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      <text x="${APEX_X}" y="${midY + 5}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(l.name)}</text>
+      ${l.sub ? `<text x="${APEX_X + half2 + 16}" y="${midY + 5}" font-size="12" fill="${C.inkSoft}">${esc(l.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(H, "Pyramid", levels.map((l) => l.name).join(" / "), sliceEls.join(""));
+}
+
+// ===== Spatial =====
+
+function renderCompass(m: MetaphorPlan): string {
+  const directions = m.items.slice(0, 4);
+  const center = m.hub ?? { name: "Center", sub: null };
+  const H = 460;
+  const CX = 340;
+  const CY = 230;
+  const R = 140;
+  const CARDINALS = [
+    { x: CX, y: CY - R, anchor: "middle" as const, label: "N" },
+    { x: CX + R, y: CY, anchor: "start" as const, label: "E" },
+    { x: CX, y: CY + R, anchor: "middle" as const, label: "S" },
+    { x: CX - R, y: CY, anchor: "end" as const, label: "W" },
+  ];
+  const dirEls = directions.map((d, i) => {
+    const card = CARDINALS[i];
+    const angle = Math.atan2(card.y - CY, card.x - CX);
+    const startX = Math.round(CX + 30 * Math.cos(angle));
+    const startY = Math.round(CY + 30 * Math.sin(angle));
+    const endX = Math.round(card.x - 16 * Math.cos(angle));
+    const endY = Math.round(card.y - 16 * Math.sin(angle));
+    const baseY =
+      card.anchor === "start" || card.anchor === "end"
+        ? card.y + 5
+        : card.y > CY
+        ? card.y + 28
+        : card.y - 12;
+    const subY =
+      card.anchor === "start" || card.anchor === "end"
+        ? card.y + 23
+        : card.y > CY
+        ? card.y + 46
+        : card.y - 30;
+    const lx = card.x + (card.anchor === "end" ? -8 : card.anchor === "start" ? 8 : 0);
+    return `
+      <line x1="${startX}" y1="${startY}" x2="${endX}" y2="${endY}" stroke="${C.gray.stroke}" stroke-width="2"/>
+      <text x="${card.x}" y="${baseY - 16}" font-size="11" font-weight="500" fill="${C.inkMuted}" text-anchor="${card.anchor}">${card.label}</text>
+      <text x="${lx}" y="${baseY}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="${card.anchor}">${esc(d.name)}</text>
+      ${d.sub ? `<text x="${lx}" y="${subY}" font-size="12" fill="${C.inkSoft}" text-anchor="${card.anchor}">${esc(d.sub)}</text>` : ""}
+    `;
+  });
+  return svgWrap(
+    H,
+    center.name,
+    directions.map((d) => d.name).join(", "),
+    `
+      <circle cx="${CX}" cy="${CY}" r="${R + 4}" fill="none" stroke="${C.line}" stroke-width="1"/>
+      ${dirEls.join("")}
+      <circle cx="${CX}" cy="${CY}" r="28" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="2"/>
+      <text x="${CX}" y="${CY + 5}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(center.name)}</text>
+    `
+  );
+}
+
+function renderMaze(m: MetaphorPlan): string {
+  const choices = m.items.slice(0, 4);
+  const start = m.hub ?? { name: "Start", sub: null };
+  const end = m.outcome ?? { name: "Goal", sub: null };
+  const H = 460;
+  const PATH_PTS = [
+    { x: 80, y: 380 },
+    { x: 200, y: 380 },
+    { x: 200, y: 280 },
+    { x: 320, y: 280 },
+    { x: 320, y: 200 },
+    { x: 440, y: 200 },
+    { x: 440, y: 100 },
+    { x: 600, y: 100 },
+  ];
+  const pathD = PATH_PTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const CHOICE_POS = [
+    { x: 200, y: 330 },
+    { x: 320, y: 240 },
+    { x: 440, y: 150 },
+    { x: 520, y: 100 },
+  ];
+  const choiceEls = choices.map((c, i) => {
+    const pos = CHOICE_POS[i % CHOICE_POS.length];
+    return `
+      <circle cx="${pos.x}" cy="${pos.y}" r="6" fill="${C.amber.stroke}"/>
+      <text x="${pos.x + 12}" y="${pos.y - 8}" font-size="12" font-weight="500" fill="${C.amber.text}">${esc(c.name)}</text>
+    `;
+  });
+  const gridLines: string[] = [];
+  for (let x = 80; x <= 600; x += 60) {
+    gridLines.push(`<line x1="${x}" y1="80" x2="${x}" y2="400" stroke="${C.line}" stroke-width="0.5" opacity="0.4"/>`);
+  }
+  for (let y = 80; y <= 400; y += 60) {
+    gridLines.push(`<line x1="80" y1="${y}" x2="600" y2="${y}" stroke="${C.line}" stroke-width="0.5" opacity="0.4"/>`);
+  }
+  return svgWrap(
+    H,
+    `${start.name} → ${end.name}`,
+    choices.map((c) => c.name).join(", "),
+    `
+      ${gridLines.join("")}
+      <path d="M 80 80 L 140 80 L 140 200" fill="none" stroke="${C.gray.stroke}" stroke-width="2" opacity="0.4"/>
+      <path d="M 260 80 L 380 80 L 380 140" fill="none" stroke="${C.gray.stroke}" stroke-width="2" opacity="0.4"/>
+      <path d="M 600 220 L 540 220 L 540 380" fill="none" stroke="${C.gray.stroke}" stroke-width="2" opacity="0.4"/>
+      <path d="${pathD}" fill="none" stroke="${C.amber.stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      ${choiceEls.join("")}
+      <circle cx="80" cy="380" r="8" fill="${C.amber.stroke}"/>
+      <text x="80" y="420" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(start.name)}</text>
+      <circle cx="600" cy="100" r="8" fill="${C.amber.stroke}"/>
+      <circle cx="600" cy="100" r="14" fill="none" stroke="${C.amber.stroke}" stroke-width="2"/>
+      <text x="600" y="70" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(end.name)}</text>
+    `
+  );
 }

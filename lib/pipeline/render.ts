@@ -2,6 +2,7 @@ import { callMessages, MODEL_STRONG } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import { fixSvg } from "../render/fixer";
+import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
 import {
   stripFences,
@@ -26,7 +27,19 @@ const CAPTION_RULE =
   "fields (nodes, edges, comparison, timeline, stat, illustrativeBrief) for content " +
   "inside the visual; never paste the caption sentence(s) into it.";
 
-function buildSystemPrompt(format: "svg" | "html"): string {
+function buildSystemPrompt(
+  format: "svg" | "html",
+  plan: PanelPlan
+): string {
+  if (plan.visualType === "annotated_hero" && format === "svg") {
+    return [
+      HERO_SYSTEM_PROMPT,
+      "",
+      CAPTION_RULE,
+      "",
+      "Respond with ONLY the SVG. No fences. No commentary.",
+    ].join("\n");
+  }
   if (format === "html") {
     return [
       "You are the render stage. Convert ONE PanelPlan into a clean self-contained HTML block",
@@ -88,7 +101,7 @@ export async function renderPanel(
   }
 
   const format = targetFormat(plan);
-  const system = buildSystemPrompt(format);
+  const system = buildSystemPrompt(format, plan);
 
   let lastError: string | null = null;
 
