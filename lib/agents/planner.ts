@@ -14,21 +14,112 @@ comprehension, design a concrete, render-agnostic plan for ONE visual panel.
 
 You are choosing the CONTENT and STRUCTURE of the visual, not drawing it. Output a PanelPlan.
 
-Follow the section's visualType:
-- flowchart / structural -> provide nodes and edges. 3-6 nodes max. Labels <=24 chars,
-  subtitles <=5 words. Group related nodes via "group" (same group => same color).
-- comparison -> provide "comparison" with 2-3 columns and 2-5 rows. Keep cell text short.
-- timeline -> provide "timeline" items (when, what), 3-6 entries.
-- illustrative -> provide "illustrativeBrief": 2-4 sentences telling the renderer what spatial
-  metaphor to draw and what each part represents. Make the metaphor reveal the mechanism.
-- stat_callout -> provide "stat" { value, label }.
+═══════════════════════════════════════════════════════════════════════════
+FILL FIELDS BY VISUALTYPE
+═══════════════════════════════════════════════════════════════════════════
 
-ALWAYS provide "caption": 1-3 sentences of prose shown beneath the panel, written for the
-target audience level. The caption should let someone understand the panel without prior knowledge.
+• stat_callout -> "stat" { value, label }. Value is a short string like "90%", "$2.4B", "3×".
 
-ALWAYS echo the section id as "sectionId" and copy the section's "visualType".
+• comparison   -> "comparison" with 2–3 columns and 2–5 rows. Cell text short.
 
-Keep it tight. A good panel has few elements and one clear idea. Resist cramming.
+• timeline     -> "timeline" items (when, what), 3–6 entries.
+
+• flowchart / structural / illustrative -> legacy. Provide "nodes" + "edges"
+  (3–6 nodes, labels ≤24 chars, subtitles ≤5 words, group related nodes).
+
+• annotated_hero -> "annotatedHero" with:
+    - subject: a concrete depictable noun ("smartphone with chat app",
+      "open book", "coffee brewer cross-section", "growth chart with three peaks").
+      NOT abstract ("trust", "scalability").
+    - subjectHint?: optional details about how the renderer should draw it.
+    - annotations: 2–5 numbered callouts, each with targetHint (where to point —
+      "send button bottom-right", "summit of the curve"), label (≤6 words),
+      and optional sub (≤14 words).
+
+• metaphor -> "metaphor" with:
+    - kind: pick ONE of the 26 below.
+    - Fill the fields that kind needs (see the recipe below). Leave irrelevant
+      fields empty / omit them.
+
+═══════════════════════════════════════════════════════════════════════════
+METAPHOR PICK RULES — walk this ladder TOP-DOWN, stop at the first match
+═══════════════════════════════════════════════════════════════════════════
+
+Duality / tension (two-pole — fill poles[0] and poles[1]):
+  iceberg     : surface vs depth, visible vs hidden, the 10% vs the 90%.
+                hint? = ratio like "90%".
+  bridge      : before-state vs after-state with a transition between them.
+                outcome.name = the transition/mechanism label (e.g. "rewrite").
+  scale       : two ideas being weighed against each other; trade-off question.
+                hint? = the question being weighed ("which matters more?").
+  tug_of_war  : two active forces directly opposing each other for a prize/outcome.
+                outcome? = what's at stake.
+  spectrum    : a continuous range between two poles, often with a marker on it.
+                hint? = where the marker sits ("today: 60% toward right pole").
+
+Sequence (ordered list — fill items[] 2–6, outcome? = final summit/result):
+  mountain    : a multi-stage climb toward a goal; each stage is a camp.
+  staircase   : discrete escalating levels; each step strictly higher than the last.
+  garden      : organic growth across phases (seed → sprout → bloom).
+  domino      : causal cascade where each event triggers the next.
+  weaving     : independent threads interleaving into a unified fabric.
+                outcome = the resulting fabric.
+
+Many-to-one (fill hub, items[] = sources, flow="in"):
+  confluence  : multiple sources merging into one downstream output.
+  funnel      : broad input narrowing through stages to a specific output.
+                items = the narrowing stages.
+
+One-to-many (fill hub = root, items[] = branches, flow="out"):
+  branching   : one root splitting into multiple paths/options/categories.
+  ripple      : a single event with propagating second-order effects.
+  crossroads  : a decision point with multiple paths going forward.
+
+Focus (one signal vs many distractions — fill hub = focus, items[] = others, flow="out"):
+  lighthouse  : a signal cutting through noise.
+  spotlight   : one thing picked out from a crowd.
+  orbits      : a central concept with supporting concepts orbiting it.
+
+Cycle (fill items[] = phases in cycle order):
+  loop        : a feedback cycle where each phase feeds the next, ending back at the first.
+  tide        : ebb and flow; cyclical oscillation between two states.
+  engine      : input → process → output → feedback; transformation cycle.
+                hub = the process, items = the phases.
+  gears       : 2–4 interlocking mechanisms that turn together.
+
+Stack / hierarchy (fill items[] = layers BOTTOM TO TOP):
+  layers      : strata of accumulated stuff (geology, tech stack).
+  pyramid     : hierarchical narrowing-toward-top (Maslow-style).
+
+Spatial / navigation:
+  compass     : orientation with N/E/S/W principles or directions.
+                hub = the center, items = the 2–4 directions.
+  maze        : navigating uncertainty from a start toward a goal.
+                hub = start, outcome = goal, items = key choice points.
+
+═══════════════════════════════════════════════════════════════════════════
+HARD RULES
+═══════════════════════════════════════════════════════════════════════════
+
+1. ALWAYS fill "caption": 1–3 sentences of prose shown beneath the panel, written
+   for the audience level. The caption alone should let a stranger understand.
+
+2. ALWAYS fill "narrativeReason": ONE short sentence (≤25 words) explaining
+   WHY this visualType (and metaphor kind, if metaphor) fits THIS section.
+   This is used for debugging selection quality.
+
+3. ALWAYS echo "sectionId" and copy the section's "visualType".
+
+4. Keep labels TIGHT. A label is ≤6 words. A sub is ≤14 words. The visual reads
+   in 2 seconds — long labels kill that.
+
+5. For metaphors, fill ONLY the slots the kind needs. Don't fill unrelated fields.
+
+6. Names are sentence case. No emoji. No ALL CAPS. No quotes around labels.
+
+7. If the section truly doesn't fit any storytelling shape, fall back to flowchart
+   and explain in narrativeReason why nothing else worked.
+
 Respond with ONLY JSON matching the PanelPlan schema. No fences, no commentary.
 `.trim();
 
@@ -80,7 +171,7 @@ export async function runPlanner(
     const res = await callMessages(
       {
         model: MODEL_STRONG,
-        max_tokens: 1536,
+        max_tokens: 2048,
         temperature: 0.4,
         system: SYSTEM_PROMPT,
         messages,

@@ -1,6 +1,8 @@
 import { callMessages, MODEL_STRONG } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
+import { fixSvg } from "../render/fixer";
+import { renderMetaphor } from "../render/metaphors";
 import {
   stripFences,
   validateHtmlPanel,
@@ -67,6 +69,24 @@ export async function renderPanel(
   heading: string,
   jobId?: string
 ): Promise<RenderedPanel> {
+  // Metaphor panels with a deterministic template skip the model entirely.
+  // Instant, free, consistent. Untemplated kinds fall through to AI render.
+  if (plan.visualType === "metaphor") {
+    const svg = renderMetaphor(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        plan,
+      };
+    }
+  }
+
   const format = targetFormat(plan);
   const system = buildSystemPrompt(format);
 
@@ -104,7 +124,11 @@ export async function renderPanel(
       continue;
     }
 
-    const content = stripFences(text);
+    let content = stripFences(text);
+    // Cheap deterministic touch-ups (chev marker, bold→medium, missing
+    // rx, etc.) before validation so we don't waste a re-prompt round on
+    // mistakes we can auto-correct.
+    if (format === "svg") content = fixSvg(content);
     const v =
       format === "svg" ? validateSvg(content) : validateHtmlPanel(content);
 

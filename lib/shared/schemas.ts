@@ -92,14 +92,114 @@ export type Comprehension = z.infer<typeof ComprehensionSchema>;
 // ---------- Agent 3: Structure ----------
 
 export const VisualTypeSchema = z.enum([
-  "flowchart",
-  "illustrative",
-  "structural",
+  // Storytelling primary types
+  "metaphor",
+  "annotated_hero",
+  // Tabular / time / hero number — kept
   "comparison",
   "timeline",
   "stat_callout",
+  // Legacy types — still supported by the renderer; demoted in selection
+  "flowchart",
+  "illustrative",
+  "structural",
 ]);
 export type VisualType = z.infer<typeof VisualTypeSchema>;
+
+// The 26 metaphor kinds the planner can choose from. Grouped by pattern:
+//   duality / tension : iceberg, bridge, scale, tug_of_war, spectrum
+//   sequence          : mountain, staircase, garden, domino, weaving
+//   many-to-one       : confluence, funnel
+//   one-to-many       : branching, ripple, crossroads
+//   focus             : lighthouse, spotlight, orbits
+//   cycle             : loop, tide, engine, gears
+//   stack / hierarchy : layers, pyramid
+//   spatial           : compass, maze
+export const MetaphorKindSchema = z.enum([
+  "iceberg",
+  "bridge",
+  "scale",
+  "tug_of_war",
+  "spectrum",
+  "mountain",
+  "staircase",
+  "garden",
+  "domino",
+  "weaving",
+  "confluence",
+  "funnel",
+  "branching",
+  "ripple",
+  "crossroads",
+  "lighthouse",
+  "spotlight",
+  "orbits",
+  "loop",
+  "tide",
+  "engine",
+  "gears",
+  "layers",
+  "pyramid",
+  "compass",
+  "maze",
+]);
+export type MetaphorKind = z.infer<typeof MetaphorKindSchema>;
+
+const SlotItemSchema = z.object({
+  name: z.string().min(1).max(40),
+  sub: z.string().max(80).nullish(),
+});
+
+const PoleItemSchema = z.object({
+  label: z.string().min(1).max(40),
+  sub: z.string().max(80).nullish(),
+});
+
+// Single permissive shape — each metaphor template reads the fields it cares
+// about and ignores the rest. The planner prompt tells the model which fields
+// to fill for each kind. We deliberately don't use a discriminated union here
+// because (a) it'd make the planner JSON much more brittle and (b) the model
+// is better at filling a single flat shape than a nested polymorphic one.
+export const MetaphorPlanSchema = z.object({
+  kind: MetaphorKindSchema,
+  // Two-pole metaphors (iceberg, bridge, scale, tug_of_war, spectrum):
+  // poles[0] = side a, poles[1] = side b.
+  poles: z.array(PoleItemSchema).max(2).default([]),
+  // Sequence / cycle / stack / spoke metaphors: 2–6 items.
+  items: z.array(SlotItemSchema).max(6).default([]),
+  // Hub for hub-and-spokes metaphors (confluence, funnel, branching, ripple,
+  // crossroads, lighthouse, spotlight, orbits, engine).
+  hub: SlotItemSchema.nullish(),
+  // "in" = spokes flow into hub (confluence, funnel).
+  // "out" = hub flows to spokes (branching, ripple, crossroads, spotlight,
+  // orbits, lighthouse).
+  flow: z.enum(["in", "out"]).nullish(),
+  // Terminal label: mountain summit, weaving fabric, engine output, garden
+  // outcome, bridge transition mid-label.
+  outcome: SlotItemSchema.nullish(),
+  // Freeform clarifier the renderer may surface (e.g. ratio "90%" for iceberg,
+  // cycle period for tide).
+  hint: z.string().max(200).nullish(),
+});
+export type MetaphorPlan = z.infer<typeof MetaphorPlanSchema>;
+
+export const AnnotatedHeroPlanSchema = z.object({
+  // A concrete depictable subject: "smartphone with chat app", "open book",
+  // "growth chart", "coffee brewer cross-section". Not abstract concepts.
+  subject: z.string().min(1).max(80),
+  subjectHint: z.string().max(200).nullish(),
+  annotations: z
+    .array(
+      z.object({
+        targetHint: z.string().min(1).max(80),
+        label: z.string().min(1).max(60),
+        sub: z.string().max(140).nullish(),
+      })
+    )
+    .min(2)
+    .max(5),
+});
+export type AnnotatedHeroPlan = z.infer<typeof AnnotatedHeroPlanSchema>;
 
 export const OutlineSectionSchema = z.object({
   id: z.string(),
@@ -163,6 +263,13 @@ export const PanelPlanSchema = z.object({
   illustrativeBrief: z.string().nullish(),
   stat: z.object({ value: z.string(), label: z.string() }).nullish(),
   layoutHint: z.enum(["horizontal", "vertical"]).nullish(),
+  // Storytelling slots — populated when visualType is "metaphor" or "annotated_hero".
+  metaphor: MetaphorPlanSchema.nullish(),
+  annotatedHero: AnnotatedHeroPlanSchema.nullish(),
+  // One sentence explaining why the planner chose this visual for this section.
+  // Dev-only surface (exposed via ?debug=1); kept on every plan so we can sample
+  // and tune selection without re-running the pipeline.
+  narrativeReason: z.string().max(220).default(""),
 });
 export type PanelPlan = z.infer<typeof PanelPlanSchema>;
 
