@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import type { Explainer, RenderedPanel } from "../shared/schemas";
+import { sourceLabel } from "../shared/source";
 import { EXPORT_DIMENSIONS, type ExportFormat } from "./dimensions";
 
 const ACCENT = "#1F97DC";
@@ -11,14 +12,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
 }
 
 function siteUrl(): string {
@@ -103,7 +96,7 @@ export async function buildPanelExportHtml(
   const { explainer, panel, format, panelIndex, totalPanels } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
-  const domain = sourceDomain(explainer.url);
+  const domain = sourceLabel(explainer.url);
   const heading = panel.heading?.trim() || explainer.title;
   const showOverline = Boolean(panel.heading?.trim());
 
@@ -176,7 +169,7 @@ export async function buildStackedExportHtml(
   const { explainer, format } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
-  const domain = sourceDomain(explainer.url);
+  const domain = sourceLabel(explainer.url);
   const panels = explainer.panels.slice(0, 4);
 
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;

@@ -4,14 +4,7 @@ import { useState } from "react";
 import { ExportSheet } from "./ExportSheet";
 import { PanelCard } from "./PanelCard";
 import type { Explainer } from "@/lib/shared/schemas";
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
+import { sourceIsLinkable, sourceLabel } from "@/lib/shared/source";
 
 interface Props {
   explainer: Explainer;
@@ -71,14 +64,18 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             {explainer.title}
           </h1>
           <p className="text-sm text-ink-muted">
-            <a
-              href={explainer.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline-offset-2 hover:underline"
-            >
-              {sourceDomain(explainer.url)}
-            </a>
+            {sourceIsLinkable(explainer.url) ? (
+              <a
+                href={explainer.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline-offset-2 hover:underline"
+              >
+                {sourceLabel(explainer.url)}
+              </a>
+            ) : (
+              <span>{sourceLabel(explainer.url)}</span>
+            )}
             <span className="mx-2">·</span>
             <span>audience: {explainer.audienceLevel}</span>
           </p>

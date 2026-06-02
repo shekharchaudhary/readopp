@@ -15,6 +15,7 @@ import {
   getJob,
   setJobStatus,
 } from "../store";
+import { drainPreIngested } from "./preIngested";
 import type {
   Explainer,
   JobError,
@@ -100,13 +101,21 @@ export async function runJob(jobId: string): Promise<void> {
     // 1. Ingest
     emitStatus(jobId, "ingesting");
     emitAgentStart(jobId, "ingest");
-    emitAgentProgress(jobId, "ingest", "Fetching article…");
-    const article = await runIngest(job.url);
-    emitAgentProgress(
-      jobId,
-      "ingest",
-      `Stripped nav & ads, ${article.wordCount.toLocaleString()} words`
-    );
+    const preIngested = drainPreIngested(jobId);
+    let article;
+    if (preIngested) {
+      // PDF upload path — extraction already happened in the upload route.
+      emitAgentProgress(jobId, "ingest", "Reading uploaded document…");
+      article = preIngested;
+    } else {
+      emitAgentProgress(jobId, "ingest", "Fetching article…");
+      article = await runIngest(job.url);
+      emitAgentProgress(
+        jobId,
+        "ingest",
+        `Stripped nav & ads, ${article.wordCount.toLocaleString()} words`
+      );
+    }
     emitAgentDone(
       jobId,
       "ingest",

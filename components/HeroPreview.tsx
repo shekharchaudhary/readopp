@@ -2,20 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { sourceLabel } from "@/lib/shared/source";
 
 interface HeroExplainer {
   id: string;
   title: string;
   url: string;
   panel: { sectionId: string; heading: string; content: string; format: "svg" | "html" } | null;
-}
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
 }
 
 export function HeroPreview() {
@@ -71,7 +64,7 @@ export function HeroPreview() {
         </span>
       </div>
       <div className="absolute right-4 top-4 z-10 text-[11px] text-ink-faint">
-        {sourceDomain(item.url)}
+        {sourceLabel(item.url)}
       </div>
 
       {/* key={replay} remounts the wrapper, which re-fires CSS animations */}

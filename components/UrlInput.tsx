@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
 import type { AudienceLevel } from "@/lib/shared/schemas";
 import { GoogleLogo } from "./GoogleLogo";
@@ -50,13 +50,17 @@ function looksLikeUrl(s: string): boolean {
   }
 }
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB — matches /api/jobs/upload cap
+
 export function UrlInput() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [audience, setAudience] = useState<AudienceLevel>("general");
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const valid = useMemo(() => looksLikeUrl(url), [url]);
 
@@ -74,6 +78,42 @@ export function UrlInput() {
       cancelled = true;
     };
   }, []);
+
+  async function uploadFile(file: File) {
+    setError(null);
+    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
+      setError("Only PDF files are supported.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(
+        `File is too large (${(file.size / 1_000_000).toFixed(1)} MB). Limit is ${MAX_UPLOAD_BYTES / 1_000_000} MB.`
+      );
+      return;
+    }
+    setUploading(file.name);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("audienceLevel", audience);
+      const res = await fetch("/api/jobs/upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (res.status === 402) {
+        setQuota(data?.quota ?? null);
+        setUploading(null);
+        return;
+      }
+      if (!res.ok) {
+        setError(data?.error || `Upload failed (${res.status})`);
+        setUploading(null);
+        return;
+      }
+      router.push(`/j/${data.jobId}`);
+    } catch (e) {
+      setError((e as Error).message || "Network error");
+      setUploading(null);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,12 +153,30 @@ export function UrlInput() {
   return (
     <form onSubmit={submit} className="space-y-6">
       <div>
-        <label
-          htmlFor="url"
-          className="mb-2 block text-sm font-medium text-ink-soft"
-        >
-          Article URL
-        </label>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <label htmlFor="url" className="block text-sm font-medium text-ink-soft">
+            Article URL
+          </label>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={submitting || !!uploading || blocked}
+            className="text-xs font-medium text-accent transition-opacity hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploading ? `Uploading ${uploading}…` : "or upload a PDF →"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void uploadFile(f);
+              e.target.value = ""; // allow re-selecting the same file
+            }}
+          />
+        </div>
         <input
           id="url"
           type="url"
@@ -127,7 +185,7 @@ export function UrlInput() {
           placeholder="https://example.com/some-article"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          disabled={submitting || blocked}
+          disabled={submitting || !!uploading || blocked}
           className="w-full rounded-md border border-paper-line bg-white px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:bg-paper-soft"
         />
       </div>
@@ -144,7 +202,7 @@ export function UrlInput() {
                 type="button"
                 key={opt.value}
                 onClick={() => setAudience(opt.value)}
-                disabled={submitting || blocked}
+                disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
                   "rounded-md border px-3 py-2 text-sm transition-colors " +
@@ -179,7 +237,7 @@ export function UrlInput() {
       {!blocked && (
         <button
           type="submit"
-          disabled={!valid || submitting}
+          disabled={!valid || submitting || !!uploading}
           className="w-full rounded-md bg-accent px-4 py-3 text-base font-medium text-paper shadow-[0_1px_0_rgba(13,87,134,0.3)] transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:bg-ink-faint disabled:shadow-none"
         >
           {submitting ? "Starting…" : "Explain"}

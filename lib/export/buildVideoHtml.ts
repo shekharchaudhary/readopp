@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import type { Explainer, RenderedPanel } from "../shared/schemas";
+import { sourceLabel } from "../shared/source";
 
 const ACCENT = "#1F97DC";
 const PAPER = "#fafaf7";
@@ -40,14 +41,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
 }
 
 function siteUrl(): string {
@@ -129,7 +122,7 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   const panels = explainer.panels.slice(0, MAX_PANELS);
   const totalPanels = explainer.panels.length;
   const shown = panels.length;
-  const domain = sourceDomain(explainer.url);
+  const domain = sourceLabel(explainer.url);
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;
   const qr = await qrSvg(shareUrl, L.qrSize);
 

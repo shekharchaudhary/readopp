@@ -8,14 +8,7 @@ import { WorkingScene } from "@/components/WorkingScene";
 import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
 import type { Job } from "@/lib/shared/schemas";
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
+import { sourceLabel } from "@/lib/shared/source";
 
 /**
  * Re-fetches the persisted job record. Initial fetch gets URL + audienceLevel
@@ -152,7 +145,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
           </h1>
           {job && (
             <p className="text-sm text-ink-muted">
-              <span>{sourceDomain(job.url)}</span>
+              <span>{sourceLabel(job.url)}</span>
               <span className="mx-2">·</span>
               <span>audience: {job.audienceLevel}</span>
             </p>

@@ -42,6 +42,8 @@ export function createJob(input: {
   url: string;
   audienceLevel: AudienceLevel;
   userId: string;
+  /** Optional explicit cache key (e.g. file-hash for PDF uploads). Defaults to url+audience hash. */
+  cacheKey?: string;
 }): Job & { userId: string } {
   const now = new Date().toISOString();
   const job: Job & { userId: string } = {
@@ -49,7 +51,7 @@ export function createJob(input: {
     url: input.url,
     audienceLevel: input.audienceLevel,
     status: "queued",
-    cacheKey: cacheKeyFor(input.url, input.audienceLevel),
+    cacheKey: input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel),
     progress: [],
     usage: { inputTokens: 0, outputTokens: 0, calls: 0 },
     createdAt: now,

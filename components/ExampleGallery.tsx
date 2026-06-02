@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { sourceLabel } from "@/lib/shared/source";
 
 interface Item {
   id: string;
@@ -11,14 +12,6 @@ interface Item {
   audienceLevel: string;
   panelCount: number;
   createdAt: string;
-}
-
-function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
 }
 
 export function ExampleGallery() {
@@ -93,7 +86,7 @@ export function ExampleGallery() {
                   {it.summary}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
-                  <span className="min-w-0 truncate">{sourceDomain(it.url)}</span>
+                  <span className="min-w-0 truncate">{sourceLabel(it.url)}</span>
                   <span aria-hidden>·</span>
                   <span className="whitespace-nowrap">{it.panelCount} panels</span>
                   <span aria-hidden>·</span>
