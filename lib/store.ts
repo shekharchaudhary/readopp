@@ -305,6 +305,21 @@ export async function deleteExplainer(id: string): Promise<boolean> {
 }
 
 /**
+ * Number of explainers a user has generated. Used by the Phase 3b free-tier
+ * gate. Cache-hit reuses don't insert rows, so this naturally measures
+ * unique generations (not page reloads or re-shares).
+ */
+export async function countExplainersByUser(userId: string): Promise<number> {
+  const admin = getAdminSupabase();
+  const { count, error } = await admin
+    .from("explainers")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/**
  * The current user's recent explainers — newest first. With RLS we don't
  * have to thread userId here; the session-bound client filters for us via
  * the SELECT policy (which is public-read) — so we ALSO add an explicit

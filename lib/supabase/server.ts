@@ -49,15 +49,25 @@ export function getAdminSupabase() {
   return _admin;
 }
 
+export interface ResolvedUser {
+  userId: string;
+  isAnonymous: boolean;
+}
+
 /**
- * Resolve the current auth.uid() — anonymous or permanent — creating an
- * anonymous user on first contact so every action has an owner. Returns
- * the user id; the session cookie is set as a side-effect.
+ * Resolve the current auth user, creating an anonymous one on first contact
+ * so every action has an owner. Returns the user id + whether it's
+ * anonymous; the session cookie is set as a side-effect.
  */
-export async function getOrCreateUserId(): Promise<string> {
+export async function getOrCreateUser(): Promise<ResolvedUser> {
   const supabase = getServerSupabase();
   const { data: existing } = await supabase.auth.getUser();
-  if (existing.user) return existing.user.id;
+  if (existing.user) {
+    return {
+      userId: existing.user.id,
+      isAnonymous: existing.user.is_anonymous === true,
+    };
+  }
 
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error || !data.user) {
@@ -65,5 +75,13 @@ export async function getOrCreateUserId(): Promise<string> {
       `Anonymous sign-in failed: ${error?.message ?? "no user returned"}`
     );
   }
-  return data.user.id;
+  return { userId: data.user.id, isAnonymous: true };
+}
+
+/**
+ * Convenience wrapper for callers that only need the id (e.g. cache lookups,
+ * gallery scoping). Kept for backwards compatibility with the Phase 3a code.
+ */
+export async function getOrCreateUserId(): Promise<string> {
+  return (await getOrCreateUser()).userId;
 }
