@@ -1,33 +1,46 @@
+import { Demo1PasteUrl } from "./demos/Demo1PasteUrl";
+import { Demo2AgentsWork } from "./demos/Demo2AgentsWork";
+import { Demo3PanelsCompose } from "./demos/Demo3PanelsCompose";
+import { Demo4Share } from "./demos/Demo4Share";
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
 
-const STEPS = [
+const STEPS: Array<{
+  n: string;
+  title: string;
+  body: string;
+  demo: React.ReactNode;
+}> = [
   {
     n: "01",
     title: "Paste a URL",
-    body: "Any article — a technical blog post, a research paper, a launch announcement, a long newsletter. We fetch the page and strip the chrome.",
+    body: "Any article — a technical blog post, a research paper, a launch announcement, a long newsletter. Copy the URL, paste it here, and we strip away the chrome.",
+    demo: <Demo1PasteUrl />,
   },
   {
     n: "02",
     title: "Six agents read it",
-    body: "Read, Understand, Outline, Plan, Draw, Assemble. Each agent does one job; you watch them work in real time, with a transcript of every decision.",
+    body: "Read, Understand, Outline, Plan, Draw, Assemble. Each agent does one job; you watch them step through their work in real time, with a transcript of every decision.",
+    demo: <Demo2AgentsWork />,
   },
   {
     n: "03",
     title: "Panels compose themselves",
-    body: "The model produces a sequence of diagrams — flowcharts, comparisons, timelines, stat callouts. Real vector text, real structure, captioned from the source.",
+    body: "The planner picks the right metaphor for each section — iceberg, mountain, stat callout, bridge. The renderer draws the panel from a deterministic template; no generic flowcharts.",
+    demo: <Demo3PanelsCompose />,
   },
   {
     n: "04",
     title: "Share it anywhere",
-    body: "Export as a vertical MP4 for Reels and TikTok, a square for Instagram, a landscape for LinkedIn. Every frame carries a QR back to the full explainer.",
+    body: "Export as a square for Instagram, vertical for TikTok or Reels, landscape for LinkedIn. Every frame carries a QR back to the live, editable explainer.",
+    demo: <Demo4Share />,
   },
 ];
 
 export function HowItWorks() {
   return (
     <section id="how-it-works" className="border-b border-paper-line bg-paper">
-      <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
+      <div className="mx-auto max-w-6xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="01" title="How it works" />
         </Reveal>
@@ -47,8 +60,8 @@ export function HowItWorks() {
         <ol className="mt-16 divide-y divide-paper-line border-y border-paper-line">
           {STEPS.map((step, i) => (
             <Reveal key={step.n} delayMs={i * 60}>
-              <li className="grid gap-2 py-8 sm:grid-cols-[120px_1fr] sm:gap-10 sm:py-10">
-                <div className="font-mono text-base font-medium tabular-nums text-accent sm:text-lg">
+              <li className="grid gap-6 py-10 lg:grid-cols-[60px_minmax(0,1fr)_minmax(0,460px)] lg:gap-10 lg:py-14">
+                <div className="font-mono text-base font-medium tabular-nums text-accent lg:text-lg">
                   {step.n}
                 </div>
                 <div>
@@ -59,6 +72,7 @@ export function HowItWorks() {
                     {step.body}
                   </p>
                 </div>
+                <div className="lg:max-w-[460px]">{step.demo}</div>
               </li>
             </Reveal>
           ))}
