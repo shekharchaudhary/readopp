@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { signInWithGoogle } from "@/lib/supabase/auth";
 import type { AudienceLevel } from "@/lib/shared/schemas";
+import { GoogleLogo } from "./GoogleLogo";
 
 const AUDIENCE_OPTIONS: {
   value: AudienceLevel;
@@ -197,6 +199,20 @@ export function UrlInput() {
 }
 
 function BlockedPanel({ quota }: { quota: Quota }) {
+  const [busy, setBusy] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  async function start() {
+    if (busy) return;
+    setBusy(true);
+    setSignInError(null);
+    try {
+      await signInWithGoogle("/");
+      // Browser navigates to Google; if it doesn't, fall back to clearing busy.
+    } catch (e) {
+      setSignInError((e as Error).message || "Sign-in failed.");
+      setBusy(false);
+    }
+  }
   return (
     <div className="space-y-3 rounded-lg border border-paper-line bg-paper-soft p-4">
       <div>
@@ -204,18 +220,24 @@ function BlockedPanel({ quota }: { quota: Quota }) {
           You&rsquo;ve used your {quota.max} free generations.
         </p>
         <p className="mt-1 text-xs text-ink-muted">
-          Sign in to keep generating explainers — your existing work stays
-          attached to your account.
+          Sign in with Google to keep generating — your existing explainers
+          stay attached to your account.
         </p>
       </div>
       <button
         type="button"
-        disabled
-        title="Sign-in coming in the next release"
-        className="w-full rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={start}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2.5 rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Sign in (coming soon)
+        {!busy && <GoogleLogo size={16} />}
+        {busy ? "Redirecting…" : "Sign in with Google"}
       </button>
+      {signInError && (
+        <p className="text-[11px] text-red-600" role="alert">
+          {signInError}
+        </p>
+      )}
     </div>
   );
 }

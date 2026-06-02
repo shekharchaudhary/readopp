@@ -1,13 +1,12 @@
-import { ExampleGallery } from "@/components/ExampleGallery";
 import { HeroPreview } from "@/components/HeroPreview";
 import { UrlInput } from "@/components/UrlInput";
+import { YourExplainersSection } from "@/components/YourExplainersSection";
 import { FAQ } from "@/components/marketing/FAQ";
 import { Footer } from "@/components/marketing/Footer";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { Nav } from "@/components/marketing/Nav";
 import { PlatformsStrip } from "@/components/marketing/PlatformsStrip";
 import { Reveal } from "@/components/marketing/Reveal";
-import { SectionLabel } from "@/components/marketing/SectionLabel";
 import { UseCases } from "@/components/marketing/UseCases";
 
 export default function HomePage() {
@@ -64,28 +63,8 @@ export default function HomePage() {
 
         <UseCases />
 
-        {/* Recent runs — quietly framed as an index, not a marketing wall. */}
-        <section className="border-b border-paper-line bg-white">
-          <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
-            <Reveal>
-              <SectionLabel number="03" title="Recent runs" />
-            </Reveal>
-            <Reveal delayMs={60}>
-              <h2 className="mt-6 max-w-3xl text-3xl font-medium leading-[1.12] tracking-tight text-ink sm:text-4xl">
-                A handful of explainers Readopp has generated.
-              </h2>
-            </Reveal>
-            <Reveal delayMs={120}>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-soft">
-                Each one is a real run — open any to see the full set of panels
-                and the article it came from.
-              </p>
-            </Reveal>
-            <div className="mt-12">
-              <ExampleGallery />
-            </div>
-          </div>
-        </section>
+        {/* Personalised — only renders once the user has at least one explainer. */}
+        <YourExplainersSection />
 
         <FAQ />
 
