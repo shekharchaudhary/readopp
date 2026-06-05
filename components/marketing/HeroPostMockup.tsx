@@ -86,14 +86,14 @@ export function HeroPostMockup() {
       {/* Header: avatar + name + timestamp + more */}
       <div className="flex items-start gap-3 px-4 pt-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-deep text-sm font-semibold text-white">
-          SC
+          SB
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-ink">
-            Shekhar Chaudhary
+            Sarah Bennett
           </div>
           <div className="truncate text-[11px] text-ink-muted">
-            Building Readopp · 2h
+            Indie founder · writes weekly · 2h
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 text-ink-muted">
