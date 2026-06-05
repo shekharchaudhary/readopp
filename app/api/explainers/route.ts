@@ -16,6 +16,18 @@ export async function GET() {
   const list = await listRecentExplainers(userId, 6);
   const recent = list.map((e) => {
     const first = e.panels[0];
+    // The hero post mockup prefers the second panel — first is usually a
+    // hero stat callout which doesn't show off Readopp's visual range.
+    const second = e.panels[1];
+    const trim = (p: typeof first) =>
+      p
+        ? {
+            sectionId: p.sectionId,
+            heading: p.heading,
+            content: p.content,
+            format: p.format,
+          }
+        : null;
     return {
       id: e.id,
       title: e.title,
@@ -24,14 +36,8 @@ export async function GET() {
       audienceLevel: e.audienceLevel,
       panelCount: e.panels.length,
       createdAt: e.createdAt,
-      panel: first
-        ? {
-            sectionId: first.sectionId,
-            heading: first.heading,
-            content: first.content,
-            format: first.format,
-          }
-        : null,
+      panel: trim(first),
+      secondPanel: trim(second),
     };
   });
   return NextResponse.json({ explainers: recent });

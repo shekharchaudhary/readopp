@@ -12,16 +12,20 @@ import { useEffect, useRef, useState } from "react";
  * never renders empty on a fresh install.
  */
 
+interface PanelLite {
+  sectionId: string;
+  heading: string;
+  content: string;
+  format: "svg" | "html";
+}
 interface ExampleItem {
   id: string;
   title: string;
   url: string;
-  panel: {
-    sectionId: string;
-    heading: string;
-    content: string;
-    format: "svg" | "html";
-  } | null;
+  panel: PanelLite | null;
+  /** The /api/explainers route also exposes panel[1]; we prefer it here
+   *  because panel[0] is usually a hero stat callout. */
+  secondPanel?: PanelLite | null;
 }
 
 // Hand-crafted fallback — used when there are no SVG examples in the gallery
@@ -49,9 +53,13 @@ export function HeroPostMockup() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data?.explainers) return;
-        const svgItems = (data.explainers as ExampleItem[]).filter(
-          (x) => x.panel?.format === "svg"
-        );
+        // Keep only explainers whose SECOND panel is SVG (the one we'll
+        // actually display in the mockup). Falls back gracefully when the
+        // explainer only has one panel.
+        const svgItems = (data.explainers as ExampleItem[]).filter((x) => {
+          const display = x.secondPanel ?? x.panel;
+          return display?.format === "svg";
+        });
         setItems(svgItems);
       })
       .catch(() => {
@@ -73,19 +81,23 @@ export function HeroPostMockup() {
   }, [items.length]);
 
   const live = items[cursor];
-  const usingFallback = !live || !live.panel;
+  // Prefer the explainer's SECOND panel — first is almost always a hero
+  // stat callout (one big number) which doesn't show Readopp's range.
+  // Fall back to the first panel when there's only one.
+  const displayPanel = live?.secondPanel ?? live?.panel ?? null;
+  const usingFallback = !live || !displayPanel;
   const headingText = usingFallback
     ? FALLBACK_PANEL.heading
-    : live!.panel!.heading || live!.title;
+    : displayPanel!.heading || live!.title;
   const titleText = usingFallback
     ? FALLBACK_PANEL.title
-    : live!.title || live!.panel!.heading;
+    : live!.title || displayPanel!.heading;
   const sourceText = usingFallback
     ? FALLBACK_PANEL.source
     : safeHost(live!.url);
   const svgContent = usingFallback
     ? FALLBACK_PANEL.svg
-    : live!.panel!.content;
+    : displayPanel!.content;
   // Post caption follows what's actually displayed, so when the carousel
   // rotates the persona's "voice" stays in sync with the source piece.
   const captionText = `Just finished “${truncate(titleText, 56)}”. Made a quick visual breakdown — what do you think?`;
@@ -124,9 +136,10 @@ export function HeroPostMockup() {
             className="hero-post-fade flex h-full w-full items-center justify-center"
             dangerouslySetInnerHTML={{ __html: svgContent }}
           />
-          {/* Page indicator */}
+          {/* Page indicator — second slide because the panel shown above is
+              the explainer's second panel (skipping the stat-callout hero). */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/85 px-2.5 py-1 text-[10px] font-medium text-paper backdrop-blur">
-            1 / 5
+            2 / 5
           </div>
         </div>
         {/* Slim caption / heading under the carousel */}
