@@ -78,6 +78,34 @@ export const JargonSchema = z.object({
   plainDefinition: z.string().default(""),
 });
 
+// What kind of document is this? Drives genre-specific structure + planner
+// behavior. `other` is the catch-all when nothing clearly fits.
+export const GenreSchema = z.enum([
+  "article",
+  "research_paper",
+  "resume",
+  "news",
+  "book_chapter",
+  "documentation",
+  "whitepaper",
+  "other",
+]);
+export type Genre = z.infer<typeof GenreSchema>;
+
+// Lightweight feature flags the Comprehension agent sets so downstream stages
+// can decide whether to reach for charts, timelines, etc. without re-reading
+// the body. All default to false — Comprehension flips them on when present.
+export const ContentFeaturesSchema = z.object({
+  hasNumericData: z.boolean().default(false),
+  hasDates: z.boolean().default(false),
+  hasCharts: z.boolean().default(false),
+  hasCode: z.boolean().default(false),
+  hasRoles: z.boolean().default(false),
+  hasSkills: z.boolean().default(false),
+  hasFigures: z.boolean().default(false),
+});
+export type ContentFeatures = z.infer<typeof ContentFeaturesSchema>;
+
 export const ComprehensionSchema = z.object({
   oneLineSummary: z.string().min(1).max(220),
   coreIdea: z.string().min(1),
@@ -86,6 +114,19 @@ export const ComprehensionSchema = z.object({
   jargon: z.array(JargonSchema).default([]),
   narrativeArc: z.string().default(""),
   audienceLevel: AudienceLevelSchema,
+  // Genre classification — drives the downstream visual playbook. Defaults
+  // to "article" when the model is unsure (low confidence fallback).
+  genre: GenreSchema.default("article"),
+  genreConfidence: z.enum(["low", "medium", "high"]).default("medium"),
+  contentFeatures: ContentFeaturesSchema.default({
+    hasNumericData: false,
+    hasDates: false,
+    hasCharts: false,
+    hasCode: false,
+    hasRoles: false,
+    hasSkills: false,
+    hasFigures: false,
+  }),
 });
 export type Comprehension = z.infer<typeof ComprehensionSchema>;
 
@@ -99,6 +140,11 @@ export const VisualTypeSchema = z.enum([
   "comparison",
   "timeline",
   "stat_callout",
+  // Genre-specific types (Phase 7b)
+  "career_timeline",  // resume: vertical roles list with date axis
+  "profile_card",     // resume / about: name + headline + 2-3 stats
+  "skills_matrix",    // resume: skills grouped by category
+  "chart",            // any: real bar / donut / line chart from data
   // Legacy types — still supported by the renderer; demoted in selection
   "flowchart",
   "illustrative",
@@ -183,6 +229,96 @@ export const MetaphorPlanSchema = z.object({
 });
 export type MetaphorPlan = z.infer<typeof MetaphorPlanSchema>;
 
+// ===== Phase 7b: genre-specific slot shapes =====
+
+/** career_timeline — vertical list of roles with date range and 1-3 wins each. */
+export const CareerTimelinePlanSchema = z.object({
+  roles: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(60),
+        company: z.string().min(1).max(60),
+        period: z.string().max(40).nullish(), // "2021–2024", "2019–Now"
+        achievements: z.array(z.string().max(140)).max(3).default([]),
+      })
+    )
+    .min(1)
+    .max(6),
+});
+export type CareerTimelinePlan = z.infer<typeof CareerTimelinePlanSchema>;
+
+/** profile_card — hero block for resumes / about pages. */
+export const ProfileCardPlanSchema = z.object({
+  name: z.string().min(1).max(60),
+  headline: z.string().max(120).nullish(), // "Staff engineer · open-source maintainer"
+  location: z.string().max(60).nullish(),
+  stats: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(30),
+        value: z.string().min(1).max(20),
+      })
+    )
+    .max(3)
+    .default([]),
+});
+export type ProfileCardPlan = z.infer<typeof ProfileCardPlanSchema>;
+
+/** skills_matrix — skills bucketed into categories, optionally with a level. */
+export const SkillsMatrixPlanSchema = z.object({
+  groups: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(40),
+        skills: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(40),
+              level: z.enum(["expert", "strong", "familiar"]).nullish(),
+            })
+          )
+          .min(1)
+          .max(8),
+      })
+    )
+    .min(1)
+    .max(4),
+});
+export type SkillsMatrixPlan = z.infer<typeof SkillsMatrixPlanSchema>;
+
+/** chart — real bar / donut / line chart from structured data. */
+export const ChartPlanSchema = z.object({
+  kind: z.enum(["bar", "donut", "line"]),
+  title: z.string().max(80).nullish(),
+  xLabel: z.string().max(30).nullish(),
+  yLabel: z.string().max(30).nullish(),
+  /** Each series is a sequence of labeled values. Bar/donut take series[0];
+   *  line can render up to 3 series for comparison. */
+  series: z
+    .array(
+      z.object({
+        name: z.string().max(40).nullish(),
+        color: z
+          .enum(["blue", "teal", "amber", "purple", "gray"])
+          .nullish(),
+        points: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(30),
+              value: z.number(),
+            })
+          )
+          .min(2)
+          .max(12),
+      })
+    )
+    .min(1)
+    .max(3),
+  /** Optional unit suffix shown on tick labels: "%", "k", "M", "$", etc. */
+  unit: z.string().max(8).nullish(),
+});
+export type ChartPlan = z.infer<typeof ChartPlanSchema>;
+
 export const AnnotatedHeroPlanSchema = z.object({
   // A concrete depictable subject: "smartphone with chat app", "open book",
   // "growth chart", "coffee brewer cross-section". Not abstract concepts.
@@ -266,6 +402,11 @@ export const PanelPlanSchema = z.object({
   // Storytelling slots — populated when visualType is "metaphor" or "annotated_hero".
   metaphor: MetaphorPlanSchema.nullish(),
   annotatedHero: AnnotatedHeroPlanSchema.nullish(),
+  // Genre-specific slots (Phase 7b)
+  careerTimeline: CareerTimelinePlanSchema.nullish(),
+  profileCard: ProfileCardPlanSchema.nullish(),
+  skillsMatrix: SkillsMatrixPlanSchema.nullish(),
+  chart: ChartPlanSchema.nullish(),
   // One sentence explaining why the planner chose this visual for this section.
   // Dev-only surface (exposed via ?debug=1); kept on every plan so we can sample
   // and tune selection without re-running the pipeline.

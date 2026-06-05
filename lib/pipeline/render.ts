@@ -2,6 +2,7 @@ import { callMessages, MODEL_STRONG } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import { fixSvg } from "../render/fixer";
+import { renderGenrePanel } from "../render/genrePanels";
 import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
 import {
@@ -86,6 +87,29 @@ export async function renderPanel(
   // Instant, free, consistent. Untemplated kinds fall through to AI render.
   if (plan.visualType === "metaphor") {
     const svg = renderMetaphor(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+  }
+
+  // Phase 7b genre-specific templates — also deterministic.
+  if (
+    plan.visualType === "profile_card" ||
+    plan.visualType === "career_timeline" ||
+    plan.visualType === "skills_matrix" ||
+    plan.visualType === "chart"
+  ) {
+    const svg = renderGenrePanel(plan);
     if (svg) {
       return {
         sectionId: plan.sectionId,

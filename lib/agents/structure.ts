@@ -7,42 +7,99 @@ import {
 import { extractJson, withRetry } from "./util";
 
 const SYSTEM_PROMPT = `
-You are the structure stage. You decide how to break an understood article into a short
-sequence of visual panels, and you choose the RIGHT KIND of visual for each. The output
-will become a shareable visual explainer (think LinkedIn carousel quality), so the
-panels should tell a STORY, not look like a wireframe.
+You are the structure stage. You break an understood document into a short
+sequence of visual panels and pick the RIGHT KIND of visual for each. The
+output is a shareable explainer (LinkedIn carousel quality), so panels must
+tell a STORY, not look like a wireframe.
 
-Rules:
-- Produce 3 to 6 panels. Fewer is better if the article is simple. Never more than 6.
-- The panels should form a narrative the reader can follow in order.
-- First panel usually frames the PROBLEM or core idea; last often resolves or summarizes.
-- A document MUST NOT use the same visualType more than twice; if it must repeat,
-  prefer a different visualType that fits the section.
+The Comprehension stage classified the document's GENRE — your selection
+playbook ADAPTS to that genre. A resume needs different visuals than a
+research paper.
 
-How to choose visualType — walk this ladder TOP-DOWN and stop at the first match:
+═══════════════════════════════════════════════════════════════════════════
+GENERAL RULES (apply to every genre)
+═══════════════════════════════════════════════════════════════════════════
+- Produce 3 to 6 panels. Fewer is better when the document is simple.
+- Panels form a narrative the reader can follow in order.
+- First panel usually frames the subject/problem; last summarises.
+- Don't use the same visualType more than twice unless absolutely necessary.
 
-1. stat_callout    -> one striking number that summarises the section (e.g. "$2.4B raised", "90% reduction")
-2. comparison      -> 2–4 named things contrasted across the same dimensions
-3. timeline        -> dated or sequenced events as a chronological list
-4. metaphor        -> the section describes a CONCEPTUAL PATTERN: duality, sequence,
-                      aggregation, divergence, tension, cycle, hierarchy, signal vs noise,
-                      growth, or navigation. The planner will pick the specific metaphor.
-                      This is the storytelling default — prefer it whenever the section
-                      has a clean conceptual shape.
-5. annotated_hero  -> the section walks the reader through a CONCRETE DEPICTABLE thing:
-                      a UI screen, a device, a chart, a document, a physical object.
-                      The planner will label parts of it with numbered callouts.
-6. flowchart       -> LAST RESORT: a literal process or decision flow that doesn't fit
-                      any of the above. Use sparingly — a metaphor is almost always richer.
+═══════════════════════════════════════════════════════════════════════════
+GENRE PLAYBOOKS — start from the genre-specific ladder, then fall back
+═══════════════════════════════════════════════════════════════════════════
 
-(illustrative and structural still exist for back-compat but you should never pick them;
-treat them as deprecated in favour of metaphor.)
+▸ genre = "resume"
+  Treat the resume as a career story. Suggested sequence:
+    1. profile_card   — name + headline + 2-3 hero stats (years experience,
+                        notable orgs, focus area). ALMOST ALWAYS panel 1.
+    2. career_timeline — vertical roles list with companies, dates, 1-3
+                        achievements each.
+    3. skills_matrix  — skills grouped into 2-4 categories.
+    4. (optional) stat_callout — a hero achievement number ("$8M raised",
+                        "12 patents", "1M users").
+    5. (optional) metaphor — if the resume has a clear narrative shape
+                        ("from engineer to founder" → mountain or bridge).
+  Use comparison/timeline metaphors only if they clearly fit.
 
-For each section set: id ("s1","s2",...), heading (short, punchy), intent (what the reader
-must understand after seeing this panel), visualType (one of the above), sourceClaimIndexes
-(which keyClaims it draws from — valid indexes only).
+▸ genre = "research_paper"
+  Standard arc: problem → method → results → implications. Suggested:
+    1. stat_callout OR metaphor (iceberg) — the headline finding / gap.
+    2. metaphor (flowchart fallback only if nothing else fits) — methodology.
+    3. chart — IF contentFeatures.hasNumericData is true, pick chart for the
+       results section. Otherwise comparison or stat_callout.
+    4. metaphor (bridge, scale, or comparison) — implications / limitations.
 
-Also set the explainer title (can be punchier than the original article title).
+▸ genre = "news"
+  Inverted pyramid: who/what when → details → implications. Suggested:
+    1. stat_callout OR profile_card — the headline number or key actor.
+    2. timeline — events in order.
+    3. comparison OR metaphor (scale, tug_of_war) — competing positions.
+    4. metaphor — broader implications.
+
+▸ genre = "documentation"
+  Practical: what it is → how it works → how to use. Suggested:
+    1. metaphor (engine, gears, layers, pyramid) — the system / mechanism.
+    2. annotated_hero — a UI screen, code structure, or component anatomy.
+    3. metaphor (mountain, staircase) — setup / usage sequence.
+    4. comparison — alternatives, options, when-to-use.
+
+▸ genre = "whitepaper" / "book_chapter" / "article" / "other"
+  Use the storytelling-metaphor flow: walk this ladder TOP-DOWN and stop
+  at the first match per section:
+    1. stat_callout    — one striking number summarises the section.
+    2. comparison      — 2–4 named things contrasted.
+    3. timeline        — dated or sequenced events.
+    4. chart           — section has 3+ labeled numbers worth charting
+                        (only if contentFeatures.hasNumericData is true).
+    5. metaphor        — section describes a conceptual pattern (duality,
+                        sequence, aggregation, divergence, tension, cycle,
+                        hierarchy, signal vs noise, growth, navigation).
+                        Storytelling default.
+    6. annotated_hero  — section walks reader through a concrete depictable
+                        subject (UI, device, chart, document, object).
+    7. flowchart       — LAST RESORT. Use sparingly; a metaphor is richer.
+
+═══════════════════════════════════════════════════════════════════════════
+WHEN TO REACH FOR chart SPECIFICALLY
+═══════════════════════════════════════════════════════════════════════════
+Pick "chart" when the section centres on 3+ labeled numbers that the reader
+should compare or see a trend in. Examples:
+  - revenue by quarter           → line or bar
+  - market share by company      → bar or donut
+  - user satisfaction over time  → line
+  - votes per candidate          → bar
+  - breakdown of a total         → donut
+Don't pick chart for a single hero number — use stat_callout. Don't pick
+chart when the data is purely qualitative.
+
+═══════════════════════════════════════════════════════════════════════════
+(illustrative and structural still exist for back-compat — never pick them.)
+
+For each section set: id ("s1","s2",...), heading (short, punchy), intent
+(what the reader must understand after this panel), visualType, and
+sourceClaimIndexes (valid keyClaim indexes only).
+
+Set the explainer title (can be punchier than the original document title).
 
 Respond with ONLY JSON matching the ExplainerOutline schema:
 {
@@ -58,12 +115,18 @@ function userMessage(c: Comprehension): string {
   const claimsList = c.keyClaims
     .map((claim, i) => `  [${i}] ${claim}`)
     .join("\n");
+  const featureFlags = Object.entries(c.contentFeatures)
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(", ");
   return [
     "Comprehension:",
+    `- genre: ${c.genre} (confidence: ${c.genreConfidence})`,
     `- one-line summary: ${c.oneLineSummary}`,
     `- core idea: ${c.coreIdea}`,
     `- narrative arc: ${c.narrativeArc}`,
     `- audience: ${c.audienceLevel}`,
+    featureFlags ? `- content features: ${featureFlags}` : null,
     "",
     "Key claims (use these indexes for sourceClaimIndexes):",
     claimsList,

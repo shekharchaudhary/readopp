@@ -36,6 +36,46 @@ FILL FIELDS BY VISUALTYPE
       "send button bottom-right", "summit of the curve"), label (≤6 words),
       and optional sub (≤14 words).
 
+• profile_card -> "profileCard" with:
+    - name: the person's full name (resume hero).
+    - headline?: their role + focus area, ≤120 chars
+      ("Staff engineer · open-source maintainer").
+    - location?: city/country, ≤60 chars.
+    - stats: up to 3 hero metrics — { label (≤30 chars), value (≤20 chars) }.
+      Pick the 3 most impressive numbers (years experience, products shipped,
+      orgs founded, etc.). Skip stats if the resume doesn't surface clear ones.
+
+• career_timeline -> "careerTimeline" with:
+    - roles: 1–6 entries, most recent FIRST. Each:
+      - title: the job title (≤60 chars).
+      - company: the org (≤60 chars).
+      - period?: date range ("2021–2024", "2019–Now") (≤40 chars).
+      - achievements: up to 3 short, concrete wins per role (≤140 chars each).
+    Aim for 3–5 roles total; over 6 becomes a wall of text.
+
+• skills_matrix -> "skillsMatrix" with:
+    - groups: 1–4 category buckets, each with:
+      - name: category label, ≤40 chars ("Languages", "Cloud & infra",
+        "Design tools").
+      - skills: 1–8 entries per group. Each skill: { name, level? }.
+        level optional, one of "expert" | "strong" | "familiar".
+    Don't list every skill on the resume — pick what matters for the story.
+
+• chart -> "chart" with:
+    - kind: "bar" | "donut" | "line".
+        • bar    : compare a single dimension across 2–12 named items.
+        • donut  : show parts of a whole, 2–6 slices.
+        • line   : show change over a sequence (time, version, etc.),
+                   2–12 points; up to 3 series for comparison.
+    - title?: ≤80 chars, optional.
+    - xLabel? / yLabel?: axis labels, ≤30 chars each.
+    - series: 1–3 named series. Donut/bar use series[0]; line can render
+      multiple. Each series: { name?, color? (blue/teal/amber/purple/gray),
+      points[] }. Points: 2–12 per series, each { label, value (number) }.
+    - unit?: optional suffix shown on tick labels ("%", "k", "M", "$").
+    Only emit numbers actually present in the source document or directly
+    derivable from it. Never fabricate data.
+
 • metaphor -> "metaphor" with:
     - kind: pick ONE of the 26 below.
     - Fill the fields that kind needs (see the recipe below). Leave irrelevant
