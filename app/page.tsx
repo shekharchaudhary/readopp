@@ -8,6 +8,7 @@ import { Nav } from "@/components/marketing/Nav";
 import { PlatformsStrip } from "@/components/marketing/PlatformsStrip";
 import { Reveal } from "@/components/marketing/Reveal";
 import { UseCases } from "@/components/marketing/UseCases";
+import { WorkflowComparison } from "@/components/marketing/WorkflowComparison";
 
 export default function HomePage() {
   return (
@@ -15,26 +16,28 @@ export default function HomePage() {
       <Nav />
 
       <main>
-        {/* Hero — single column, generous whitespace, no marketing chrome. */}
+        {/* Hero — leads with the wedge: you shouldn't have to design what
+            you already understand. Framed for the poster persona, not the
+            AI mechanism. */}
         <section className="bg-paper">
           <div className="mx-auto max-w-5xl px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
             <Reveal>
               <p className="font-mono text-xs uppercase tracking-[0.18em] text-ink-muted">
-                Readopp — an experiment in agent-rendered explainers
+                Visual posts from anything you read
               </p>
             </Reveal>
             <Reveal delayMs={80}>
               <h1 className="mt-8 max-w-4xl text-4xl font-medium leading-[1.05] tracking-tight text-ink sm:text-6xl">
-                Turn a careful article into a{" "}
-                <span className="text-[#1E9EEF]">visual explainer</span>{" "}
-                you can share.
+                You shouldn&rsquo;t have to design what you{" "}
+                <span className="text-[#1E9EEF]">already understand</span>.
               </h1>
             </Reveal>
             <Reveal delayMs={160}>
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">
-                Paste a URL. Six agents — Read, Understand, Outline, Plan, Draw,
-                Assemble — pass the article down a pipeline and produce a short
-                sequence of clean panels. You watch them work in real time.
+                Paste any article, paper, or PDF. Readopp turns it into a
+                LinkedIn-ready visual carousel in under 30 seconds — with
+                editorial polish, captions, and panels already sized for the
+                feed. The shortest path from great read to great post.
               </p>
             </Reveal>
 
@@ -48,7 +51,7 @@ export default function HomePage() {
                   className="rounded-lg border border-paper-line bg-white p-7"
                 >
                   <p className="mb-5 font-mono text-xs uppercase tracking-[0.18em] text-ink-muted">
-                    Try it
+                    Make your first post
                   </p>
                   <UrlInput />
                 </div>
@@ -58,6 +61,8 @@ export default function HomePage() {
         </section>
 
         <PlatformsStrip />
+
+        <WorkflowComparison />
 
         <HowItWorks />
 
