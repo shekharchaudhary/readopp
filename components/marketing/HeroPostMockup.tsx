@@ -27,13 +27,16 @@ interface ExampleItem {
 // Hand-crafted fallback — used when there are no SVG examples in the gallery
 // yet. Matches the metaphor templates so first-paint quality is consistent.
 const FALLBACK_PANEL = {
+  title: "What it really takes to ship",
   heading: "What users see vs what it took to build",
   source: "stripe.com",
   svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 480" role="img" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif"><title>Iceberg</title><desc>The 10 percent users see vs the 90 percent it took to build</desc><rect x="0" y="200" width="680" height="280" fill="#E6F1FB" opacity="0.55"/><line x1="0" y1="200" x2="680" y2="200" stroke="#185FA5" stroke-width="1" opacity="0.4"/><line x1="0" y1="208" x2="680" y2="208" stroke="#185FA5" stroke-width="1" opacity="0.18"/><path d="M 300 200 L 330 108 L 366 156 L 396 200 Z" fill="#ffffff" stroke="#185FA5" stroke-width="1.5"/><path d="M 272 200 L 232 252 L 218 322 L 240 400 L 312 432 L 396 422 L 444 380 L 458 290 L 430 220 L 410 200 Z" fill="#ffffff" stroke="#185FA5" stroke-width="1.5" opacity="0.92"/><text x="338" y="316" font-size="56" font-weight="500" fill="#185FA5" text-anchor="middle" opacity="0.18">90%</text><line x1="384" y1="135" x2="490" y2="105" stroke="#6B6B6B" stroke-width="1"/><circle cx="384" cy="135" r="2.5" fill="#6B6B6B"/><text x="500" y="100" font-size="14" font-weight="500" fill="#0C447C">The 10% users see</text><text x="500" y="118" font-size="12" fill="#3a3a3a">Polished UI, the demo,</text><text x="500" y="134" font-size="12" fill="#3a3a3a">the launch tweet</text><line x1="290" y1="340" x2="160" y2="380" stroke="#6B6B6B" stroke-width="1"/><circle cx="290" cy="340" r="2.5" fill="#6B6B6B"/><text x="40" y="376" font-size="14" font-weight="500" fill="#0C447C">The 90% that built it</text><text x="40" y="394" font-size="12" fill="#3a3a3a">Research, infra, ten</text><text x="40" y="410" font-size="12" fill="#3a3a3a">attempts that didn't ship</text></svg>`,
 };
 
-const CAPTION =
-  "Read this great piece on launch culture this morning. Made a quick visual breakdown to share — what do you think?";
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
+}
 
 export function HeroPostMockup() {
   const [items, setItems] = useState<ExampleItem[]>([]);
@@ -73,13 +76,19 @@ export function HeroPostMockup() {
   const usingFallback = !live || !live.panel;
   const headingText = usingFallback
     ? FALLBACK_PANEL.heading
-    : live.panel!.heading || live.title;
+    : live!.panel!.heading || live!.title;
+  const titleText = usingFallback
+    ? FALLBACK_PANEL.title
+    : live!.title || live!.panel!.heading;
   const sourceText = usingFallback
     ? FALLBACK_PANEL.source
     : safeHost(live!.url);
   const svgContent = usingFallback
     ? FALLBACK_PANEL.svg
     : live!.panel!.content;
+  // Post caption follows what's actually displayed, so when the carousel
+  // rotates the persona's "voice" stays in sync with the source piece.
+  const captionText = `Just finished “${truncate(titleText, 56)}”. Made a quick visual breakdown — what do you think?`;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-paper-line bg-white shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
@@ -101,9 +110,10 @@ export function HeroPostMockup() {
         </div>
       </div>
 
-      {/* Caption */}
+      {/* Caption — derived from the currently displayed example so the
+          persona's voice tracks whichever carousel is rotated in. */}
       <p className="px-4 pb-3 pt-2 text-[13px] leading-relaxed text-ink-soft">
-        {CAPTION}
+        {captionText}
       </p>
 
       {/* Carousel area */}
