@@ -195,12 +195,21 @@ function withLightness(hex: string, lightness: number): string {
 interface Props {
   value: string | null;
   onChange: (color: string | null) => void;
+  /** Fires when a discrete pick is complete: slider release, swatch click,
+   *  hex enter, eyedropper result. Lets the parent push one history entry. */
+  onCommit?: () => void;
   allowNone?: boolean;
   /** Optional label rendered at the top (small uppercase). */
   label?: string;
 }
 
-export function ColorPicker({ value, onChange, allowNone, label }: Props) {
+export function ColorPicker({
+  value,
+  onChange,
+  onCommit,
+  allowNone,
+  label,
+}: Props) {
   const [hexDraft, setHexDraft] = useState<string>(value ?? "");
   const [recent, setRecent] = useState<string[]>([]);
 
@@ -212,12 +221,16 @@ export function ColorPicker({ value, onChange, allowNone, label }: Props) {
     setRecent(loadRecent());
   }, []);
 
-  function pick(color: string) {
+  // Discrete pick — used by swatches, recent colors, eyedropper, and the hex
+  // input on Enter/blur. Each one fires the commit hook so the parent pushes
+  // a single history entry instead of accumulating.
+  function pick(color: string, commit = true) {
     const norm = normalize(color);
     if (!norm) return;
     onChange(norm);
     rememberColor(norm);
     setRecent(loadRecent());
+    if (commit) onCommit?.();
   }
 
   function commitHex() {
@@ -292,6 +305,10 @@ export function ColorPicker({ value, onChange, allowNone, label }: Props) {
             step={0.01}
             value={currentAlpha}
             onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+            onPointerUp={onCommit}
+            onKeyUp={(e) => {
+              if (e.key === "ArrowLeft" || e.key === "ArrowRight") onCommit?.();
+            }}
             className="track-input"
             aria-label="Opacity"
           />
@@ -308,6 +325,10 @@ export function ColorPicker({ value, onChange, allowNone, label }: Props) {
             step={0.01}
             value={currentLightness}
             onChange={(e) => onBrightnessChange(parseFloat(e.target.value))}
+            onPointerUp={onCommit}
+            onKeyUp={(e) => {
+              if (e.key === "ArrowLeft" || e.key === "ArrowRight") onCommit?.();
+            }}
             className="track-input"
             aria-label="Brightness"
           />
@@ -400,7 +421,10 @@ export function ColorPicker({ value, onChange, allowNone, label }: Props) {
         {allowNone && (
           <button
             type="button"
-            onClick={() => onChange(null)}
+            onClick={() => {
+              onChange(null);
+              onCommit?.();
+            }}
             title="No fill"
             aria-label="None"
             className={

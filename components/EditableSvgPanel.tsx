@@ -152,9 +152,13 @@ export function EditableSvgPanel({ content, onSave }: Props) {
     };
   }, []);
 
-  // ---------- Commit helper ----------
-  // Apply a mutator to a clone of the current scene, push the result onto
-  // history, and schedule a save. Returns the new svg string (or null on fail).
+  // ---------- Mutation helpers ----------
+  // commitMutation — discrete edit: clone, mutate, serialize, PUSH to history,
+  //                   schedule save. Use for clicks, drag releases, key presses.
+  // previewMutation — streaming edit (mid-slider, mid-drag): mutate + REPLACE
+  //                   the current history snapshot so we don't accumulate one
+  //                   undo entry per pixel. Caller invokes commitCurrent() at
+  //                   the end of the interaction (typically slider pointer-up).
   const commitMutation = useCallback(
     (mutate: (s: SceneGraph) => boolean): string | null => {
       if (!scene) return null;
@@ -168,6 +172,24 @@ export function EditableSvgPanel({ content, onSave }: Props) {
     },
     [scene, push, scheduleSave]
   );
+  const previewMutation = useCallback(
+    (mutate: (s: SceneGraph) => boolean): string | null => {
+      if (!scene) return null;
+      const next = cloneScene(scene);
+      const ok = mutate(next);
+      if (!ok) return null;
+      const out = serializeScene(next);
+      replace(out);
+      scheduleSave(out);
+      return out;
+    },
+    [scene, replace, scheduleSave]
+  );
+  // Push the current svg onto history as a single new entry — used after a
+  // chain of previewMutations to commit the whole stream as one undo step.
+  const commitCurrent = useCallback(() => {
+    push(svg);
+  }, [push, svg]);
 
   // ---------- Bounding box (PIXEL space relative to panel-svg-wrap) ----------
   // Using getBoundingClientRect rather than getBBox so the overlay aligns
@@ -525,16 +547,19 @@ export function EditableSvgPanel({ content, onSave }: Props) {
         const canStroke = selectedKind !== "text" && selectedKind !== "tspan";
         const canEditText = selectedKind === "text";
         const isTextish = selectedKind === "text" || selectedKind === "tspan";
+        // Slider-driven adjustments use previewMutation so we don't push a
+        // history entry per pixel; the popover fires onCommit on slider
+        // release which lands a single undo step for the whole drag.
         const adjust = {
           opacity: readOpacity(scene, selectedId),
           onOpacity: (v: number) =>
-            commitMutation((s) => setOpacity(s, selectedId, v)),
+            previewMutation((s) => setOpacity(s, selectedId, v)),
           strokeWidth: hasStroke
             ? readStrokeWidth(scene, selectedId)
             : undefined,
           onStrokeWidth: hasStroke
             ? (v: number) =>
-                commitMutation((s) => setStrokeWidth(s, selectedId, v))
+                previewMutation((s) => setStrokeWidth(s, selectedId, v))
             : undefined,
           cornerRadius:
             selectedKind === "rect"
@@ -543,7 +568,7 @@ export function EditableSvgPanel({ content, onSave }: Props) {
           onCornerRadius:
             selectedKind === "rect"
               ? (v: number) =>
-                  commitMutation((s) => setCornerRadius(s, selectedId, v))
+                  previewMutation((s) => setCornerRadius(s, selectedId, v))
               : undefined,
         };
         const typography = isTextish
@@ -577,11 +602,12 @@ export function EditableSvgPanel({ content, onSave }: Props) {
             typography={typography}
             adjust={adjust}
             onChangeFill={(c) =>
-              commitMutation((s) => setAttr(s, selectedId, "fill", c ?? "none"))
+              previewMutation((s) => setAttr(s, selectedId, "fill", c ?? "none"))
             }
             onChangeStroke={(c) =>
-              commitMutation((s) => setAttr(s, selectedId, "stroke", c ?? "none"))
+              previewMutation((s) => setAttr(s, selectedId, "stroke", c ?? "none"))
             }
+            onCommit={commitCurrent}
             onEditText={() => openTextEditorForSelection()}
             onDelete={() => {
               commitMutation((s) => deleteElement(s, selectedId));

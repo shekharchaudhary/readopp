@@ -57,6 +57,9 @@ export interface ToolbarProps {
 
   onChangeFill: (color: string | null) => void;
   onChangeStroke: (color: string | null) => void;
+  /** Fired when a streaming interaction (slider drag) ends. Used to push the
+   *  preview chain to history as a single undo entry. */
+  onCommit?: () => void;
   onEditText: () => void;
   onDelete: () => void;
 }
@@ -76,6 +79,7 @@ export function FloatingToolbar(props: ToolbarProps) {
     adjust,
     onChangeFill,
     onChangeStroke,
+    onCommit,
     onEditText,
     onDelete,
   } = props;
@@ -212,6 +216,7 @@ export function FloatingToolbar(props: ToolbarProps) {
             value={fill}
             allowNone
             onChange={onChangeFill}
+            onCommit={onCommit}
           />
         </PopoverShell>
       )}
@@ -225,6 +230,7 @@ export function FloatingToolbar(props: ToolbarProps) {
             value={stroke}
             allowNone
             onChange={onChangeStroke}
+            onCommit={onCommit}
           />
         </PopoverShell>
       )}
@@ -259,6 +265,7 @@ export function FloatingToolbar(props: ToolbarProps) {
             onStrokeWidth={adjust.onStrokeWidth}
             cornerRadius={adjust.cornerRadius}
             onCornerRadius={adjust.onCornerRadius}
+            onCommit={onCommit}
           />
         </PopoverShell>
       )}

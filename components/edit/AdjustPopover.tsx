@@ -15,6 +15,9 @@ interface Props {
   /** Corner radius (rx/ry) only renders for rects. */
   cornerRadius?: number;
   onCornerRadius?: (v: number) => void;
+  /** Fires when any slider drag ends. Lets the parent push one history entry
+   *  per drag instead of one per pixel. */
+  onCommit?: () => void;
 }
 
 export function AdjustPopover(props: Props) {
@@ -25,6 +28,7 @@ export function AdjustPopover(props: Props) {
     onStrokeWidth,
     cornerRadius,
     onCornerRadius,
+    onCommit,
   } = props;
   return (
     <div className="w-[260px] space-y-3 rounded-lg border border-ink/70 bg-[#1f1f1d] p-3 text-paper shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
@@ -36,6 +40,7 @@ export function AdjustPopover(props: Props) {
         step={0.01}
         format={(v) => `${Math.round(v * 100)}%`}
         onChange={onOpacity}
+        onCommit={onCommit}
       />
       {strokeWidth !== undefined && onStrokeWidth && (
         <Slider
@@ -46,6 +51,7 @@ export function AdjustPopover(props: Props) {
           step={0.5}
           format={(v) => v.toFixed(1)}
           onChange={onStrokeWidth}
+          onCommit={onCommit}
         />
       )}
       {cornerRadius !== undefined && onCornerRadius && (
@@ -57,6 +63,7 @@ export function AdjustPopover(props: Props) {
           step={1}
           format={(v) => `${Math.round(v)}`}
           onChange={onCornerRadius}
+          onCommit={onCommit}
         />
       )}
     </div>
@@ -71,6 +78,7 @@ function Slider({
   step,
   format,
   onChange,
+  onCommit,
 }: {
   label: string;
   value: number;
@@ -79,6 +87,7 @@ function Slider({
   step: number;
   format: (v: number) => string;
   onChange: (v: number) => void;
+  onCommit?: () => void;
 }) {
   return (
     <div>
@@ -95,6 +104,11 @@ function Slider({
         max={max}
         step={step}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        onPointerUp={onCommit}
+        onKeyUp={(e) => {
+          // Keyboard scrubbing (←/→) also commits one entry per release.
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") onCommit?.();
+        }}
         className="adjust-slider w-full"
         aria-label={label}
       />

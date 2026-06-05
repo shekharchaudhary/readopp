@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { renderPanel } from "@/lib/pipeline/render";
 import { getExplainer } from "@/lib/store";
-import { getServerSupabase } from "@/lib/supabase/server";
+import { getOrCreateUser, getServerSupabase } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +18,32 @@ export async function POST(
   _req: Request,
   { params }: { params: { id: string; sectionId: string } }
 ) {
+  // Ownership check up-front. Without this, non-owners would still trigger a
+  // full re-render (cost) before RLS denied the UPDATE — and would see a
+  // generic 500 instead of a clean 403.
+  let userId: string;
+  try {
+    ({ userId } = await getOrCreateUser());
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+
+  const supabase = getServerSupabase();
+  const { data: ownershipRow } = await supabase
+    .from("explainers")
+    .select("user_id")
+    .eq("id", params.id)
+    .maybeSingle();
+  if (!ownershipRow) {
+    return NextResponse.json({ error: "Explainer not found." }, { status: 404 });
+  }
+  if ((ownershipRow as { user_id: string }).user_id !== userId) {
+    return NextResponse.json(
+      { error: "You don't own this explainer." },
+      { status: 403 }
+    );
+  }
+
   const explainer = await getExplainer(params.id);
   if (!explainer) {
     return NextResponse.json({ error: "Explainer not found." }, { status: 404 });
@@ -57,7 +83,6 @@ export async function POST(
 
   // Replace the panel content + clear edited lock. Read-modify-write the
   // panels array (jsonb column) — same shape as updatePanel.
-  const supabase = getServerSupabase();
   const nextPanels = explainer.panels.slice();
   nextPanels[i] = {
     ...panel,
