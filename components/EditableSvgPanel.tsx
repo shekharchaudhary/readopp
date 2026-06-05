@@ -18,6 +18,7 @@ import {
   readFontSize,
   readFontStyle,
   readFontWeight,
+  readLineEndpoints,
   readOpacity,
   readStrokeWidth,
   readTextAnchor,
@@ -29,6 +30,7 @@ import {
   setFontSize,
   setFontStyle,
   setFontWeight,
+  setLineEndpoint,
   setOpacity,
   setStrokeWidth,
   setText,
@@ -41,6 +43,7 @@ import {
   clientToSvg,
   SelectionOverlay,
   type Bbox,
+  type EndpointKey,
   type HandleKey,
 } from "./edit/SelectionOverlay";
 
@@ -218,19 +221,35 @@ export function EditableSvgPanel({ content, onSave }: Props) {
 
   // ---------- Mouse interactions on the panel ----------
   function onPanelClick(e: React.MouseEvent) {
-    // Walk from the target up to find an element with data-edit-id.
     const target = e.target as Element | null;
     if (!target) {
       setSelectedId(null);
       return;
     }
-    const node = (target as Element).closest?.(`[${EDIT_ID_ATTR}]`);
-    if (!node) {
+    // Collect the chain of ancestor (+ self) elements that carry an
+    // edit-id, nearest-first. Alt+click cycles deeper into the chain so
+    // the user can reach a rect under a text without first deleting
+    // the text.
+    const chain: string[] = [];
+    let cur: Element | null = target;
+    while (cur) {
+      const id = cur.getAttribute?.(EDIT_ID_ATTR);
+      if (id) chain.push(id);
+      cur = cur.parentElement;
+      // Stop at the panel-svg-wrap (the SVG's container).
+      if (cur === containerRef.current) break;
+    }
+    if (chain.length === 0) {
       setSelectedId(null);
       return;
     }
-    const id = node.getAttribute(EDIT_ID_ATTR);
-    if (id) setSelectedId(id);
+    if (e.altKey && selectedId) {
+      const idx = chain.indexOf(selectedId);
+      const next = chain[(idx + 1) % chain.length] ?? chain[0];
+      setSelectedId(next);
+    } else {
+      setSelectedId(chain[0]);
+    }
   }
 
   function onPanelDoubleClick(e: React.MouseEvent) {
@@ -411,6 +430,61 @@ export function EditableSvgPanel({ content, onSave }: Props) {
     resizeRef.current = null;
   }
 
+  // ---------- Line endpoint drag (independent of rect resize) ----------
+  const endpointRef = useRef<{
+    id: string;
+    end: EndpointKey;
+    rawSvg: string;
+  } | null>(null);
+
+  function onEndpointPointerDown(end: EndpointKey, e: React.PointerEvent) {
+    if (!selectedId) return;
+    e.stopPropagation();
+    endpointRef.current = {
+      id: selectedId,
+      end,
+      rawSvg: svg,
+    };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  }
+
+  function onEndpointPointerMove(e: React.PointerEvent) {
+    const r = endpointRef.current;
+    if (!r || !containerRef.current || !viewBox) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cur = clientToSvg(e, rect, viewBox);
+    const base = parseScene(r.rawSvg);
+    if (!base) return;
+    if (!setLineEndpoint(base, r.id, r.end, cur.x, cur.y)) return;
+    replace(serializeScene(base));
+  }
+
+  function onEndpointPointerUp() {
+    const r = endpointRef.current;
+    if (!r) return;
+    push(svg);
+    scheduleSave(svg);
+    endpointRef.current = null;
+  }
+
+  // Compute the two line endpoints in PIXEL space for the overlay. Returns
+  // null for non-line elements so the overlay falls back to edge handles.
+  const lineEndpointsPx = useMemo<
+    { p1: { x: number; y: number }; p2: { x: number; y: number } } | null
+  >(() => {
+    if (!scene || !selectedId || selectedKind !== "line") return null;
+    if (!containerRef.current || !viewBox) return null;
+    const ep = readLineEndpoints(scene, selectedId);
+    if (!ep) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const sx = rect.width / viewBox.width;
+    const sy = rect.height / viewBox.height;
+    return {
+      p1: { x: ep.x1 * sx, y: ep.y1 * sy },
+      p2: { x: ep.x2 * sx, y: ep.y2 * sy },
+    };
+  }, [scene, selectedId, selectedKind, viewBox, containerRect, svg]);
+
   // ---------- Inline text editor ----------
   const [textEdit, setTextEdit] = useState<{
     id: string;
@@ -495,10 +569,12 @@ export function EditableSvgPanel({ content, onSave }: Props) {
         onPointerMove={(e) => {
           if (dragRef.current) onPointerMove(e);
           if (resizeRef.current) onHandlePointerMove(e);
+          if (endpointRef.current) onEndpointPointerMove(e);
         }}
         onPointerUp={() => {
           if (dragRef.current) onPointerUp();
           if (resizeRef.current) onHandlePointerUp();
+          if (endpointRef.current) onEndpointPointerUp();
         }}
         onMouseMove={(e) => {
           if (dragRef.current || resizeRef.current) return;
@@ -518,6 +594,8 @@ export function EditableSvgPanel({ content, onSave }: Props) {
             bbox={bbox}
             resizable={resizable}
             onHandlePointerDown={onHandlePointerDown}
+            lineEndpoints={lineEndpointsPx ?? undefined}
+            onEndpointPointerDown={onEndpointPointerDown}
           />
         )}
       </div>
@@ -594,6 +672,7 @@ export function EditableSvgPanel({ content, onSave }: Props) {
           <FloatingToolbar
             bbox={bbox}
             containerRect={containerRect}
+            kindLabel={selectedKind}
             fill={hasFill ? fill : null}
             stroke={hasStroke ? stroke : null}
             canFill={canFill}

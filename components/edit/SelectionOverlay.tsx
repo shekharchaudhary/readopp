@@ -18,6 +18,7 @@ export interface Bbox {
 }
 
 export type HandleKey = "n" | "e" | "s" | "w";
+export type EndpointKey = "1" | "2";
 
 const HANDLE_KEYS: HandleKey[] = ["n", "e", "s", "w"];
 
@@ -26,19 +27,32 @@ const ACCENT = "#1F97DC";
 // Handle visual size in PIXELS — consistent regardless of SVG scale.
 const BAR_LEN = 18;
 const BAR_THICK = 4;
+const ENDPOINT_R = 5;
 
 interface Props {
   /** Pixel-space bbox relative to the overlay's positioned ancestor. */
   bbox: Bbox;
-  /** True if this element supports resize (rect). */
+  /** True if this element supports rect-style edge resize. */
   resizable: boolean;
   onHandlePointerDown?: (handle: HandleKey, e: React.PointerEvent) => void;
+  /**
+   * For <line> elements, pass the two endpoints in pixel space relative to the
+   * overlay's positioned ancestor. When present, edge handles are hidden in
+   * favor of two endpoint dots — each draggable independently.
+   */
+  lineEndpoints?: { p1: { x: number; y: number }; p2: { x: number; y: number } };
+  onEndpointPointerDown?: (
+    end: EndpointKey,
+    e: React.PointerEvent
+  ) => void;
 }
 
 export function SelectionOverlay({
   bbox,
   resizable,
   onHandlePointerDown,
+  lineEndpoints,
+  onEndpointPointerDown,
 }: Props) {
   const cx = bbox.x + bbox.width / 2;
   const cy = bbox.y + bbox.height / 2;
@@ -67,8 +81,10 @@ export function SelectionOverlay({
           boxSizing: "border-box",
         }}
       />
-      {/* Edge capsule handles */}
+      {/* Edge capsule handles (rect / standard resize) — hidden when the
+          selection is a line, since line endpoints are far more useful. */}
       {resizable &&
+        !lineEndpoints &&
         HANDLE_KEYS.map((key) => {
           const pos = HANDLE_POS[key];
           const isHoriz = pos.orient === "h";
@@ -88,6 +104,29 @@ export function SelectionOverlay({
                 cursor: pos.cursor,
               }}
               onPointerDown={(e) => onHandlePointerDown?.(key, e)}
+            />
+          );
+        })}
+      {/* Line endpoint handles: a white dot with an accent ring at each end. */}
+      {lineEndpoints &&
+        (["1", "2"] as EndpointKey[]).map((end) => {
+          const p = end === "1" ? lineEndpoints.p1 : lineEndpoints.p2;
+          return (
+            <div
+              key={`ep${end}`}
+              className="absolute pointer-events-auto"
+              style={{
+                top: p.y - ENDPOINT_R,
+                left: p.x - ENDPOINT_R,
+                width: ENDPOINT_R * 2,
+                height: ENDPOINT_R * 2,
+                background: "#ffffff",
+                border: `2px solid ${ACCENT}`,
+                borderRadius: "999px",
+                cursor: "grab",
+                boxSizing: "border-box",
+              }}
+              onPointerDown={(e) => onEndpointPointerDown?.(end, e)}
             />
           );
         })}

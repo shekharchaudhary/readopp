@@ -62,6 +62,9 @@ export interface ToolbarProps {
   onCommit?: () => void;
   onEditText: () => void;
   onDelete: () => void;
+  /** What's selected — shown as a small label at the left of the toolbar so
+   *  the user always knows what they're editing. */
+  kindLabel?: string;
 }
 
 type Popover = "fill" | "stroke" | "type" | "adjust" | null;
@@ -82,6 +85,7 @@ export function FloatingToolbar(props: ToolbarProps) {
     onCommit,
     onEditText,
     onDelete,
+    kindLabel,
   } = props;
 
   const toolbarRef = useRef<HTMLDivElement | null>(null);
@@ -112,7 +116,7 @@ export function FloatingToolbar(props: ToolbarProps) {
 
   // bbox is already in PIXEL space relative to the panel-svg-wrap, which is
   // also the toolbar's positioned ancestor → no viewBox conversion needed.
-  const TOOLBAR_W = 220;
+  const TOOLBAR_W = 260;
   const ideal = bbox.x + bbox.width / 2 - TOOLBAR_W / 2;
   const minLeft = 4;
   const maxLeft = containerRect.width - TOOLBAR_W - 4;
@@ -141,6 +145,14 @@ export function FloatingToolbar(props: ToolbarProps) {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-1 rounded-full border border-ink/70 bg-[#1f1f1d] px-1.5 py-1 shadow-[0_6px_20px_rgba(0,0,0,0.25)]">
+        {kindLabel && (
+          <>
+            <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-paper-line/80">
+              {kindLabel}
+            </span>
+            <span aria-hidden className="h-4 w-px bg-white/15" />
+          </>
+        )}
         {showFill && (
           <ToolbarSwatchButton
             label="Fill"

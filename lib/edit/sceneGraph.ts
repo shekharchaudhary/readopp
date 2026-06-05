@@ -258,6 +258,39 @@ function mergeTranslate(
   return `${existing} translate(${snap(dx)} ${snap(dy)})`.trim();
 }
 
+/**
+ * Set one endpoint of a <line> element. `end` is "1" for (x1,y1) or "2" for
+ * (x2,y2). Coordinates are in viewBox/user space.
+ */
+export function setLineEndpoint(
+  scene: SceneGraph,
+  id: string,
+  end: "1" | "2",
+  x: number,
+  y: number
+): boolean {
+  const el = findById(scene, id);
+  if (!el || el.tagName.toLowerCase() !== "line") return false;
+  el.setAttribute(`x${end}`, String(snap(x)));
+  el.setAttribute(`y${end}`, String(snap(y)));
+  return true;
+}
+
+/** Read both endpoints of a <line> in viewBox user space. */
+export function readLineEndpoints(
+  scene: SceneGraph,
+  id: string
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  const el = findById(scene, id);
+  if (!el || el.tagName.toLowerCase() !== "line") return null;
+  return {
+    x1: parseFloat(el.getAttribute("x1") || "0"),
+    y1: parseFloat(el.getAttribute("y1") || "0"),
+    x2: parseFloat(el.getAttribute("x2") || "0"),
+    y2: parseFloat(el.getAttribute("y2") || "0"),
+  };
+}
+
 /** Resize a rect to a new position + dimensions. Returns false if not a rect. */
 export function resizeRect(
   scene: SceneGraph,
