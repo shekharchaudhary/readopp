@@ -95,6 +95,7 @@ export async function renderPanel(
         content: svg,
         validated: true,
         fallback: false,
+        edited: false,
         plan,
       };
     }
@@ -154,6 +155,7 @@ export async function renderPanel(
         content,
         validated: true,
         fallback: false,
+        edited: false,
         plan,
       };
     }

@@ -117,6 +117,55 @@ export function validateSvg(svg: string): ValidationResult {
   }
 }
 
+/**
+ * Lenient SVG validation for user-edited panels. We still block scripts,
+ * foreignObject, and structurally broken SVG (bad viewBox, unparseable),
+ * but skip design-system restrictions (font-size whitelist, palette, etc).
+ * Once a human has edited the panel they're the source of truth.
+ */
+export function validateUserSvg(svg: string): ValidationResult {
+  if (!/^<svg[\s>]/i.test(svg.trim())) {
+    return { ok: false, reason: "Output does not start with an <svg> tag." };
+  }
+  if (!/<\/svg>\s*$/i.test(svg.trim())) {
+    return { ok: false, reason: "Output does not end with </svg>." };
+  }
+  try {
+    const dom = new JSDOM(
+      `<!doctype html><html><body>${svg}</body></html>`,
+      { contentType: "text/html" }
+    );
+    const root = dom.window.document.querySelector("svg");
+    if (!root) return { ok: false, reason: "No <svg> root parseable." };
+
+    const viewBox = root.getAttribute("viewBox") || "";
+    const m = viewBox.match(
+      /^\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*$/
+    );
+    if (!m) return { ok: false, reason: "viewBox missing or malformed." };
+    const h = Number(m[4]);
+    if (h < 40 || h > 2000) {
+      return {
+        ok: false,
+        reason: `viewBox height ${h} outside reasonable range [40, 2000].`,
+      };
+    }
+
+    if (root.querySelector("foreignObject")) {
+      return { ok: false, reason: "<foreignObject> is not allowed." };
+    }
+    if (root.querySelector("script")) {
+      return { ok: false, reason: "<script> is not allowed." };
+    }
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `SVG could not be parsed: ${(e as Error).message}`,
+    };
+  }
+}
+
 export function validateHtmlPanel(html: string): ValidationResult {
   const t = html.trim();
   if (!t.startsWith("<")) {

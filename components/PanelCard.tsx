@@ -21,6 +21,11 @@ interface Props {
     sectionId: string,
     patch: { heading?: string; caption?: string; content?: string }
   ) => Promise<void>;
+  /**
+   * Called when the user clicks "Reset" on an edited panel. Should hit the
+   * server reset endpoint and refresh the explainer in parent state.
+   */
+  onReset?: (sectionId: string) => Promise<void>;
 }
 
 function HtmlPanel({ html }: { html: string }) {
@@ -65,12 +70,29 @@ function HtmlPanel({ html }: { html: string }) {
   );
 }
 
-export function PanelCard({ panel, index, onExport, onEdit }: Props) {
+export function PanelCard({ panel, index, onExport, onEdit, onReset }: Props) {
   const heading = panel.heading?.trim() || `Panel ${index + 1}`;
   const editable = Boolean(onEdit);
   const canTheme = editable && panel.format === "svg";
+  const canReset = Boolean(onReset && panel.edited && panel.plan);
   const [themeOpen, setThemeOpen] = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+
+  async function handleReset() {
+    if (!onReset) return;
+    if (resetBusy) return;
+    const ok = window.confirm(
+      "Reset this panel to the original AI-generated version? All your edits to this panel will be lost."
+    );
+    if (!ok) return;
+    setResetBusy(true);
+    try {
+      await onReset(panel.sectionId);
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   async function applyTheme(triple: ColorTriple) {
     if (!onEdit) return;
@@ -96,6 +118,23 @@ export function PanelCard({ panel, index, onExport, onEdit }: Props) {
             {panel.fallback && (
               <span className="rounded-sm border border-paper-line bg-paper-soft px-1.5 py-0.5 text-[10px] text-ink-muted">
                 fallback
+              </span>
+            )}
+            {panel.edited && (
+              <span className="inline-flex items-center gap-1.5 text-[10px] text-ink-muted">
+                <span className="h-1 w-1 rounded-full bg-accent" />
+                edited
+                {canReset && (
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    disabled={resetBusy}
+                    className="ml-1 text-accent transition-opacity hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Reset to AI-generated version"
+                  >
+                    {resetBusy ? "Resetting…" : "Reset"}
+                  </button>
+                )}
               </span>
             )}
           </div>

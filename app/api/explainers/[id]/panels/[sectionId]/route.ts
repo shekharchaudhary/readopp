@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { validateHtmlPanel, validateSvg } from "@/lib/render/validate";
+import { validateHtmlPanel, validateUserSvg } from "@/lib/render/validate";
 import { getExplainer, updatePanel } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -61,9 +61,12 @@ export async function PATCH(
         { status: 404 }
       );
     }
+    // User edits use a lenient validator (parseable + no script/foreignObject +
+    // sane viewBox). The strict design-system whitelist only applies to
+    // pristine model output, never hand-edited panels.
     const v =
       panel.format === "svg"
-        ? validateSvg(parsed.data.content)
+        ? validateUserSvg(parsed.data.content)
         : validateHtmlPanel(parsed.data.content);
     if (!v.ok) {
       return NextResponse.json(

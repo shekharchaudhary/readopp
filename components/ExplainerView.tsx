@@ -36,6 +36,16 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
     if (data.explainer) setExplainer(data.explainer as Explainer);
   }
 
+  async function resetPanel(sectionId: string) {
+    const res = await fetch(
+      `/api/explainers/${explainer.id}/panels/${sectionId}/reset`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `Reset failed (${res.status})`);
+    if (data.explainer) setExplainer(data.explainer as Explainer);
+  }
+
   function openExportAll() {
     setExportPanelId(undefined);
     setExportOpen(true);
@@ -113,6 +123,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             index={i}
             onExport={canExport ? openExportPanel : undefined}
             onEdit={canExport ? patchPanel : undefined}
+            onReset={canExport ? resetPanel : undefined}
           />
         ))}
       </section>

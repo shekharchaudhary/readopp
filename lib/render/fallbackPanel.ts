@@ -69,5 +69,6 @@ export function buildFallbackPanel(
     content: svg,
     validated: true,
     fallback: true,
+    edited: false,
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   content: string;
@@ -57,18 +57,19 @@ function rowId(): string {
  * blur/Enter). On failure, the model snapshots back to pre-edit state.
  */
 export function EditableHtmlTablePanel({ content, onSave }: Props) {
-  const initialModel = useMemo(() => parseTable(content), [content]);
-  const [model, setModel] = useState<TableModel | null>(initialModel);
+  // Initial state is null so the very first render (server + client hydration)
+  // shows the read-only fallback — that matches server-rendered HTML exactly.
+  // parseTable can't run on the server (no DOMParser) so any other initial
+  // value here would diverge between server and client and break hydration.
+  const [model, setModel] = useState<TableModel | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [draft, setDraft] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If the parent re-renders with new content (post-save or other source of
-  // truth), re-derive the model so we stay in sync. Skip re-parsing when the
-  // new content is exactly what we just serialized — that's our own save
-  // flowing back, and a re-parse would needlessly churn row IDs.
-  const lastContentRef = useRef(content);
+  // Populate the model on mount and whenever content changes from outside.
+  // lastContentRef starts as null so the first run after mount actually parses.
+  const lastContentRef = useRef<string | null>(null);
   const lastSerializedRef = useRef<string | null>(null);
   useEffect(() => {
     if (content === lastContentRef.current) return;

@@ -290,6 +290,10 @@ export const RenderedPanelSchema = z.object({
   // attach it so structured editors (recolor, delete, drag) can mutate the
   // plan and re-render rather than parsing the SVG.
   plan: PanelPlanSchema.optional(),
+  // Set true once a human has edited the panel content. Locks the panel against
+  // any re-render from plan (template re-runs, plan-based regeneration) so
+  // hand-edits aren't blown away. Older persisted explainers default to false.
+  edited: z.boolean().default(false),
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
 

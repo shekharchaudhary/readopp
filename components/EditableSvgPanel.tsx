@@ -1,798 +1,830 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEditHistory, useUndoShortcuts } from "@/lib/edit/history";
 import {
-  NodeEditPopover,
-  PALETTES,
-  type ColorTriple,
-  type PaletteName,
-} from "./NodeEditPopover";
+  assignStableIds,
+  cloneScene,
+  deleteElement,
+  EDIT_ID_ATTR,
+  getAttr,
+  getKind,
+  getTextContent,
+  getViewBox,
+  moveBy,
+  parseScene,
+  readCornerRadius,
+  readFontFamily,
+  readFontSize,
+  readFontStyle,
+  readFontWeight,
+  readOpacity,
+  readStrokeWidth,
+  readTextAnchor,
+  resizeRect,
+  serializeScene,
+  setAttr,
+  setCornerRadius,
+  setFontFamily,
+  setFontSize,
+  setFontStyle,
+  setFontWeight,
+  setOpacity,
+  setStrokeWidth,
+  setText,
+  setTextAnchor,
+  type ElementKind,
+  type SceneGraph,
+} from "@/lib/edit/sceneGraph";
+import { FloatingToolbar } from "./edit/FloatingToolbar";
+import {
+  clientToSvg,
+  SelectionOverlay,
+  type Bbox,
+  type HandleKey,
+} from "./edit/SelectionOverlay";
 
 interface Props {
   content: string;
   onSave: (next: string) => Promise<void>;
 }
 
-interface TextEditingState {
-  /** The actual SVG text/tspan element being edited. */
-  node: SVGElement;
-  /** Position of an overlay input, in container-local coordinates. */
-  rect: { top: number; left: number; width: number; height: number };
-  /** Pixel font-size we measured from the live SVG; used to match the input's font. */
-  fontPx: number;
-  initialText: string;
-  draft: string;
-}
+// Tags considered "background" — clicking these deselects.
+const DRAG_THRESHOLD_PX = 3;
 
-interface NodeSelection {
-  rect: SVGRectElement;
-  position: { top: number; left: number };
-  palette: PaletteName | null;
-}
-
-/**
- * Inline-editable SVG panel.
- *
- * Phase 2a — every <text>/<tspan> with text becomes click-to-edit.
- * Phase 2b — every <rect> becomes click-to-select; a popover offers palette
- * swatches (recolor) and a delete control. Recoloring updates the rect's
- * fill/stroke and the fill of any text whose center falls inside the rect's
- * bbox. Deleting removes the rect, its associated texts, any enclosing <g>,
- * and any <path> whose start or end point lies inside the rect — so arrows
- * connecting to the deleted node don't dangle.
- *
- * Mutation strategy:
- * - Text edits mutate the live DOM in place (one element, simple rollback).
- * - Node edits work on a deep clone of the SVG, serialize, then save; the
- *   parent's content prop update re-mounts the SVG, so a failed save leaves
- *   the visible DOM untouched.
- */
 export function EditableSvgPanel({ content, onSave }: Props) {
+  // ---------- Source-of-truth bootstrap ----------
+  // Render the raw `content` initially so client hydration matches the server
+  // HTML exactly. After mount we parse, assign stable ids, and reset history
+  // to the ID'd version — that re-render happens post-hydration so React is fine.
+  const {
+    state: svg,
+    push,
+    replace,
+    reset,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useEditHistory(content);
+
+  useEffect(() => {
+    const scene = parseScene(content);
+    if (!scene) {
+      reset(content);
+      setSelectedId(null);
+      setTextEdit(null);
+      return;
+    }
+    assignStableIds(scene);
+    const ided = serializeScene(scene);
+    reset(ided);
+    setSelectedId(null);
+    setTextEdit(null);
+  }, [content, reset]);
+
+  // ---------- DOM container + selection ----------
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [editing, setEditing] = useState<TextEditingState | null>(null);
+  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [bbox, setBbox] = useState<Bbox | null>(null);
+  const [hoverActive, setHoverActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<NodeSelection | null>(null);
-  // True for one click event after a drag, so the subsequent click on the
-  // dragged rect doesn't also open the selection popover.
-  const justDraggedRef = useRef(false);
-  // Mirror of `editing` for read inside per-rect listeners (stable closure).
-  const editingRef = useRef(false);
+
+  // Keep containerRect fresh so the floating toolbar positions correctly even
+  // after the panel is resized (mobile rotation, sidebar opening, etc).
   useEffect(() => {
-    editingRef.current = !!editing;
-  }, [editing]);
-
-  useEffect(() => {
-    const root = containerRef.current?.querySelector("svg");
-    if (!root) return;
-    const teardown: Array<() => void> = [];
-
-    // ---- Text affordances (Phase 2a) ----
-    collectEditable(root).forEach((el) => {
-      el.style.cursor = "text";
-      const onEnter = () => {
-        el.style.outline = "1px dashed rgba(31,151,220,0.55)";
-        el.style.outlineOffset = "2px";
-      };
-      const onLeave = () => {
-        el.style.outline = "";
-        el.style.outlineOffset = "";
-      };
-      const onClick = (e: MouseEvent) => {
-        e.stopPropagation();
-        startEdit(el);
-      };
-      el.addEventListener("mouseenter", onEnter);
-      el.addEventListener("mouseleave", onLeave);
-      el.addEventListener("click", onClick);
-      teardown.push(() => {
-        el.removeEventListener("mouseenter", onEnter);
-        el.removeEventListener("mouseleave", onLeave);
-        el.removeEventListener("click", onClick);
-      });
-    });
-
-    // ---- Drag state (Phase 2c) — one in-flight session at a time ----
-    // Held in closure scope (not React state) so per-frame mousemove updates
-    // don't trigger re-renders. We mutate live DOM attributes directly and
-    // serialize once on mouseup.
-    interface DragSession {
-      rect: SVGRectElement;
-      origRectX: number;
-      origRectY: number;
-      origBBox: { x: number; y: number; width: number; height: number };
-      texts: Array<{ el: Element; origX: number; origY: number }>;
-      paths: Array<{
-        el: SVGPathElement;
-        which: "start" | "end" | "both";
-        origStart: { x: number; y: number };
-        origEnd: { x: number; y: number };
-        origD: string;
-      }>;
-      origin: { x: number; y: number };
-      moved: boolean;
-    }
-    let dragSession: DragSession | null = null;
-
-    const onDragMove = (e: MouseEvent) => {
-      const s = dragSession;
-      if (!s) return;
-      const cur = clientToSvg(root, e.clientX, e.clientY);
-      const dx = cur.x - s.origin.x;
-      const dy = cur.y - s.origin.y;
-      if (!s.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-        s.moved = true;
-        s.rect.style.cursor = "grabbing";
-        s.rect.style.outline = "2px solid rgba(31,151,220,0.85)";
-        s.rect.style.outlineOffset = "2px";
-      }
-      if (!s.moved) return;
-      s.rect.setAttribute("x", fmt(s.origRectX + dx));
-      s.rect.setAttribute("y", fmt(s.origRectY + dy));
-      s.texts.forEach(({ el, origX, origY }) => {
-        el.setAttribute("x", fmt(origX + dx));
-        el.setAttribute("y", fmt(origY + dy));
-      });
-      s.paths.forEach((p) => {
-        let d = p.origD;
-        if (p.which === "start" || p.which === "both") {
-          d = rewritePathStart(d, p.origStart.x + dx, p.origStart.y + dy);
-        }
-        if (p.which === "end" || p.which === "both") {
-          d = rewritePathEnd(d, p.origEnd.x + dx, p.origEnd.y + dy);
-        }
-        p.el.setAttribute("d", d);
-      });
-    };
-
-    const onDragEnd = async () => {
-      window.removeEventListener("mousemove", onDragMove);
-      window.removeEventListener("mouseup", onDragEnd);
-      const s = dragSession;
-      dragSession = null;
-      if (!s) return;
-      if (!s.moved) return; // a click, not a drag — let click fire normally
-
-      justDraggedRef.current = true;
-      setSaving(true);
-      setError(null);
-      try {
-        const serialized = root.outerHTML;
-        await onSave(serialized);
-      } catch (err) {
-        // Revert live DOM
-        s.rect.setAttribute("x", fmt(s.origRectX));
-        s.rect.setAttribute("y", fmt(s.origRectY));
-        s.texts.forEach(({ el, origX, origY }) => {
-          el.setAttribute("x", fmt(origX));
-          el.setAttribute("y", fmt(origY));
-        });
-        s.paths.forEach((p) => p.el.setAttribute("d", p.origD));
-        setError((err as Error).message || "Move failed.");
-      } finally {
-        s.rect.style.cursor = "";
-        s.rect.style.outline = "";
-        s.rect.style.outlineOffset = "";
-        setSaving(false);
-      }
-    };
-
-    const startDrag = (rect: SVGRectElement, e: MouseEvent) => {
-      if (editingRef.current) return; // don't drag while a text edit is open
-      const origBBox = getRectBBox(rect);
-      const origRectX = parseFloat(rect.getAttribute("x") || "0");
-      const origRectY = parseFloat(rect.getAttribute("y") || "0");
-
-      const texts: Array<{ el: Element; origX: number; origY: number }> = [];
-      root.querySelectorAll("text, tspan").forEach((t) => {
-        const cx = parseFloat(t.getAttribute("x") || "NaN");
-        const cy = parseFloat(t.getAttribute("y") || "NaN");
-        if (
-          Number.isFinite(cx) &&
-          Number.isFinite(cy) &&
-          pointInBBox({ x: cx, y: cy }, origBBox)
-        ) {
-          texts.push({ el: t, origX: cx, origY: cy });
-        }
-      });
-
-      const paths: DragSession["paths"] = [];
-      root.querySelectorAll("path").forEach((p) => {
-        const path = p as SVGPathElement;
-        const d = path.getAttribute("d") || "";
-        if (!pathIsSafeForRewrite(d)) return;
-        try {
-          const len = path.getTotalLength();
-          if (!Number.isFinite(len) || len === 0) return;
-          const a = path.getPointAtLength(0);
-          const b = path.getPointAtLength(len);
-          const startIn = pointInBBox({ x: a.x, y: a.y }, origBBox);
-          const endIn = pointInBBox({ x: b.x, y: b.y }, origBBox);
-          if (!startIn && !endIn) return;
-          paths.push({
-            el: path,
-            which: startIn && endIn ? "both" : startIn ? "start" : "end",
-            origStart: { x: a.x, y: a.y },
-            origEnd: { x: b.x, y: b.y },
-            origD: d,
-          });
-        } catch {
-          // ignore
-        }
-      });
-
-      dragSession = {
-        rect,
-        origRectX,
-        origRectY,
-        origBBox,
-        texts,
-        paths,
-        origin: clientToSvg(root, e.clientX, e.clientY),
-        moved: false,
-      };
-      window.addEventListener("mousemove", onDragMove);
-      window.addEventListener("mouseup", onDragEnd);
-    };
-
-    // ---- Rect affordances (Phase 2b + 2c) ----
-    root.querySelectorAll("rect").forEach((rectEl) => {
-      const rect = rectEl as SVGRectElement;
-      // Skip rects that are clearly not nodes (no fill or fill="none").
-      const fill = rect.getAttribute("fill") || "";
-      if (!fill || fill.toLowerCase() === "none" || fill === "transparent") return;
-      rect.style.cursor = "grab";
-      const onEnter = () => {
-        if (selectedRectRef.current === rect) return;
-        rect.dataset.readoppPrevStroke = rect.getAttribute("stroke") || "";
-        rect.dataset.readoppPrevStrokeWidth =
-          rect.getAttribute("stroke-width") || "";
-        rect.style.outline = "2px solid rgba(31,151,220,0.55)";
-        rect.style.outlineOffset = "2px";
-      };
-      const onLeave = () => {
-        if (selectedRectRef.current === rect) return;
-        if (dragSession && dragSession.rect === rect) return;
-        rect.style.outline = "";
-        rect.style.outlineOffset = "";
-      };
-      const onMouseDown = (e: MouseEvent) => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        startDrag(rect, e);
-      };
-      const onClick = (e: MouseEvent) => {
-        if (justDraggedRef.current) {
-          justDraggedRef.current = false;
-          return;
-        }
-        e.stopPropagation();
-        selectNode(rect);
-      };
-      rect.addEventListener("mouseenter", onEnter);
-      rect.addEventListener("mouseleave", onLeave);
-      rect.addEventListener("mousedown", onMouseDown);
-      rect.addEventListener("click", onClick);
-      teardown.push(() => {
-        rect.removeEventListener("mouseenter", onEnter);
-        rect.removeEventListener("mouseleave", onLeave);
-        rect.removeEventListener("mousedown", onMouseDown);
-        rect.removeEventListener("click", onClick);
-      });
-    });
-
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerRect(el.getBoundingClientRect());
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
     return () => {
-      window.removeEventListener("mousemove", onDragMove);
-      window.removeEventListener("mouseup", onDragEnd);
-      teardown.forEach((fn) => fn());
+      ro.disconnect();
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content]);
+  }, []);
 
-  // Track the currently selected rect in a ref so the per-rect mouseleave
-  // listener (closed over above) can skip removing the selection outline.
-  const selectedRectRef = useRef<SVGRectElement | null>(null);
+  // Current scene (parsed live for queries; not stored in state).
+  const scene = useMemo<SceneGraph | null>(() => parseScene(svg), [svg]);
+  const viewBox = useMemo(
+    () => (scene ? getViewBox(scene) : null),
+    [scene]
+  );
+
+  const selectedKind: ElementKind = useMemo(
+    () => (scene && selectedId ? getKind(scene, selectedId) : "unknown"),
+    [scene, selectedId]
+  );
+  const resizable = selectedKind === "rect";
+
+  // ---------- Save (debounced — last push wins) ----------
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef<string>(content);
+  const scheduleSave = useCallback(
+    (next: string) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(async () => {
+        if (next === lastSavedRef.current) return;
+        setSaving(true);
+        setError(null);
+        try {
+          await onSave(next);
+          lastSavedRef.current = next;
+        } catch (e) {
+          setError((e as Error).message || "Save failed");
+        } finally {
+          setSaving(false);
+        }
+      }, 500);
+    },
+    [onSave]
+  );
   useEffect(() => {
-    selectedRectRef.current = selected?.rect ?? null;
-  }, [selected]);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
 
-  // ---- Text edit (Phase 2a) ----
+  // ---------- Commit helper ----------
+  // Apply a mutator to a clone of the current scene, push the result onto
+  // history, and schedule a save. Returns the new svg string (or null on fail).
+  const commitMutation = useCallback(
+    (mutate: (s: SceneGraph) => boolean): string | null => {
+      if (!scene) return null;
+      const next = cloneScene(scene);
+      const ok = mutate(next);
+      if (!ok) return null;
+      const out = serializeScene(next);
+      push(out);
+      scheduleSave(out);
+      return out;
+    },
+    [scene, push, scheduleSave]
+  );
 
-  function startEdit(el: SVGElement) {
-    const container = containerRef.current;
-    if (!container) return;
-    // Clear any node selection — text edit takes precedence.
-    clearSelection();
-
-    const cRect = container.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
-    const fontPx = parseFloat(cs.fontSize) || 14;
-
-    el.style.visibility = "hidden";
-
-    setEditing({
-      node: el,
-      rect: {
-        top: eRect.top - cRect.top,
-        left: eRect.left - cRect.left,
-        width: Math.max(eRect.width, 80),
-        height: Math.max(eRect.height, fontPx + 8),
-      },
-      fontPx,
-      initialText: el.textContent ?? "",
-      draft: el.textContent ?? "",
-    });
-    setError(null);
-  }
-
-  async function commitTextEdit() {
-    if (!editing || saving) return;
-    const next = editing.draft.trim();
-    const original = editing.initialText.trim();
-    if (next === original) {
-      restoreVisibility(editing.node);
-      setEditing(null);
+  // ---------- Bounding box (PIXEL space relative to panel-svg-wrap) ----------
+  // Using getBoundingClientRect rather than getBBox so the overlay aligns
+  // even when the SVG is letterboxed or has parent transforms.
+  useEffect(() => {
+    if (!selectedId || !containerRef.current) {
+      setBbox(null);
       return;
     }
-    if (next.length === 0) {
-      setError("Text can't be empty.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    editing.node.textContent = next;
-    restoreVisibility(editing.node);
-
-    const root = containerRef.current?.querySelector("svg");
-    if (!root) {
-      setSaving(false);
-      return;
-    }
-    const serialized = root.outerHTML;
-    try {
-      await onSave(serialized);
-      setEditing(null);
-    } catch (e) {
-      editing.node.textContent = editing.initialText;
-      setError((e as Error).message || "Save failed.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function cancelTextEdit() {
-    if (!editing) return;
-    restoreVisibility(editing.node);
-    setEditing(null);
-    setError(null);
-  }
-
-  function onOverlayKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      cancelTextEdit();
-      return;
-    }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      commitTextEdit();
-    }
-  }
-
-  // ---- Node selection + recolor + delete (Phase 2b) ----
-
-  function selectNode(rect: SVGRectElement) {
-    const container = containerRef.current;
-    if (!container) return;
-    // Cancel any in-flight text edit.
-    if (editing) cancelTextEdit();
-
-    const prev = selectedRectRef.current;
-    if (prev && prev !== rect) {
-      prev.style.outline = "";
-      prev.style.outlineOffset = "";
-    }
-
-    const cRect = container.getBoundingClientRect();
-    const eRect = rect.getBoundingClientRect();
-    // Persistent selection outline.
-    rect.style.outline = "2px solid rgba(31,151,220,0.85)";
-    rect.style.outlineOffset = "2px";
-
-    const palette = identifyPalette(
-      rect.getAttribute("fill") || "",
-      rect.getAttribute("stroke") || ""
+    const node = containerRef.current.querySelector<SVGGraphicsElement>(
+      `[${EDIT_ID_ATTR}="${cssSelectorEscape(selectedId)}"]`
     );
-
-    setSelected({
-      rect,
-      position: {
-        top: eRect.bottom - cRect.top + 8,
-        left: clamp(
-          eRect.left - cRect.left,
-          0,
-          Math.max(cRect.width - 268, 0)
-        ),
-      },
-      palette,
+    if (!node) {
+      setBbox(null);
+      return;
+    }
+    const cRect = containerRef.current.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    setBbox({
+      x: r.left - cRect.left,
+      y: r.top - cRect.top,
+      width: r.width,
+      height: r.height,
     });
-  }
+  }, [selectedId, svg, containerRect]);
 
-  function clearSelection() {
-    const prev = selectedRectRef.current;
-    if (prev) {
-      prev.style.outline = "";
-      prev.style.outlineOffset = "";
+  // ---------- Mouse interactions on the panel ----------
+  function onPanelClick(e: React.MouseEvent) {
+    // Walk from the target up to find an element with data-edit-id.
+    const target = e.target as Element | null;
+    if (!target) {
+      setSelectedId(null);
+      return;
     }
-    setSelected(null);
-  }
-
-  async function recolorSelected(triple: ColorTriple) {
-    if (!selected) return;
-    const root = containerRef.current?.querySelector("svg");
-    if (!root) return;
-
-    setSaving(true);
-    setError(null);
-    const tmp = `_readopp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    selected.rect.setAttribute("data-readopp-tmp", tmp);
-    try {
-      const clone = root.cloneNode(true) as SVGSVGElement;
-      const cloneRect = clone.querySelector(
-        `[data-readopp-tmp="${tmp}"]`
-      ) as SVGRectElement | null;
-      if (!cloneRect) throw new Error("clone lookup failed");
-      cloneRect.removeAttribute("data-readopp-tmp");
-      applyColorToNode(cloneRect, clone, triple);
-      const serialized = clone.outerHTML;
-      await onSave(serialized);
-      // Parent will update content; React re-renders SVG fresh and selection
-      // is cleared by the unmount.
-      clearSelection();
-    } catch (e) {
-      setError((e as Error).message || "Recolor failed.");
-    } finally {
-      selected.rect.removeAttribute("data-readopp-tmp");
-      setSaving(false);
+    const node = (target as Element).closest?.(`[${EDIT_ID_ATTR}]`);
+    if (!node) {
+      setSelectedId(null);
+      return;
     }
+    const id = node.getAttribute(EDIT_ID_ATTR);
+    if (id) setSelectedId(id);
   }
 
-  async function deleteSelected() {
-    if (!selected) return;
-    const root = containerRef.current?.querySelector("svg");
-    if (!root) return;
+  function onPanelDoubleClick(e: React.MouseEvent) {
+    if (openTextEditorForSelection()) e.stopPropagation();
+  }
+
+  /** Open the inline text editor for the currently-selected text element. Returns true if opened. */
+  function openTextEditorForSelection(): boolean {
+    if (!selectedId || !scene) return false;
+    const kind = getKind(scene, selectedId);
+    if (kind !== "text") return false;
+    const target = containerRef.current?.querySelector<SVGGraphicsElement>(
+      `[${EDIT_ID_ATTR}="${cssSelectorEscape(selectedId)}"]`
+    );
+    if (!target) return false;
+    const cRect = containerRef.current!.getBoundingClientRect();
+    const r = target.getBoundingClientRect();
+    setTextEdit({
+      id: selectedId,
+      value: getTextContent(scene, selectedId),
+      top: r.top - cRect.top,
+      left: r.left - cRect.left,
+      width: Math.max(80, r.width),
+      height: Math.max(20, r.height),
+    });
+    return true;
+  }
+
+  // ---------- Move (drag selected element) ----------
+  const dragRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    rawSvg: string;
+  } | null>(null);
+
+  function onPointerDownOnSelected(e: React.PointerEvent) {
+    if (!selectedId || !scene) return;
+    if (e.button !== 0) return;
+    // All editable kinds are draggable. moveBy handles rect/text/circle/
+    // ellipse via direct attrs, line via x1/y1/x2/y2, polyline/polygon via
+    // points, and path via a translate transform.
+    const kind = getKind(scene, selectedId);
+    const draggable =
+      kind === "rect" ||
+      kind === "text" ||
+      kind === "circle" ||
+      kind === "ellipse" ||
+      kind === "line" ||
+      kind === "polyline" ||
+      kind === "polygon" ||
+      kind === "path" ||
+      kind === "g";
+    if (!draggable) return;
+    dragRef.current = {
+      id: selectedId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      rawSvg: svg,
+    };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    d.moved = true;
+    if (!viewBox || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const sx = (dx / rect.width) * viewBox.width;
+    const sy = (dy / rect.height) * viewBox.height;
+    // Apply to a fresh clone of the starting svg (no accumulation).
+    const base = parseScene(d.rawSvg);
+    if (!base) return;
+    if (!moveBy(base, d.id, sx, sy)) return;
+    const out = serializeScene(base);
+    // Mid-drag: replace current snapshot instead of pushing — one drag = one
+    // history entry, committed on pointer-up below.
+    replace(out);
+  }
+
+  function onPointerUp() {
+    const d = dragRef.current;
+    if (!d) return;
+    if (d.moved) {
+      // Commit the final position as a single new history entry.
+      push(svg);
+      scheduleSave(svg);
+    }
+    dragRef.current = null;
+  }
+
+  // ---------- Resize (handle drag) ----------
+  // Bbox + pointer tracked in PIXEL space (relative to panel-svg-wrap); we
+  // convert to viewBox coordinates only when writing the rect's x/y/width/
+  // height attributes.
+  const resizeRef = useRef<{
+    id: string;
+    handle: HandleKey;
+    startBbox: Bbox;
+    startClientX: number;
+    startClientY: number;
+    rawSvg: string;
+  } | null>(null);
+
+  function onHandlePointerDown(handle: HandleKey, e: React.PointerEvent) {
+    if (!selectedId || !bbox || !containerRef.current || !viewBox) return;
+    e.stopPropagation();
+    resizeRef.current = {
+      id: selectedId,
+      handle,
+      startBbox: { ...bbox },
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      rawSvg: svg,
+    };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  }
+
+  function onHandlePointerMove(e: React.PointerEvent) {
+    const r = resizeRef.current;
+    if (!r || !containerRef.current || !viewBox) return;
+    const dxPx = e.clientX - r.startClientX;
+    const dyPx = e.clientY - r.startClientY;
+    let { x, y, width, height } = r.startBbox;
+    const h = r.handle;
+    if (h === "w") {
+      x = r.startBbox.x + dxPx;
+      width = r.startBbox.width - dxPx;
+    }
+    if (h === "e") {
+      width = r.startBbox.width + dxPx;
+    }
+    if (h === "n") {
+      y = r.startBbox.y + dyPx;
+      height = r.startBbox.height - dyPx;
+    }
+    if (h === "s") {
+      height = r.startBbox.height + dyPx;
+    }
+    if (e.shiftKey) {
+      const ar = r.startBbox.width / r.startBbox.height;
+      if (h === "n" || h === "s") width = height * ar;
+      else height = width / ar;
+    }
+    width = Math.max(8, width);
+    height = Math.max(8, height);
+    // Convert pixel bbox → viewBox coords for the rect's attrs.
+    const rect = containerRef.current.getBoundingClientRect();
+    const scaleX = viewBox.width / rect.width;
+    const scaleY = viewBox.height / rect.height;
+    const base = parseScene(r.rawSvg);
+    if (!base) return;
     if (
-      !window.confirm(
-        "Delete this node, its labels, and any arrows that connect to it?"
+      !resizeRect(
+        base,
+        r.id,
+        x * scaleX,
+        y * scaleY,
+        width * scaleX,
+        height * scaleY
       )
     )
       return;
-
-    setSaving(true);
-    setError(null);
-    const tmp = `_readopp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    selected.rect.setAttribute("data-readopp-tmp", tmp);
-    try {
-      const clone = root.cloneNode(true) as SVGSVGElement;
-      const cloneRect = clone.querySelector(
-        `[data-readopp-tmp="${tmp}"]`
-      ) as SVGRectElement | null;
-      if (!cloneRect) throw new Error("clone lookup failed");
-      cloneRect.removeAttribute("data-readopp-tmp");
-      deleteNodeAndAssociated(cloneRect, clone, root);
-      const serialized = clone.outerHTML;
-      await onSave(serialized);
-      clearSelection();
-    } catch (e) {
-      setError((e as Error).message || "Delete failed.");
-    } finally {
-      selected.rect.removeAttribute("data-readopp-tmp");
-      setSaving(false);
-    }
+    replace(serializeScene(base));
   }
 
+  function onHandlePointerUp() {
+    const r = resizeRef.current;
+    if (!r) return;
+    push(svg);
+    scheduleSave(svg);
+    resizeRef.current = null;
+  }
+
+  // ---------- Inline text editor ----------
+  const [textEdit, setTextEdit] = useState<{
+    id: string;
+    value: string;
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  function commitTextEdit(value: string) {
+    if (!textEdit || !scene) {
+      setTextEdit(null);
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === getTextContent(scene, textEdit.id)) {
+      setTextEdit(null);
+      return;
+    }
+    commitMutation((s) => setText(s, textEdit.id, trimmed));
+    setTextEdit(null);
+  }
+
+  // ---------- Keyboard ----------
+  useUndoShortcuts(hoverActive, undo, redo);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!hoverActive) return;
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      if ((e.target as HTMLElement | null)?.isContentEditable) return;
+      if (!selectedId) return;
+      if (e.key === "Escape") {
+        setSelectedId(null);
+        setTextEdit(null);
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        commitMutation((s) => deleteElement(s, selectedId));
+        setSelectedId(null);
+        return;
+      }
+      // Arrow nudge: 1px, Shift+Arrow = 16px. One history entry per press.
+      const NUDGE = e.shiftKey ? 16 : 1;
+      let dx = 0;
+      let dy = 0;
+      if (e.key === "ArrowLeft") dx = -NUDGE;
+      else if (e.key === "ArrowRight") dx = NUDGE;
+      else if (e.key === "ArrowUp") dy = -NUDGE;
+      else if (e.key === "ArrowDown") dy = NUDGE;
+      if (dx === 0 && dy === 0) return;
+      e.preventDefault();
+      commitMutation((s) => moveBy(s, selectedId, dx, dy));
+    }
+    if (!hoverActive) return;
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hoverActive, selectedId, commitMutation]);
+
+  // ---------- Render ----------
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      className="relative"
+      onMouseEnter={() => setHoverActive(true)}
+      onMouseLeave={() => setHoverActive(false)}
+    >
       <div
-        className="panel-svg-wrap"
-        dangerouslySetInnerHTML={{ __html: content }}
+        ref={containerRef}
+        className={
+          "panel-svg-wrap relative select-none " +
+          (hoveredId && hoveredId === selectedId
+            ? "cursor-move"
+            : hoveredId
+            ? "cursor-pointer"
+            : "cursor-default")
+        }
+        onClick={onPanelClick}
+        onDoubleClick={onPanelDoubleClick}
+        onPointerDown={onPointerDownOnSelected}
+        onPointerMove={(e) => {
+          if (dragRef.current) onPointerMove(e);
+          if (resizeRef.current) onHandlePointerMove(e);
+        }}
+        onPointerUp={() => {
+          if (dragRef.current) onPointerUp();
+          if (resizeRef.current) onHandlePointerUp();
+        }}
+        onMouseMove={(e) => {
+          if (dragRef.current || resizeRef.current) return;
+          const target = e.target as Element | null;
+          const node = target?.closest?.(`[${EDIT_ID_ATTR}]`);
+          const id = node?.getAttribute?.(EDIT_ID_ATTR) ?? null;
+          if (id !== hoveredId) setHoveredId(id);
+        }}
+        onMouseLeave={() => setHoveredId(null)}
+        style={{ position: "relative" }}
+      >
+        {/* SVG content — wrapped in its own div so the selection overlay can
+           sit beside it inside panel-svg-wrap (whose box matches the SVG's). */}
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        {bbox && (
+          <SelectionOverlay
+            bbox={bbox}
+            resizable={resizable}
+            onHandlePointerDown={onHandlePointerDown}
+          />
+        )}
+      </div>
+      <HoverStyle hoveredId={hoveredId} selectedId={selectedId} />
+      {textEdit && (
+        <InlineTextInput
+          textEdit={textEdit}
+          onCommit={commitTextEdit}
+          onCancel={() => setTextEdit(null)}
+        />
+      )}
+
+      {/* Floating contextual toolbar — only when something is selected */}
+      {selectedId && scene && bbox && viewBox && (() => {
+        const fill = getAttr(scene, selectedId, "fill");
+        const stroke = getAttr(scene, selectedId, "stroke");
+        const hasFill = fill !== null && fill !== "none" && fill !== "transparent";
+        const hasStroke = stroke !== null && stroke !== "none";
+        const canFill =
+          selectedKind === "rect" ||
+          selectedKind === "text" ||
+          selectedKind === "tspan" ||
+          selectedKind === "circle" ||
+          selectedKind === "ellipse" ||
+          selectedKind === "polygon" ||
+          selectedKind === "path";
+        const canStroke = selectedKind !== "text" && selectedKind !== "tspan";
+        const canEditText = selectedKind === "text";
+        const isTextish = selectedKind === "text" || selectedKind === "tspan";
+        const adjust = {
+          opacity: readOpacity(scene, selectedId),
+          onOpacity: (v: number) =>
+            commitMutation((s) => setOpacity(s, selectedId, v)),
+          strokeWidth: hasStroke
+            ? readStrokeWidth(scene, selectedId)
+            : undefined,
+          onStrokeWidth: hasStroke
+            ? (v: number) =>
+                commitMutation((s) => setStrokeWidth(s, selectedId, v))
+            : undefined,
+          cornerRadius:
+            selectedKind === "rect"
+              ? readCornerRadius(scene, selectedId)
+              : undefined,
+          onCornerRadius:
+            selectedKind === "rect"
+              ? (v: number) =>
+                  commitMutation((s) => setCornerRadius(s, selectedId, v))
+              : undefined,
+        };
+        const typography = isTextish
+          ? {
+              family: readFontFamily(scene, selectedId),
+              size: readFontSize(scene, selectedId),
+              weight: readFontWeight(scene, selectedId),
+              italic: readFontStyle(scene, selectedId) === "italic",
+              align: readTextAnchor(scene, selectedId),
+              onFamily: (k: ReturnType<typeof readFontFamily>) =>
+                commitMutation((s) => setFontFamily(s, selectedId, k)),
+              onSize: (sz: number) =>
+                commitMutation((s) => setFontSize(s, selectedId, sz)),
+              onWeight: (w: number) =>
+                commitMutation((s) => setFontWeight(s, selectedId, w)),
+              onItalic: (it: boolean) =>
+                commitMutation((s) => setFontStyle(s, selectedId, it)),
+              onAlign: (a: "start" | "middle" | "end") =>
+                commitMutation((s) => setTextAnchor(s, selectedId, a)),
+            }
+          : undefined;
+        return (
+          <FloatingToolbar
+            bbox={bbox}
+            containerRect={containerRect}
+            fill={hasFill ? fill : null}
+            stroke={hasStroke ? stroke : null}
+            canFill={canFill}
+            canStroke={canStroke}
+            canEditText={canEditText}
+            typography={typography}
+            adjust={adjust}
+            onChangeFill={(c) =>
+              commitMutation((s) => setAttr(s, selectedId, "fill", c ?? "none"))
+            }
+            onChangeStroke={(c) =>
+              commitMutation((s) => setAttr(s, selectedId, "stroke", c ?? "none"))
+            }
+            onEditText={() => openTextEditorForSelection()}
+            onDelete={() => {
+              commitMutation((s) => deleteElement(s, selectedId));
+              setSelectedId(null);
+            }}
+          />
+        );
+      })()}
+
+      {/* Bottom strip: history pill + save status */}
+      <HistoryBar
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
+        saving={saving}
+        error={error}
       />
-
-      {editing && (
-        <textarea
-          autoFocus
-          rows={1}
-          value={editing.draft}
-          onChange={(e) => setEditing({ ...editing, draft: e.target.value })}
-          onBlur={commitTextEdit}
-          onKeyDown={onOverlayKeyDown}
-          disabled={saving}
-          aria-label="Edit panel text"
-          style={{
-            position: "absolute",
-            top: editing.rect.top - 4,
-            left: editing.rect.left - 4,
-            width: editing.rect.width + 8,
-            minHeight: editing.rect.height + 8,
-            fontSize: `${editing.fontPx}px`,
-            lineHeight: 1.2,
-            fontFamily:
-              'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif',
-            padding: "2px 4px",
-            margin: 0,
-            background: "#ffffff",
-            color: "#1a1a1a",
-            border: "1px solid rgba(31,151,220,0.7)",
-            outline: "2px solid rgba(31,151,220,0.2)",
-            borderRadius: 3,
-            resize: "none",
-            zIndex: 10,
-          }}
-        />
-      )}
-
-      {selected && (
-        <NodeEditPopover
-          position={selected.position}
-          currentPalette={selected.palette}
-          busy={saving}
-          onColorChange={recolorSelected}
-          onDelete={deleteSelected}
-          onClose={clearSelection}
-        />
-      )}
-
-      {error && (
-        <div
-          role="alert"
-          style={{
-            position: "absolute",
-            top: (editing?.rect.top ?? selected?.position.top ?? 0) + 4,
-            left: editing?.rect.left ?? selected?.position.left ?? 0,
-            zIndex: 30,
-          }}
-          className="rounded bg-white px-2 py-1 text-[11px] text-red-600 shadow"
-        >
-          {error}
-        </div>
-      )}
     </div>
   );
 }
 
-// ---------- helpers ----------
-
-function collectEditable(root: SVGSVGElement): SVGElement[] {
-  const out: SVGElement[] = [];
-  root.querySelectorAll("tspan").forEach((t) => {
-    if ((t.textContent ?? "").trim().length > 0) {
-      out.push(t as unknown as SVGElement);
-    }
-  });
-  root.querySelectorAll("text").forEach((t) => {
-    const hasTspanChild = t.querySelector("tspan");
-    if (!hasTspanChild && (t.textContent ?? "").trim().length > 0) {
-      out.push(t as unknown as SVGElement);
-    }
-  });
-  return out;
-}
-
-function restoreVisibility(el: SVGElement): void {
-  el.style.visibility = "";
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(Math.max(n, min), max);
-}
-
-function normalizeHex(c: string): string {
-  return (c || "").trim().toUpperCase();
-}
-
-function identifyPalette(fill: string, stroke: string): PaletteName | null {
-  const f = normalizeHex(fill);
-  const s = normalizeHex(stroke);
-  for (const name of Object.keys(PALETTES) as PaletteName[]) {
-    const p = PALETTES[name];
-    if (normalizeHex(p.fill) === f) return name;
-    if (normalizeHex(p.stroke) === s) return name;
-  }
-  return null;
-}
-
-function getRectBBox(rect: SVGRectElement): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
-  return {
-    x: parseFloat(rect.getAttribute("x") || "0"),
-    y: parseFloat(rect.getAttribute("y") || "0"),
-    width: parseFloat(rect.getAttribute("width") || "0"),
-    height: parseFloat(rect.getAttribute("height") || "0"),
-  };
-}
-
-function pointInBBox(
-  p: { x: number; y: number },
-  bbox: { x: number; y: number; width: number; height: number },
-  pad = 4
-): boolean {
+/**
+ * Renders a <style> tag that draws a subtle dashed outline around the hovered
+ * element. We avoid mutating the SVG itself — just use a CSS rule keyed off
+ * data-edit-id so React state changes don't require re-rendering the SVG.
+ */
+function HoverStyle({
+  hoveredId,
+  selectedId,
+}: {
+  hoveredId: string | null;
+  selectedId: string | null;
+}) {
+  if (!hoveredId || hoveredId === selectedId) return null;
+  const safe = hoveredId.replace(/[^a-zA-Z0-9_-]/g, "");
   return (
-    p.x >= bbox.x - pad &&
-    p.x <= bbox.x + bbox.width + pad &&
-    p.y >= bbox.y - pad &&
-    p.y <= bbox.y + bbox.height + pad
+    <style>{`
+      [${EDIT_ID_ATTR}="${safe}"] {
+        outline: 1px dashed rgba(31,151,220,0.6);
+        outline-offset: 2px;
+      }
+    `}</style>
   );
 }
 
-function applyColorToNode(
-  rect: SVGRectElement,
-  root: SVGSVGElement,
-  triple: ColorTriple
-): void {
-  rect.setAttribute("fill", triple.fill);
-  rect.setAttribute("stroke", triple.stroke);
-
-  // Recolor any text whose anchor falls inside the rect's bbox.
-  const bbox = getRectBBox(rect);
-  const textNodes = root.querySelectorAll("text, tspan");
-  textNodes.forEach((t) => {
-    const cx = parseFloat(t.getAttribute("x") || "NaN");
-    const cy = parseFloat(t.getAttribute("y") || "NaN");
-    if (Number.isFinite(cx) && Number.isFinite(cy)) {
-      if (pointInBBox({ x: cx, y: cy }, bbox)) {
-        t.setAttribute("fill", triple.text);
-      }
-    }
-  });
+function HistoryBar({
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  saving,
+  error,
+}: {
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2">
+      <div className="inline-flex items-center rounded-full border border-paper-line bg-white p-0.5 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+        <HistoryIconButton
+          title="Undo (⌘Z)"
+          ariaLabel="Undo"
+          disabled={!canUndo}
+          onClick={onUndo}
+        >
+          <UndoIcon />
+        </HistoryIconButton>
+        <span aria-hidden className="h-3.5 w-px bg-paper-line" />
+        <HistoryIconButton
+          title="Redo (⌘⇧Z)"
+          ariaLabel="Redo"
+          disabled={!canRedo}
+          onClick={onRedo}
+        >
+          <RedoIcon />
+        </HistoryIconButton>
+      </div>
+      <SaveStatus saving={saving} error={error} dirty={canUndo} />
+    </div>
+  );
 }
 
-/**
- * Remove the node rect, any text whose anchor falls inside it, any enclosing
- * single-child <g> wrapper, and any <path> whose start or end point lands
- * inside the rect's bbox (so arrows don't dangle).
- *
- * `liveRoot` is the live in-DOM SVG — used to resolve path endpoints via
- * getPointAtLength, which doesn't work on detached clones in some browsers.
- * We map elements between live and clone by index.
- */
-function deleteNodeAndAssociated(
-  rectInClone: SVGRectElement,
-  clone: SVGSVGElement,
-  liveRoot: SVGSVGElement
-): void {
-  const bbox = getRectBBox(rectInClone);
-
-  // Build an index → element map for paths on both clone and live root so we
-  // can read endpoints from the live element (only those have layout).
-  const clonePaths = Array.from(clone.querySelectorAll("path"));
-  const livePaths = Array.from(liveRoot.querySelectorAll("path"));
-
-  const toRemove = new Set<Element>();
-  toRemove.add(rectInClone);
-
-  // Texts inside the rect.
-  clone.querySelectorAll("text, tspan").forEach((t) => {
-    const cx = parseFloat(t.getAttribute("x") || "NaN");
-    const cy = parseFloat(t.getAttribute("y") || "NaN");
-    if (Number.isFinite(cx) && Number.isFinite(cy)) {
-      if (pointInBBox({ x: cx, y: cy }, bbox)) {
-        toRemove.add(t);
+function HistoryIconButton({
+  children,
+  title,
+  ariaLabel,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  title: string;
+  ariaLabel: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      className={
+        "flex h-7 w-7 items-center justify-center rounded-full transition-colors " +
+        (disabled
+          ? "cursor-not-allowed text-ink-faint"
+          : "text-ink-soft hover:bg-paper-soft hover:text-ink")
       }
-    }
-  });
+    >
+      {children}
+    </button>
+  );
+}
 
-  // Paths connecting to the rect.
-  for (let i = 0; i < clonePaths.length; i++) {
-    const live = livePaths[i];
-    if (!live) continue;
-    try {
-      const len = live.getTotalLength();
-      if (!Number.isFinite(len) || len === 0) continue;
-      const a = live.getPointAtLength(0);
-      const b = live.getPointAtLength(len);
-      if (pointInBBox({ x: a.x, y: a.y }, bbox) || pointInBBox({ x: b.x, y: b.y }, bbox)) {
-        toRemove.add(clonePaths[i]);
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  // If the rect's parent is a <g> that contains only this rect (plus the
-  // texts we already marked), prefer removing the whole group so we don't
-  // leave an empty wrapper.
-  const parent = rectInClone.parentElement;
-  if (
-    parent &&
-    parent.tagName.toLowerCase() === "g" &&
-    (parent as Element) !== (clone as Element)
-  ) {
-    const survivors = Array.from(parent.children).filter(
-      (c) => !toRemove.has(c)
+function SaveStatus({
+  saving,
+  error,
+  dirty,
+}: {
+  saving: boolean;
+  error: string | null;
+  dirty: boolean;
+}) {
+  if (error) {
+    return (
+      <span className="text-[11px] text-red-600" role="alert">
+        {error}
+      </span>
     );
-    if (survivors.length === 0) {
-      toRemove.add(parent);
-    }
   }
-
-  toRemove.forEach((el) => el.remove());
-}
-
-// ---------- Phase 2c drag helpers ----------
-
-function clientToSvg(
-  svg: SVGSVGElement,
-  clientX: number,
-  clientY: number
-): { x: number; y: number } {
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: clientX, y: clientY };
-  const pt = svg.createSVGPoint();
-  pt.x = clientX;
-  pt.y = clientY;
-  const t = pt.matrixTransform(ctm.inverse());
-  return { x: t.x, y: t.y };
-}
-
-function fmt(n: number): string {
-  return (Math.round(n * 100) / 100).toString();
-}
-
-/**
- * Whether we can safely rewrite the first/last numeric XY pair of this path's
- * `d` attribute as an endpoint. We reject relative commands (lowercase) and
- * single-coord H/V commands, which would invalidate naive endpoint logic.
- * Skipped paths simply don't follow the dragged node.
- */
-function pathIsSafeForRewrite(d: string): boolean {
-  if (/[a-y]/.test(d)) return false;
-  if (/[HV]/.test(d)) return false;
-  return true;
-}
-
-const NUM_PATTERN = /-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g;
-
-function findAllNumberMatches(
-  d: string
-): Array<{ start: number; end: number }> {
-  const out: Array<{ start: number; end: number }> = [];
-  const re = new RegExp(NUM_PATTERN.source, "g");
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(d)) !== null) {
-    out.push({ start: m.index, end: m.index + m[0].length });
+  if (saving) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+        Saving…
+      </span>
+    );
   }
-  return out;
+  if (dirty) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
+        <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+        Saved
+      </span>
+    );
+  }
+  return <span aria-hidden className="text-[11px] text-transparent">·</span>;
 }
 
-function rewritePathStart(d: string, x: number, y: number): string {
-  const nums = findAllNumberMatches(d);
-  if (nums.length < 2) return d;
-  const [a, b] = nums;
+function UndoIcon() {
   return (
-    d.slice(0, a.start) +
-    fmt(x) +
-    d.slice(a.end, b.start) +
-    fmt(y) +
-    d.slice(b.end)
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M6 5.5L3 8L6 10.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 8H10.25C11.7688 8 13 9.23122 13 10.75V10.75C13 12.2688 11.7688 13.5 10.25 13.5H8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
-function rewritePathEnd(d: string, x: number, y: number): string {
-  const nums = findAllNumberMatches(d);
-  if (nums.length < 2) return d;
-  const a = nums[nums.length - 2];
-  const b = nums[nums.length - 1];
+function RedoIcon() {
   return (
-    d.slice(0, a.start) +
-    fmt(x) +
-    d.slice(a.end, b.start) +
-    fmt(y) +
-    d.slice(b.end)
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M10 5.5L13 8L10 10.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13 8H5.75C4.23122 8 3 9.23122 3 10.75V10.75C3 12.2688 4.23122 13.5 5.75 13.5H8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
+
+function cssSelectorEscape(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
+}
+
+// ---------- Inline text input ----------
+function InlineTextInput({
+  textEdit,
+  onCommit,
+  onCancel,
+}: {
+  textEdit: {
+    id: string;
+    value: string;
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  };
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [v, setV] = useState(textEdit.value);
+  return (
+    <input
+      autoFocus
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => onCommit(v)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit(v);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      style={{
+        position: "absolute",
+        top: textEdit.top,
+        left: textEdit.left,
+        width: textEdit.width,
+        minHeight: textEdit.height,
+        font: "14px ui-sans-serif, system-ui, -apple-system, sans-serif",
+      }}
+      className="z-50 rounded-sm border border-accent bg-white px-1 py-0.5 text-ink shadow-md focus:outline-none"
+    />
+  );
+}
+

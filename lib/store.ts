@@ -266,6 +266,10 @@ export async function updatePanel(
     heading: patch.heading !== undefined ? patch.heading : panel.heading,
     caption: patch.caption !== undefined ? patch.caption : panel.caption,
     content: patch.content !== undefined ? patch.content : panel.content,
+    // Lock the panel as edited once content is patched, so future
+    // template re-renders don't blow away hand-edits.
+    edited:
+      patch.content !== undefined ? true : panel.edited ?? false,
   };
   const nextPanels = existing.panels.slice();
   nextPanels[i] = nextPanel;
