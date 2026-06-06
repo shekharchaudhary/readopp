@@ -438,6 +438,30 @@ export const RenderedPanelSchema = z.object({
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
 
+// ---------- Agent 7: Social pack (Phase 8 week 1) ----------
+
+/**
+ * Everything the user needs to actually POST the explainer:
+ *  - a caption written in their voice,
+ *  - hashtag suggestions inferred from genre + entities,
+ *  - alt-text per panel for accessibility,
+ *  - a pre-formatted source attribution line.
+ */
+export const SocialPackSchema = z.object({
+  caption: z.string().min(1).max(600),
+  hashtags: z.array(z.string().min(1).max(40)).max(5).default([]),
+  altTexts: z
+    .array(
+      z.object({
+        sectionId: z.string(),
+        text: z.string().min(1).max(200),
+      })
+    )
+    .default([]),
+  sourceAttribution: z.string().max(200).default(""),
+});
+export type SocialPack = z.infer<typeof SocialPackSchema>;
+
 // ---------- Agent 6: Assembly ----------
 
 export const ExplainerSchema = z.object({
@@ -451,6 +475,9 @@ export const ExplainerSchema = z.object({
   createdAt: z.string(),
   // Bumped on every edit; used as a cache-buster for PNG/MP4 exports.
   updatedAt: z.string().optional(),
+  // Caption + hashtags + alt-texts the user can paste straight into a post.
+  // Produced by the socialPack agent and refreshable from the API.
+  socialPack: SocialPackSchema.optional(),
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 

@@ -11,7 +11,8 @@ export type AgentName =
   | "structure"
   | "planner"
   | "render"
-  | "assembly";
+  | "assembly"
+  | "social";
 
 /**
  * Discriminated union of every event the orchestrator can emit.
@@ -55,9 +56,10 @@ export const AGENT_ORDER: AgentName[] = [
   "planner",
   "render",
   "assembly",
+  "social",
 ];
 
 export function agentIndex(agent: AgentName): number {
-  // 1-based to match the spec ("index 1..6")
+  // 1-based to match the spec ("index 1..7")
   return AGENT_ORDER.indexOf(agent) + 1;
 }

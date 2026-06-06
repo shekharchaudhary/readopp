@@ -145,6 +145,7 @@ interface ExplainerRow {
   summary: string;
   panels: unknown;
   usage: unknown;
+  social_pack: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -160,6 +161,7 @@ function rowToExplainer(row: ExplainerRow): Explainer {
     panels: row.panels,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    socialPack: row.social_pack ?? undefined,
   });
   if (!parsed.success) {
     throw new Error(
@@ -187,6 +189,7 @@ async function insertExplainer(
     title: explainer.title,
     summary: explainer.summary,
     panels: explainer.panels,
+    social_pack: explainer.socialPack ?? null,
   } as unknown as never;
   const { error } = await admin.from("explainers").insert(row);
   if (error) {

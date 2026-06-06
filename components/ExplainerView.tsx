@@ -133,6 +133,8 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
         onClose={() => setExportOpen(false)}
         explainerId={explainer.id}
         panelId={exportPanelId}
+        socialPack={explainer.socialPack}
+        onSocialPackChange={(next) => setExplainer(next)}
       />
     </div>
   );

@@ -5,8 +5,9 @@ import type { ExportFormat } from "@/lib/export/dimensions";
 import { EXPORT_DIMENSIONS } from "@/lib/export/dimensions";
 import type { VideoFormat } from "@/lib/export/buildVideoHtml";
 import { VIDEO_DIMENSIONS } from "@/lib/export/buildVideoHtml";
+import type { Explainer, SocialPack } from "@/lib/shared/schemas";
 
-type Mode = "image" | "video";
+type Mode = "image" | "video" | "caption";
 
 type ImageResult =
   | {
@@ -46,12 +47,25 @@ interface Props {
   onClose: () => void;
   explainerId: string;
   panelId?: string;
+  /** Current socialPack from the parent's Explainer state. The Caption tab
+   *  shows this and the regenerate button replaces it. */
+  socialPack?: SocialPack;
+  /** Called after a successful socialPack regeneration so the parent can
+   *  refresh its Explainer state. */
+  onSocialPackChange?: (next: Explainer) => void;
 }
 
 const IMAGE_FORMATS: ExportFormat[] = ["square", "vertical", "landscape"];
 const VIDEO_FORMATS: VideoFormat[] = ["vertical", "square"];
 
-export function ExportSheet({ open, onClose, explainerId, panelId }: Props) {
+export function ExportSheet({
+  open,
+  onClose,
+  explainerId,
+  panelId,
+  socialPack,
+  onSocialPackChange,
+}: Props) {
   const [mode, setMode] = useState<Mode>("image");
   const [format, setFormat] = useState<ExportFormat>("square");
   const [videoFormat, setVideoFormat] = useState<VideoFormat>("vertical");
@@ -183,6 +197,22 @@ export function ExportSheet({ open, onClose, explainerId, panelId }: Props) {
               }
             >
               Video
+            </ModeTab>
+            <ModeTab
+              active={mode === "caption"}
+              onClick={() => {
+                if (panelId) return; // caption is whole-explainer only
+                setMode("caption");
+                setError(null);
+              }}
+              disabled={Boolean(panelId)}
+              hint={
+                panelId
+                  ? "Caption uses the whole explainer."
+                  : undefined
+              }
+            >
+              Caption
               <span className="ml-1 rounded-sm bg-accent-soft px-1.5 py-px text-[10px] font-medium text-accent-deep">
                 new
               </span>
@@ -191,7 +221,9 @@ export function ExportSheet({ open, onClose, explainerId, panelId }: Props) {
           <p className="mt-2 pb-3 text-xs text-ink-muted">
             {mode === "image"
               ? "Pick a format. We render a PNG at exact dimensions."
-              : "We animate the panels into a short MP4 with an outro QR — perfect for Reels and TikTok."}
+              : mode === "video"
+              ? "We animate the panels into a short MP4 with an outro QR — perfect for Reels and TikTok."
+              : "The post caption + hashtags + alt-text per panel — copy or refresh."}
           </p>
         </div>
 
@@ -205,7 +237,7 @@ export function ExportSheet({ open, onClose, explainerId, panelId }: Props) {
                 generateImage(f);
               }}
             />
-          ) : (
+          ) : mode === "video" ? (
             <VideoFormats
               format={videoFormat}
               loading={loading}
@@ -213,6 +245,12 @@ export function ExportSheet({ open, onClose, explainerId, panelId }: Props) {
                 setVideoFormat(f);
                 generateVideo(f);
               }}
+            />
+          ) : (
+            <CaptionPack
+              explainerId={explainerId}
+              socialPack={socialPack}
+              onChange={onSocialPackChange}
             />
           )}
 
@@ -470,6 +508,182 @@ function VideoPreview({ result }: { result: VideoResultPayload }) {
           {result.cached ? " · cached" : ""}
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Caption-pack tab body — Phase 8 week 1. Renders the persisted SocialPack
+ * (caption + hashtags + alt-texts) with copy and refresh affordances.
+ * Falls back to an empty-state with a Generate button when the explainer
+ * doesn't have a pack yet (older runs, or pipeline skipped it).
+ */
+function CaptionPack({
+  explainerId,
+  socialPack,
+  onChange,
+}: {
+  explainerId: string;
+  socialPack?: SocialPack;
+  onChange?: (next: Explainer) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function regenerate() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/explainers/${explainerId}/social-pack`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (data.explainer && onChange) onChange(data.explainer as Explainer);
+    } catch (e) {
+      setErr((e as Error).message || "Could not refresh caption.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!socialPack) {
+    return (
+      <div className="space-y-3 rounded-md border border-paper-line bg-white p-4">
+        <p className="text-sm text-ink-soft">
+          No caption yet. Generate one and we&rsquo;ll write a 2-line post
+          caption + hashtags + alt-text for each panel.
+        </p>
+        <button
+          type="button"
+          onClick={regenerate}
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-paper transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? "Writing…" : "Generate caption"}
+        </button>
+        {err && <p className="text-xs text-red-600">{err}</p>}
+      </div>
+    );
+  }
+
+  const hashtagLine = socialPack.hashtags.map((h) => `#${h}`).join(" ");
+
+  return (
+    <div className="space-y-4">
+      {/* Caption */}
+      <Block
+        label="Caption"
+        copyValue={socialPack.caption}
+        actions={
+          <button
+            type="button"
+            onClick={regenerate}
+            disabled={busy}
+            className="rounded-md border border-paper-line bg-white px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {busy ? "Refreshing…" : "Refresh"}
+          </button>
+        }
+      >
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+          {socialPack.caption}
+        </p>
+      </Block>
+
+      {/* Hashtags */}
+      {socialPack.hashtags.length > 0 && (
+        <Block label="Hashtags" copyValue={hashtagLine}>
+          <div className="flex flex-wrap gap-1.5">
+            {socialPack.hashtags.map((h) => (
+              <span
+                key={h}
+                className="rounded-full border border-paper-line bg-paper-soft px-2.5 py-0.5 font-mono text-xs text-ink-soft"
+              >
+                #{h}
+              </span>
+            ))}
+          </div>
+        </Block>
+      )}
+
+      {/* Source attribution */}
+      {socialPack.sourceAttribution && (
+        <Block
+          label="Source attribution"
+          copyValue={socialPack.sourceAttribution}
+        >
+          <p className="text-sm text-ink-soft">{socialPack.sourceAttribution}</p>
+        </Block>
+      )}
+
+      {/* Per-panel alt text */}
+      {socialPack.altTexts.length > 0 && (
+        <Block label="Alt text per panel">
+          <div className="space-y-2">
+            {socialPack.altTexts.map((a) => (
+              <div
+                key={a.sectionId}
+                className="rounded-md border border-paper-line bg-white p-2.5"
+              >
+                <div className="text-[10px] font-medium uppercase tracking-wider text-ink-faint">
+                  {a.sectionId}
+                </div>
+                <p className="mt-1 text-sm text-ink-soft">{a.text}</p>
+              </div>
+            ))}
+          </div>
+        </Block>
+      )}
+
+      {err && <p className="text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
+
+function Block({
+  label,
+  copyValue,
+  actions,
+  children,
+}: {
+  label: string;
+  copyValue?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (!copyValue) return;
+    try {
+      await navigator.clipboard.writeText(copyValue);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Older browsers — ignore.
+    }
+  }
+  return (
+    <div className="space-y-2 rounded-md border border-paper-line bg-paper p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-ink-faint">
+          {label}
+        </span>
+        <div className="flex items-center gap-1.5">
+          {actions}
+          {copyValue && (
+            <button
+              type="button"
+              onClick={copy}
+              className="rounded-md border border-paper-line bg-white px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          )}
+        </div>
+      </div>
+      {children}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { runComprehension, summarizeComprehension } from "../agents/comprehensio
 import { IngestError, runIngest } from "../agents/ingest";
 import { runPlanner } from "../agents/planner";
 import { runRenderPanel } from "../agents/render";
+import { runSocialPack } from "../agents/socialPack";
 import { runStructure, summarizeOutline } from "../agents/structure";
 import { agentIndex, type AgentName } from "../events";
 import { buildFallbackPanel } from "../render/fallbackPanel";
@@ -209,7 +210,7 @@ export async function runJob(jobId: string): Promise<void> {
     // 6. Assembly
     emitStatus(jobId, "assembling");
     emitAgentStart(jobId, "assembly");
-    const explainer: Explainer = runAssembly({
+    const baseExplainer: Explainer = runAssembly({
       jobId,
       url: job.url,
       audienceLevel: job.audienceLevel,
@@ -217,8 +218,36 @@ export async function runJob(jobId: string): Promise<void> {
       comprehension,
       panels,
     });
-    await completeJob(jobId, explainer);
     emitAgentDone(jobId, "assembly", "Assembled explainer");
+
+    // 7. Social pack — caption + hashtags + alt-texts, so the explainer
+    //    is ready to actually POST, not just look at. Failure here is
+    //    non-fatal: we ship the explainer without a pack and the user
+    //    can regenerate from the export sheet.
+    emitAgentStart(jobId, "social");
+    emitAgentProgress(jobId, "social", "Writing your post caption…");
+    let explainer: Explainer = baseExplainer;
+    try {
+      const socialPack = await runSocialPack(
+        baseExplainer,
+        comprehension,
+        jobId
+      );
+      explainer = { ...baseExplainer, socialPack };
+      emitAgentDone(
+        jobId,
+        "social",
+        `Caption + ${socialPack.hashtags.length} hashtag${socialPack.hashtags.length === 1 ? "" : "s"}`
+      );
+    } catch (e) {
+      const msg = (e as Error).message?.slice(0, 160) ?? "unknown";
+      emitAgentProgress(jobId, "social", `Skipped — ${msg}`);
+      emitAgentDone(jobId, "social", "Skipped — refresh from the export sheet");
+      // eslint-disable-next-line no-console
+      console.warn("[readopp] socialPack failed", { jobId, error: e });
+    }
+
+    await completeJob(jobId, explainer);
     emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {
     const err = toJobError(e);

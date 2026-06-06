@@ -51,6 +51,7 @@ export const AGENT_KEYS: AgentName[] = [
   "planner",
   "render",
   "assembly",
+  "social",
 ];
 
 export const AGENT_LABEL: Record<AgentName, string> = {
@@ -60,6 +61,7 @@ export const AGENT_LABEL: Record<AgentName, string> = {
   planner: "Plan",
   render: "Draw",
   assembly: "Assemble",
+  social: "Caption",
 };
 
 export function initialScene(): SceneState {
