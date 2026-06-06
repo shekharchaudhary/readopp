@@ -29,7 +29,15 @@ type ImageResult =
   | {
       kind: "set";
       format: ExportFormat;
-      images: { url: string; sectionId: string; panelIndex: number }[];
+      images: {
+        url: string;
+        sectionId: string;
+        panelIndex: number;
+        kind?: "panel" | "attribution";
+      }[];
+      /** Phase 8 week 2 — one-click bundle of every image in the set. */
+      zipUrl?: string;
+      zipName?: string;
     };
 
 interface VideoResultPayload {
@@ -428,29 +436,78 @@ function ImagePreview({
   format: ExportFormat;
 }) {
   if ("images" in result) {
+    const panelCount = result.images.filter(
+      (i) => i.kind !== "attribution"
+    ).length;
     return (
       <div className="space-y-3">
-        <p className="text-xs text-ink-muted">
-          {result.images.length} images — one per panel.
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {result.images.map((img) => (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-ink-muted">
+            {panelCount} panel{panelCount === 1 ? "" : "s"} + 1 source slide
+            {" = "}
+            <span className="font-medium text-ink-soft">
+              {result.images.length} images
+            </span>
+          </p>
+          {result.zipUrl && (
             <a
-              key={img.url}
-              href={img.url}
-              download={`readopp-${format}-${img.panelIndex}.png`}
-              className="block overflow-hidden rounded-md border border-paper-line bg-white"
+              href={result.zipUrl}
+              download={result.zipName || `readopp-${format}.zip`}
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-paper transition-colors hover:bg-accent-deep"
             >
-              <img
-                src={img.url}
-                alt={`Panel ${img.panelIndex}`}
-                className="block h-auto w-full"
-              />
-              <div className="border-t border-paper-line px-2 py-1 text-xs text-ink-muted">
-                Panel {img.panelIndex} · download
-              </div>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path
+                  d="M8 2v8m-3-3l3 3 3-3M3 12v2h10v-2"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Download all (ZIP)
             </a>
-          ))}
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {result.images.map((img) => {
+            const isAttribution = img.kind === "attribution";
+            const label = isAttribution
+              ? "Source slide"
+              : `Panel ${img.panelIndex}`;
+            return (
+              <a
+                key={img.url}
+                href={img.url}
+                download={
+                  isAttribution
+                    ? `readopp-${format}-source.png`
+                    : `readopp-${format}-${img.panelIndex}.png`
+                }
+                className={
+                  "block overflow-hidden rounded-md border bg-white " +
+                  (isAttribution
+                    ? "border-accent/40 ring-1 ring-accent/15"
+                    : "border-paper-line")
+                }
+              >
+                <img
+                  src={img.url}
+                  alt={label}
+                  className="block h-auto w-full"
+                />
+                <div
+                  className={
+                    "border-t px-2 py-1 text-xs " +
+                    (isAttribution
+                      ? "border-accent/30 bg-accent-soft text-accent-deep"
+                      : "border-paper-line text-ink-muted")
+                  }
+                >
+                  {label} · download
+                </div>
+              </a>
+            );
+          })}
         </div>
       </div>
     );

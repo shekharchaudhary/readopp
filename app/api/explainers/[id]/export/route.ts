@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  buildAttributionExportHtml,
   buildPanelExportHtml,
   buildStackedExportHtml,
 } from "@/lib/export/buildExportHtml";
+import { bundleAsZip } from "@/lib/export/bundleZip";
 import { htmlToPng } from "@/lib/export/screenshot";
 import { isExportFormat } from "@/lib/export/dimensions";
 import { getExplainer } from "@/lib/store";
@@ -106,14 +108,20 @@ export async function POST(
       });
     }
 
-    // square/landscape: return one image per panel as a set
+    // square/landscape: return one image per panel as a set, PLUS one
+    // attribution slide at the end pointing back to the source.
     const images = [] as {
       url: string;
       width: number;
       height: number;
       sectionId: string;
       panelIndex: number;
+      kind: "panel" | "attribution";
     }[];
+    // We keep on-disk paths for the ZIP step; clients only see URLs.
+    const filePaths: string[] = [];
+    const entryNames: string[] = [];
+    const slug = (s: string) => s.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 60);
     for (let i = 0; i < explainer.panels.length; i++) {
       const panel = explainer.panels[i];
       const html = await buildPanelExportHtml({
@@ -134,12 +142,51 @@ export async function POST(
         height: result.height,
         sectionId: panel.sectionId,
         panelIndex: i + 1,
+        kind: "panel",
       });
+      filePaths.push(result.filePath);
+      entryNames.push(
+        `${String(i + 1).padStart(2, "0")}-${slug(panel.heading || panel.sectionId)}.png`
+      );
     }
+    // Source-attribution slide — viewers see this at the end of the
+    // carousel and know exactly where to go for the original piece.
+    const attrHtml = await buildAttributionExportHtml({ explainer, format });
+    const attrResult = await htmlToPng({
+      html: attrHtml,
+      format,
+      cacheKeyParts: [
+        explainer.id,
+        "__attribution__",
+        format,
+        versionTag(explainer),
+      ],
+    });
+    images.push({
+      url: attrResult.url,
+      width: attrResult.width,
+      height: attrResult.height,
+      sectionId: "__attribution__",
+      panelIndex: explainer.panels.length + 1,
+      kind: "attribution",
+    });
+    filePaths.push(attrResult.filePath);
+    entryNames.push(
+      `${String(explainer.panels.length + 1).padStart(2, "0")}-source.png`
+    );
+    // Bundle everything into one zip the user can download in one click.
+    const zip = await bundleAsZip({
+      filePaths,
+      entryNames,
+      cacheKeyParts: [explainer.id, format, versionTag(explainer)],
+      baseName: `readopp-${slug(explainer.title || explainer.id)}-${format}`,
+    });
     return NextResponse.json({
       format,
       images,
       kind: "set",
+      zipUrl: zip.url,
+      zipName: zip.filename,
     });
   } catch (e) {
     // eslint-disable-next-line no-console
