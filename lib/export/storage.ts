@@ -74,3 +74,27 @@ export function localFilePathFor(filename: string): string | null {
   if (useSupabase()) return null;
   return join(EXPORTS_DIR, filename);
 }
+
+/**
+ * Look up an already-stored artifact by filename. Returns its public URL or
+ * null if not present. Lets callers skip expensive renders on cache hits.
+ */
+export async function findExportArtifact(
+  filename: string
+): Promise<string | null> {
+  if (useSupabase()) {
+    const admin = getAdminSupabase();
+    // List with an exact-name search; bucket listing is the cheapest hit.
+    const { data, error } = await admin.storage
+      .from(SUPABASE_BUCKET)
+      .list("", { search: filename, limit: 1 });
+    if (error || !data) return null;
+    const found = data.find((o) => o.name === filename);
+    if (!found) return null;
+    return admin.storage.from(SUPABASE_BUCKET).getPublicUrl(filename).data
+      .publicUrl;
+  }
+  const filePath = join(EXPORTS_DIR, filename);
+  if (!existsSync(filePath)) return null;
+  return `${EXPORTS_PUBLIC_PREFIX}/${filename}`;
+}

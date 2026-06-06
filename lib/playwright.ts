@@ -40,8 +40,17 @@ async function launchBrowser(): Promise<Browser> {
 }
 
 export async function getBrowser(): Promise<Browser> {
-  if (!globalThis.__readopp_browser__) {
-    globalThis.__readopp_browser__ = launchBrowser();
+  // The cached browser process can die between warm invocations on Lambda
+  // (sandbox recycling), even though the globalThis handle survives. Verify
+  // it's still connected; if not, relaunch.
+  if (globalThis.__readopp_browser__) {
+    try {
+      const browser = await globalThis.__readopp_browser__;
+      if (browser.isConnected()) return browser;
+    } catch {
+      // Fall through to relaunch.
+    }
   }
+  globalThis.__readopp_browser__ = launchBrowser();
   return globalThis.__readopp_browser__;
 }
