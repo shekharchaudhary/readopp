@@ -1,9 +1,31 @@
 import QRCode from "qrcode";
-import type { Explainer, RenderedPanel } from "../shared/schemas";
+import type { BrandKit, Explainer, RenderedPanel } from "../shared/schemas";
 import { sourceLabel } from "../shared/source";
 import { EXPORT_DIMENSIONS, type ExportFormat } from "./dimensions";
 
-const ACCENT = "#1F97DC";
+const DEFAULT_ACCENT = "#1F97DC";
+
+const BRAND_FONT_FAMILY: Record<NonNullable<BrandKit["font"]>, string> = {
+  sans: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif",
+  serif: "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif",
+  mono: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  display:
+    "ui-sans-serif, system-ui, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+};
+
+/** Resolve a brand kit into the values the builders use. */
+function brandTokens(brand?: BrandKit | null) {
+  return {
+    accent: brand?.color || DEFAULT_ACCENT,
+    fontFamily:
+      brand?.font && BRAND_FONT_FAMILY[brand.font]
+        ? BRAND_FONT_FAMILY[brand.font]
+        : "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif",
+    logoUrl: brand?.logoUrl || null,
+    authorName: brand?.authorName || null,
+    authorHeadline: brand?.authorHeadline || null,
+  };
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -21,7 +43,15 @@ function siteUrl(): string {
   );
 }
 
-async function qrSvg(target: string, size: number): Promise<string> {
+async function qrSvg(
+  target: string,
+  size: number,
+  // Accepts a brand accent but stays #1a1a1a for QR readability — pure
+  // brand color often fails QR contrast checks. Kept as a parameter so we
+  // can override later without a signature change.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _brandAccent?: string
+): Promise<string> {
   return QRCode.toString(target, {
     type: "svg",
     margin: 0,
@@ -83,6 +113,7 @@ interface PanelExportInput {
   format: ExportFormat;
   panelIndex: number;
   totalPanels: number;
+  brand?: BrandKit | null;
 }
 
 /**
@@ -93,22 +124,23 @@ interface PanelExportInput {
 export async function buildPanelExportHtml(
   input: PanelExportInput
 ): Promise<string> {
-  const { explainer, panel, format, panelIndex, totalPanels } = input;
+  const { explainer, panel, format, panelIndex, totalPanels, brand } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
+  const B = brandTokens(brand);
   const domain = sourceLabel(explainer.url);
   const heading = panel.heading?.trim() || explainer.title;
   const showOverline = Boolean(panel.heading?.trim());
 
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;
-  const qr = await qrSvg(shareUrl, L.qrSize);
+  const qr = await qrSvg(shareUrl, L.qrSize, B.accent);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <style>
-  ${baseStyles(dims.w, dims.h, L)}
+  ${baseStyles(dims.w, dims.h, L, B)}
   .panel-host { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   .panel-host > * { max-width: 100%; max-height: 100%; }
   .panel-host svg { width: 100%; height: auto; }
@@ -128,7 +160,7 @@ export async function buildPanelExportHtml(
     dims.w - L.padding * 2
   }px; }
   .index-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  .index-dot { width: 8px; height: 8px; border-radius: 999px; background: ${ACCENT}; }
+  .index-dot { width: 8px; height: 8px; border-radius: 999px; background: ${B.accent}; }
   .index-tag { font-size: ${L.overlineSize}px; color: #6b6b6b; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
 </style>
 </head>
@@ -152,7 +184,7 @@ export async function buildPanelExportHtml(
         ? `<p class="caption">${escapeHtml(panel.caption)}</p>`
         : ""
     }
-    ${brandedFooter({ domain, L, qr, shareLabel: "scan to read all panels" })}
+    ${brandedFooter({ domain, L, B, qr, shareLabel: "scan to read all panels" })}
   </main>
 </body>
 </html>`;
@@ -161,6 +193,7 @@ export async function buildPanelExportHtml(
 interface AttributionExportInput {
   explainer: Explainer;
   format: ExportFormat;
+  brand?: BrandKit | null;
 }
 
 /**
@@ -172,9 +205,10 @@ interface AttributionExportInput {
 export async function buildAttributionExportHtml(
   input: AttributionExportInput
 ): Promise<string> {
-  const { explainer, format } = input;
+  const { explainer, format, brand } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
+  const B = brandTokens(brand);
   const domain = sourceLabel(explainer.url);
   const isUploadSource = explainer.url.startsWith("upload://");
   // QR points to the SOURCE, not back to Readopp — this slide is "go read
@@ -183,14 +217,14 @@ export async function buildAttributionExportHtml(
   const qrTarget = isUploadSource
     ? `${siteUrl()}/e/${explainer.id}`
     : explainer.url;
-  const qr = await qrSvg(qrTarget, Math.round(L.qrSize * 2.4));
+  const qr = await qrSvg(qrTarget, Math.round(L.qrSize * 2.4), B.accent);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <style>
-  ${baseStyles(dims.w, dims.h, L)}
+  ${baseStyles(dims.w, dims.h, L, B)}
   .attribution {
     flex: 1; min-height: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
@@ -221,7 +255,7 @@ export async function buildAttributionExportHtml(
   .attribution-qr svg { display: block; }
   .attribution-cta {
     font-size: ${Math.round(L.metaSize * 1.1)}px;
-    color: ${ACCENT}; font-weight: 500;
+    color: ${B.accent}; font-weight: 500;
   }
 </style>
 </head>
@@ -229,7 +263,7 @@ export async function buildAttributionExportHtml(
   <main class="page">
     <header class="header">
       <div class="index-row">
-        <span class="index-dot" style="display:inline-block;width:8px;height:8px;border-radius:999px;background:${ACCENT};margin-right:10px;vertical-align:middle;"></span>
+        <span class="index-dot" style="display:inline-block;width:8px;height:8px;border-radius:999px;background:${B.accent};margin-right:10px;vertical-align:middle;"></span>
         <span class="index-tag" style="font-size:${L.overlineSize}px;color:#6b6b6b;letter-spacing:0.04em;">SOURCE</span>
       </div>
     </header>
@@ -250,6 +284,7 @@ export async function buildAttributionExportHtml(
     ${brandedFooter({
       domain,
       L,
+      B,
       qr: "",
       shareLabel: "made with Readopp",
     })}
@@ -261,26 +296,28 @@ export async function buildAttributionExportHtml(
 interface AllExportInput {
   explainer: Explainer;
   format: ExportFormat;
+  brand?: BrandKit | null;
 }
 
 export async function buildStackedExportHtml(
   input: AllExportInput
 ): Promise<string> {
-  const { explainer, format } = input;
+  const { explainer, format, brand } = input;
   const dims = EXPORT_DIMENSIONS[format];
   const L = layoutFor(format);
+  const B = brandTokens(brand);
   const domain = sourceLabel(explainer.url);
   const panels = explainer.panels.slice(0, 4);
 
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;
-  const qr = await qrSvg(shareUrl, L.qrSize);
+  const qr = await qrSvg(shareUrl, L.qrSize, B.accent);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <style>
-  ${baseStyles(dims.w, dims.h, L)}
+  ${baseStyles(dims.w, dims.h, L, B)}
   .stack { display: flex; flex-direction: column; gap: 28px; flex: 1; min-height: 0; }
   .stack > .panel { display: flex; flex-direction: column; gap: 10px; }
   .panel-host { display: flex; align-items: center; justify-content: center; }
@@ -294,7 +331,7 @@ export async function buildStackedExportHtml(
   .title { font-size: ${L.titleSize}px; line-height: 1.1; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
   .summary { font-size: ${L.captionSize}px; color: #6b6b6b; margin-top: 12px; }
   .panel-heading { font-size: ${Math.round(L.captionSize * 1.1)}px; color: #1a1a1a; font-weight: 500; letter-spacing: -0.01em; }
-  .panel-num { font-size: ${L.metaSize}px; color: ${ACCENT}; font-variant-numeric: tabular-nums; margin-right: 8px; font-weight: 500; }
+  .panel-num { font-size: ${L.metaSize}px; color: ${B.accent}; font-variant-numeric: tabular-nums; margin-right: 8px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -327,6 +364,7 @@ export async function buildStackedExportHtml(
     ${brandedFooter({
       domain,
       L,
+      B,
       qr,
       shareLabel: `scan for full explainer · ${panels.length} of ${explainer.panels.length} panels shown`,
     })}
@@ -335,34 +373,59 @@ export async function buildStackedExportHtml(
 </html>`;
 }
 
+type BrandTokens = ReturnType<typeof brandTokens>;
+
 function brandedFooter({
   domain,
   L,
+  B,
   qr,
   shareLabel,
 }: {
   domain: string;
   L: Layout;
+  B: BrandTokens;
   qr: string;
   shareLabel: string;
 }): string {
+  // Wordmark: brand logo if set, else accent dot + "Readopp"
+  const wordmark = B.logoUrl
+    ? `<img class="brand-logo" src="${escapeHtml(B.logoUrl)}" alt="" />`
+    : `<span class="wordmark"><span class="brand-dot"></span>Readopp</span>`;
+  // When a brand author is set, the line shows their name + headline and the
+  // brand becomes "name · headline" with a small "made with Readopp" tag.
+  const authorLine = B.authorName
+    ? `<div class="brand-author">
+         <span class="brand-author-name">${escapeHtml(B.authorName)}</span>
+         ${
+           B.authorHeadline
+             ? `<span class="brand-author-headline">${escapeHtml(B.authorHeadline)}</span>`
+             : ""
+         }
+       </div>`
+    : "";
   return `<footer class="footer">
     <div class="brand">
-      <div class="wordmark"><span class="brand-dot"></span>Readopp</div>
+      <div class="brand-row">${wordmark}${authorLine}</div>
       <div class="brand-meta">
         <span>${escapeHtml(domain)}</span>
         <span class="sep">·</span>
         <span class="share-label">${escapeHtml(shareLabel)}</span>
+        ${
+          B.authorName
+            ? `<span class="sep">·</span><span class="madewith">made with Readopp</span>`
+            : ""
+        }
       </div>
     </div>
-    <div class="qr" aria-hidden="true">${qr}</div>
+    ${qr ? `<div class="qr" aria-hidden="true">${qr}</div>` : ""}
   </footer>`;
 }
 
-function baseStyles(w: number, h: number, L: Layout): string {
+function baseStyles(w: number, h: number, L: Layout, B: BrandTokens): string {
   return `
     html, body { margin: 0; padding: 0; background: #fafaf7; color: #1a1a1a;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-family: ${B.fontFamily};
       -webkit-font-smoothing: antialiased; }
     *, *::before, *::after { box-sizing: border-box; }
     .page {
@@ -377,22 +440,40 @@ function baseStyles(w: number, h: number, L: Layout): string {
       border-top: 1px solid #e3e1d8; padding-top: 16px;
     }
     .brand { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      height: ${Math.round(L.metaSize * 2.2)}px;
+      width: ${Math.round(L.metaSize * 2.2)}px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #ffffff;
+      border: 1px solid #e3e1d8;
+      padding: 4px;
+    }
     .wordmark {
       display: inline-flex; align-items: center; gap: 8px;
       color: #1a1a1a; font-weight: 600; letter-spacing: -0.01em;
       font-size: ${Math.round(L.metaSize * 1.4)}px;
     }
     .brand-dot {
+      display: inline-block;
       width: ${Math.round(L.metaSize * 0.55)}px;
       height: ${Math.round(L.metaSize * 0.55)}px;
       border-radius: 999px;
-      background: ${ACCENT};
+      background: ${B.accent};
     }
+    .brand-author { display: flex; flex-direction: column; gap: 2px; line-height: 1.15; min-width: 0; }
+    .brand-author-name {
+      color: #1a1a1a; font-weight: 600; letter-spacing: -0.01em;
+      font-size: ${Math.round(L.metaSize * 1.2)}px;
+    }
+    .brand-author-headline { color: #6b6b6b; font-size: ${L.metaSize}px; }
     .brand-meta {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       font-size: ${L.metaSize}px; color: #6b6b6b;
     }
     .brand-meta .sep { color: #a3a3a3; }
+    .madewith { color: #a3a3a3; }
     .qr { flex-shrink: 0; line-height: 0; padding: 6px; background: #ffffff; border: 1px solid #e3e1d8; border-radius: 6px; }
     .qr svg { display: block; width: ${L.qrSize}px; height: ${L.qrSize}px; }
   `;

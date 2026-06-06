@@ -8,12 +8,13 @@ import {
 import { bundleAsZip } from "@/lib/export/bundleZip";
 import { htmlToPng } from "@/lib/export/screenshot";
 import { isExportFormat } from "@/lib/export/dimensions";
-import { getExplainer } from "@/lib/store";
-import type { Explainer } from "@/lib/shared/schemas";
+import { getBrandKit, getExplainer } from "@/lib/store";
+import { getOrCreateUser } from "@/lib/supabase/server";
+import type { BrandKit, Explainer } from "@/lib/shared/schemas";
 
-/** Cache-buster token — bumps whenever a panel is edited. */
-function versionTag(e: Explainer): string {
-  return e.updatedAt ?? e.createdAt ?? "v0";
+/** Cache-buster token — bumps whenever a panel or the brand is edited. */
+function versionTag(e: Explainer, brand?: BrandKit | null): string {
+  return [e.updatedAt ?? e.createdAt ?? "v0", brand?.updatedAt ?? "no-brand"].join(":");
 }
 
 export const runtime = "nodejs";
@@ -52,6 +53,18 @@ export async function POST(
     );
   }
 
+  // Resolve the requesting user's brand kit so exports carry their color,
+  // font, logo, and headline. Anonymous users get the default Readopp look.
+  let brand: BrandKit | null = null;
+  try {
+    const { userId, isAnonymous } = await getOrCreateUser();
+    if (!isAnonymous) {
+      brand = await getBrandKit(userId);
+    }
+  } catch {
+    // Brand lookup is best-effort; fall back to default styling.
+  }
+
   const { format, panelId } = parsed.data;
   if (!isExportFormat(format)) {
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
@@ -75,11 +88,12 @@ export async function POST(
         format,
         panelIndex: panelIndex + 1,
         totalPanels: explainer.panels.length,
+        brand,
       });
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, panelId, format, versionTag(explainer)],
+        cacheKeyParts: [explainer.id, panelId, format, versionTag(explainer, brand)],
       });
       return NextResponse.json({
         url: result.url,
@@ -92,11 +106,11 @@ export async function POST(
 
     // Whole-explainer export.
     if (format === "vertical") {
-      const html = await buildStackedExportHtml({ explainer, format });
+      const html = await buildStackedExportHtml({ explainer, format, brand });
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, "all", format, versionTag(explainer)],
+        cacheKeyParts: [explainer.id, "all", format, versionTag(explainer, brand)],
       });
       return NextResponse.json({
         url: result.url,
@@ -134,7 +148,7 @@ export async function POST(
       const result = await htmlToPng({
         html,
         format,
-        cacheKeyParts: [explainer.id, panel.sectionId, format, versionTag(explainer)],
+        cacheKeyParts: [explainer.id, panel.sectionId, format, versionTag(explainer, brand)],
       });
       images.push({
         url: result.url,
@@ -151,7 +165,11 @@ export async function POST(
     }
     // Source-attribution slide — viewers see this at the end of the
     // carousel and know exactly where to go for the original piece.
-    const attrHtml = await buildAttributionExportHtml({ explainer, format });
+    const attrHtml = await buildAttributionExportHtml({
+      explainer,
+      format,
+      brand,
+    });
     const attrResult = await htmlToPng({
       html: attrHtml,
       format,
@@ -159,7 +177,7 @@ export async function POST(
         explainer.id,
         "__attribution__",
         format,
-        versionTag(explainer),
+        versionTag(explainer, brand),
       ],
     });
     images.push({
@@ -178,7 +196,7 @@ export async function POST(
     const zip = await bundleAsZip({
       filePaths,
       entryNames,
-      cacheKeyParts: [explainer.id, format, versionTag(explainer)],
+      cacheKeyParts: [explainer.id, format, versionTag(explainer, brand)],
       baseName: `readopp-${slug(explainer.title || explainer.id)}-${format}`,
     });
     return NextResponse.json({

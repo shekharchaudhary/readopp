@@ -1,5 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
-import { ExplainerSchema, type AudienceLevel, type Explainer, type Job, type JobError, type JobStatus, type TokenUsage } from "./shared/schemas";
+import {
+  ExplainerSchema,
+  type AudienceLevel,
+  type BrandKit,
+  type Explainer,
+  type Job,
+  type JobError,
+  type JobStatus,
+  type TokenUsage,
+} from "./shared/schemas";
 import type { StreamEvent, StreamEventInput } from "./events";
 import { getAdminSupabase, getServerSupabase } from "./supabase/server";
 
@@ -133,6 +142,81 @@ export async function completeJob(
 }
 
 // ---------- Explainers (Supabase) ----------
+
+// ---------- Brand kit (Phase 8 week 4) ----------
+
+interface BrandKitRow {
+  user_id: string;
+  color: string | null;
+  font: string | null;
+  logo_url: string | null;
+  author_name: string | null;
+  author_headline: string | null;
+  updated_at: string;
+}
+
+/** Returns the user's brand kit, or null when they haven't set one. */
+export async function getBrandKit(userId: string): Promise<BrandKit | null> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from("brand_kits")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToBrandKit(data as BrandKitRow);
+}
+
+/** Insert-or-update the user's brand kit. */
+export async function upsertBrandKit(
+  userId: string,
+  patch: Partial<BrandKit>
+): Promise<
+  | { ok: true; brandKit: BrandKit }
+  | { ok: false; reason: "missing_table" | "rls_or_other"; message: string }
+> {
+  const supabase = getServerSupabase();
+  const row = {
+    user_id: userId,
+    color: patch.color ?? null,
+    font: patch.font ?? null,
+    logo_url: patch.logoUrl ?? null,
+    author_name: patch.authorName ?? null,
+    author_headline: patch.authorHeadline ?? null,
+    updated_at: new Date().toISOString(),
+  } as unknown as never;
+  const { data, error } = await supabase
+    .from("brand_kits")
+    .upsert(row, { onConflict: "user_id" })
+    .select("*")
+    .maybeSingle();
+  if (error || !data) {
+    // eslint-disable-next-line no-console
+    console.warn("[readopp] upsertBrandKit failed", error);
+    const message = error?.message ?? "Unknown Supabase error.";
+    // "Could not find the table 'public.brand_kits'" → the migration hasn't
+    // been applied. Surface this distinctly so the UI can guide the user
+    // (or the developer setting up a fresh environment).
+    const missingTable = /schema cache|brand_kits/i.test(message);
+    return {
+      ok: false,
+      reason: missingTable ? "missing_table" : "rls_or_other",
+      message,
+    };
+  }
+  return { ok: true, brandKit: rowToBrandKit(data as BrandKitRow) };
+}
+
+function rowToBrandKit(row: BrandKitRow): BrandKit {
+  return {
+    color: row.color ?? undefined,
+    font: (row.font as BrandKit["font"]) ?? undefined,
+    logoUrl: row.logo_url ?? undefined,
+    authorName: row.author_name ?? undefined,
+    authorHeadline: row.author_headline ?? undefined,
+    updatedAt: row.updated_at,
+  };
+}
 
 interface ExplainerRow {
   id: string;

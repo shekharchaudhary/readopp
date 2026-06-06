@@ -481,6 +481,33 @@ export const ExplainerSchema = z.object({
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 
+// ---------- Brand kit (Phase 8 week 4) ----------
+
+/**
+ * Per-user brand identity, applied to export chrome and the source-attribution
+ * slide. Lets the carousel feel like the user's brand, not Readopp's.
+ *
+ * MVP scope: brand only applies at EXPORT time. Editing view + public view
+ * stay default-styled. Logo is stored as a URL (Supabase Storage upload
+ * lands later).
+ */
+export const BrandFontSchema = z.enum(["sans", "serif", "mono", "display"]);
+export type BrandFont = z.infer<typeof BrandFontSchema>;
+
+export const BrandKitSchema = z.object({
+  /** Hex color (e.g. "#FF6B35"). Replaces accent in export chrome. */
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish(),
+  font: BrandFontSchema.nullish(),
+  /** Logo image URL. Replaces "Readopp" wordmark in exports. */
+  logoUrl: z.string().url().nullish(),
+  /** Display name added to attribution. */
+  authorName: z.string().max(60).nullish(),
+  /** One-line role / focus area. */
+  authorHeadline: z.string().max(120).nullish(),
+  updatedAt: z.string().nullish(),
+});
+export type BrandKit = z.infer<typeof BrandKitSchema>;
+
 // ---------- Token usage ----------
 
 export const TokenUsageSchema = z.object({
