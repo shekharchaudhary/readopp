@@ -1,12 +1,18 @@
-import type { Browser } from "playwright";
+import type { Browser } from "playwright-core";
 
 /**
- * Process-wide singleton headless Chromium. Shared across ingest (JS-render
- * fallback), PNG screenshot export, and MP4 video export so we don't pay the
- * memory cost of launching three Chromiums when the dev server hot-reloads.
+ * Process-wide singleton headless Chromium. Two paths:
  *
- * Cached on globalThis so Next.js's module-graph rebuilds in development
- * don't leak browsers either.
+ *  - Local dev (and any node host with a writable filesystem): uses the
+ *    full `playwright` package, which bundles its own Chromium download.
+ *
+ *  - Vercel serverless (detected via process.env.VERCEL): uses
+ *    `playwright-core` + `@sparticuz/chromium`. The latter ships a
+ *    Lambda/Vercel-tuned Chromium build that fits within the function
+ *    size limits and starts fast in /tmp.
+ *
+ * The Browser type is sourced from playwright-core (a subset of playwright)
+ * so callers get the same surface in both environments.
  */
 
 declare global {
@@ -14,12 +20,28 @@ declare global {
   var __readopp_browser__: Promise<Browser> | undefined;
 }
 
+const IS_VERCEL = Boolean(process.env.VERCEL);
+
+async function launchBrowser(): Promise<Browser> {
+  if (IS_VERCEL) {
+    // Serverless Chromium tuned for Vercel / AWS Lambda. The dynamic imports
+    // keep playwright (the full SDK) out of the prod bundle entirely.
+    const chromium = (await import("@sparticuz/chromium")).default;
+    const { chromium: pwChromium } = await import("playwright-core");
+    const executablePath = await chromium.executablePath();
+    return pwChromium.launch({
+      args: chromium.args,
+      executablePath,
+      headless: true,
+    });
+  }
+  const { chromium } = await import("playwright");
+  return chromium.launch({ headless: true });
+}
+
 export async function getBrowser(): Promise<Browser> {
   if (!globalThis.__readopp_browser__) {
-    globalThis.__readopp_browser__ = (async () => {
-      const { chromium } = await import("playwright");
-      return chromium.launch({ headless: true });
-    })();
+    globalThis.__readopp_browser__ = launchBrowser();
   }
   return globalThis.__readopp_browser__;
 }

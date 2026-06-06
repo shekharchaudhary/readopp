@@ -19,7 +19,10 @@ function versionTag(e: Explainer, brand?: BrandKit | null): string {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Playwright screenshot can take a few seconds
+// Carousel renders + ZIP can run long when the explainer has many panels
+// and the function is cold (Chromium boot ~3-5s on serverless). Vercel Pro
+// allows up to 300s; we cap at 240s to leave headroom.
+export const maxDuration = 240;
 
 const RequestSchema = z.object({
   format: z.enum(["square", "vertical", "landscape"]),
@@ -132,8 +135,9 @@ export async function POST(
       panelIndex: number;
       kind: "panel" | "attribution";
     }[];
-    // We keep on-disk paths for the ZIP step; clients only see URLs.
-    const filePaths: string[] = [];
+    // Keep the raw PNG buffers in memory for the ZIP step so we never have
+    // to read them back from storage. Clients only ever see URLs.
+    const buffers: Buffer[] = [];
     const entryNames: string[] = [];
     const slug = (s: string) => s.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 60);
     for (let i = 0; i < explainer.panels.length; i++) {
@@ -158,7 +162,7 @@ export async function POST(
         panelIndex: i + 1,
         kind: "panel",
       });
-      filePaths.push(result.filePath);
+      buffers.push(result.buffer);
       entryNames.push(
         `${String(i + 1).padStart(2, "0")}-${slug(panel.heading || panel.sectionId)}.png`
       );
@@ -188,13 +192,13 @@ export async function POST(
       panelIndex: explainer.panels.length + 1,
       kind: "attribution",
     });
-    filePaths.push(attrResult.filePath);
+    buffers.push(attrResult.buffer);
     entryNames.push(
       `${String(explainer.panels.length + 1).padStart(2, "0")}-source.png`
     );
     // Bundle everything into one zip the user can download in one click.
     const zip = await bundleAsZip({
-      filePaths,
+      buffers,
       entryNames,
       cacheKeyParts: [explainer.id, format, versionTag(explainer, brand)],
       baseName: `readopp-${slug(explainer.title || explainer.id)}-${format}`,
