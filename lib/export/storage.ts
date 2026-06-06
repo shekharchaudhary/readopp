@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { getAdminSupabase } from "../supabase/server";
 
 /**
  * Storage abstraction for export artifacts (PNGs, ZIPs). Two backends:
  *
- *  - Vercel Blob: used when BLOB_READ_WRITE_TOKEN is in the environment
- *    (Vercel sets it automatically on linked projects). PNGs go straight to
- *    the CDN; the returned URL is publicly accessible.
+ *  - Supabase Storage: used in production (when VERCEL is set). PNGs/ZIPs
+ *    go into a public bucket; the returned URL is CDN-backed and public.
  *
  *  - Local disk: used during dev. Writes to a directory under cwd and serves
  *    files through the existing /api/exports/[file] proxy route.
@@ -18,9 +18,10 @@ import { join } from "node:path";
 
 export const EXPORTS_DIR = join(process.cwd(), ".readopp-exports");
 export const EXPORTS_PUBLIC_PREFIX = "/api/exports";
+const SUPABASE_BUCKET = "readopp-exports";
 
-function useBlob(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+function useSupabase(): boolean {
+  return Boolean(process.env.VERCEL);
 }
 
 async function ensureLocalDir(): Promise<void> {
@@ -28,45 +29,38 @@ async function ensureLocalDir(): Promise<void> {
 }
 
 export interface StoredArtifact {
-  /** Public URL the browser can fetch. */
   url: string;
-  /** True if this artifact already existed and was reused (local backend only). */
   cached: boolean;
 }
 
-/**
- * Save a buffer to persistent storage under the given filename. The filename
- * is treated as a content-hash key — same filename = same artifact.
- *
- * Returns the public URL. For the local backend, also indicates whether the
- * artifact was already on disk so callers can skip work.
- */
 export async function saveExportArtifact(input: {
   buffer: Buffer;
   filename: string;
   contentType: string;
 }): Promise<StoredArtifact> {
-  if (useBlob()) {
-    const { put, head } = await import("@vercel/blob");
-    // Try to short-circuit if a blob with this exact key already exists.
-    try {
-      const meta = await head(input.filename);
-      if (meta?.url) return { url: meta.url, cached: true };
-    } catch {
-      // head() throws when the blob doesn't exist — fall through to put().
+  if (useSupabase()) {
+    const admin = getAdminSupabase();
+    const { error } = await admin.storage
+      .from(SUPABASE_BUCKET)
+      .upload(input.filename, input.buffer, {
+        contentType: input.contentType,
+        upsert: false,
+        cacheControl: "31536000",
+      });
+    const publicUrl = admin.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(input.filename).data.publicUrl;
+    if (!error) return { url: publicUrl, cached: false };
+    // Object already exists → same content hash, treat as cache hit.
+    if (
+      error.message?.toLowerCase().includes("already exists") ||
+      error.message?.toLowerCase().includes("duplicate")
+    ) {
+      return { url: publicUrl, cached: true };
     }
-    const { url } = await put(input.filename, input.buffer, {
-      access: "public",
-      contentType: input.contentType,
-      addRandomSuffix: false,
-      // Cache the asset on the CDN for a long time — keyed by content hash,
-      // so a re-render with the same inputs hits the same URL.
-      cacheControlMaxAge: 60 * 60 * 24 * 365,
-    });
-    return { url, cached: false };
+    throw error;
   }
 
-  // Local disk fallback.
   await ensureLocalDir();
   const filePath = join(EXPORTS_DIR, input.filename);
   const url = `${EXPORTS_PUBLIC_PREFIX}/${input.filename}`;
@@ -75,8 +69,8 @@ export async function saveExportArtifact(input: {
   return { url, cached: false };
 }
 
-/** Returns the on-disk file path for a local artifact, or null on the blob backend. */
+/** Returns the on-disk file path for a local artifact, or null on the cloud backend. */
 export function localFilePathFor(filename: string): string | null {
-  if (useBlob()) return null;
+  if (useSupabase()) return null;
   return join(EXPORTS_DIR, filename);
 }

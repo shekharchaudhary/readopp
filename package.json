@@ -16,7 +16,6 @@
     "@sparticuz/chromium": "^149.0.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
-    "@vercel/blob": "^2.4.0",
     "jsdom": "^25.0.1",
     "jszip": "^3.10.1",
     "next": "14.2.18",
