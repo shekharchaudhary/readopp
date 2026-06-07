@@ -230,6 +230,7 @@ interface ExplainerRow {
   panels: unknown;
   usage: unknown;
   social_pack: unknown;
+  template: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -246,6 +247,7 @@ function rowToExplainer(row: ExplainerRow): Explainer {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     socialPack: row.social_pack ?? undefined,
+    template: row.template ?? undefined,
   });
   if (!parsed.success) {
     throw new Error(
@@ -274,6 +276,7 @@ async function insertExplainer(
     summary: explainer.summary,
     panels: explainer.panels,
     social_pack: explainer.socialPack ?? null,
+    template: explainer.template ?? null,
   } as unknown as never;
   const { error } = await admin.from("explainers").insert(row);
   if (error) {
@@ -372,6 +375,38 @@ export async function updatePanel(
 
   // Mirror back into the in-memory job copy so /j/:id stays consistent
   // within the dev session.
+  const store = getStore();
+  for (const [jobId, job] of store.jobs.entries()) {
+    if (job.explainerId === explainerId && job.explainer) {
+      store.jobs.set(jobId, {
+        ...job,
+        explainer: next,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+  return next;
+}
+
+/**
+ * Persist a template choice on an explainer. RLS enforces ownership.
+ * Returns the updated row, or undefined if not found / not owned.
+ */
+export async function setExplainerTemplate(
+  explainerId: string,
+  template: Explainer["template"]
+): Promise<Explainer | undefined> {
+  const supabase = getServerSupabase();
+  const { data: updatedRow, error } = await supabase
+    .from("explainers")
+    .update({ template: template ?? null })
+    .eq("id", explainerId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updatedRow) return undefined;
+  const next = rowToExplainer(updatedRow as ExplainerRow);
+
+  // Mirror into the in-memory job copy so /j/:id stays consistent in dev.
   const store = getStore();
   for (const [jobId, job] of store.jobs.entries()) {
     if (job.explainerId === explainerId && job.explainer) {

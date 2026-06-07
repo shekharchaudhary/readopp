@@ -462,6 +462,43 @@ export const SocialPackSchema = z.object({
 });
 export type SocialPack = z.infer<typeof SocialPackSchema>;
 
+// ---------- Templates ----------
+
+/**
+ * Visual identity systems the export pipeline can render the explainer
+ * with. Each template owns its own HTML + CSS and may ignore the panel
+ * SVG entirely in favour of rendering from the text content (Receipt
+ * needs line items, Terminal needs monospace, etc.).
+ *
+ * "tachyon" is the original Readopp look — the default for everything
+ * created before the template picker shipped.
+ */
+export const TemplateIdSchema = z.enum([
+  // Default
+  "tachyon",
+  // Editorial
+  "editorial-broadsheet",
+  "magazine-cover",
+  "new-yorker-frame",
+  // Technical
+  "terminal-brutalist",
+  "engineering-spec",
+  "notebook-cell",
+  // Document
+  "receipt",
+  "index-card",
+  "boarding-pass",
+  // Reader
+  "highlighter-reader",
+  "sticky-notes",
+  "kindle-highlight",
+  // Bold / display
+  "editorial-brutalist",
+  "tabloid-splash",
+  "risograph-zine",
+]);
+export type TemplateId = z.infer<typeof TemplateIdSchema>;
+
 // ---------- Agent 6: Assembly ----------
 
 export const ExplainerSchema = z.object({
@@ -478,6 +515,8 @@ export const ExplainerSchema = z.object({
   // Caption + hashtags + alt-texts the user can paste straight into a post.
   // Produced by the socialPack agent and refreshable from the API.
   socialPack: SocialPackSchema.optional(),
+  // Visual identity for export. Older explainers default to "tachyon".
+  template: TemplateIdSchema.optional(),
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 

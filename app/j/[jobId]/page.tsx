@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ExportSheet } from "@/components/ExportSheet";
 import { PanelStream } from "@/components/PanelStream";
+import { TemplatePicker } from "@/components/TemplatePicker";
 import { WorkingScene } from "@/components/WorkingScene";
 import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
-import type { Job } from "@/lib/shared/schemas";
+import type { Job, TemplateId } from "@/lib/shared/schemas";
 import { sourceLabel } from "@/lib/shared/source";
 
 /**
@@ -58,6 +59,11 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   const [edits, setEdits] = useState<
     Record<string, { heading?: string; caption?: string; content?: string }>
   >({});
+  // Local optimistic copy of explainer.template so the picker reflects
+  // selection before the next stream tick lands.
+  const [templateOverride, setTemplateOverride] = useState<
+    TemplateId | undefined
+  >(undefined);
 
   function openExportAll() {
     setExportPanelId(undefined);
@@ -159,6 +165,11 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         {completed && scene.explainer && (
           <div className="flex shrink-0 flex-col items-end gap-2">
             <CopyLinkButton explainerId={scene.explainer.id} />
+            <TemplatePicker
+              explainerId={scene.explainer.id}
+              current={templateOverride ?? scene.explainer.template}
+              onChange={(next) => setTemplateOverride(next)}
+            />
             <button
               type="button"
               onClick={openExportAll}
@@ -189,6 +200,8 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         slots={slotsWithEdits}
         onExportPanel={completed ? openExportPanel : undefined}
         onEditPanel={completed ? patchPanel : undefined}
+        explainerId={scene.explainer?.id}
+        template={templateOverride ?? scene.explainer?.template}
       />
 
       {completed && job?.usage && job.usage.calls > 0 && (

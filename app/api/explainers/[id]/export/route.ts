@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  buildAttributionExportHtml,
-  buildPanelExportHtml,
-  buildStackedExportHtml,
-} from "@/lib/export/buildExportHtml";
 import { createHash } from "node:crypto";
 import { bundleAsZip } from "@/lib/export/bundleZip";
 import { htmlToPng } from "@/lib/export/screenshot";
@@ -13,11 +8,20 @@ import { EXPORT_DIMENSIONS, isExportFormat } from "@/lib/export/dimensions";
 import { getBrowser } from "@/lib/playwright";
 import { getBrandKit, getExplainer } from "@/lib/store";
 import { getOrCreateUser } from "@/lib/supabase/server";
+import { DEFAULT_TEMPLATE_ID, getTemplate } from "@/lib/templates/registry";
 import type { BrandKit, Explainer } from "@/lib/shared/schemas";
 
-/** Cache-buster token — bumps whenever a panel or the brand is edited. */
+/**
+ * Cache-buster token — bumps whenever a panel, the brand kit, OR the
+ * template id changes. Including the template id means swapping the
+ * visual identity always re-renders rather than serving the old PNG.
+ */
 function versionTag(e: Explainer, brand?: BrandKit | null): string {
-  return [e.updatedAt ?? e.createdAt ?? "v0", brand?.updatedAt ?? "no-brand"].join(":");
+  return [
+    e.updatedAt ?? e.createdAt ?? "v0",
+    brand?.updatedAt ?? "no-brand",
+    e.template ?? DEFAULT_TEMPLATE_ID,
+  ].join(":");
 }
 
 export const runtime = "nodejs";
@@ -76,6 +80,11 @@ export async function POST(
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
   }
 
+  // Look up the visual identity to render with. Falls back to the
+  // default template if the explainer's id isn't recognised or there's
+  // no implementation yet.
+  const template = getTemplate(explainer.template);
+
   // Single browser instance for the whole request. On Vercel the sandbox
   // can recycle Chromium between awaits (e.g. during a storage upload),
   // leaving the cached singleton pointing at a dead process. Owning the
@@ -93,7 +102,7 @@ export async function POST(
         );
       }
       const panel = explainer.panels[panelIndex];
-      const html = await buildPanelExportHtml({
+      const html = await template.renderPanel({
         explainer,
         panel,
         format,
@@ -118,7 +127,18 @@ export async function POST(
 
     // Whole-explainer export.
     if (format === "vertical") {
-      const html = await buildStackedExportHtml({ explainer, format, brand });
+      // Fall back to repeating renderPanel if the template doesn't ship
+      // a dedicated stacked view yet.
+      const html = template.renderStacked
+        ? await template.renderStacked({ explainer, format, brand })
+        : await template.renderPanel({
+            explainer,
+            panel: explainer.panels[0],
+            format,
+            panelIndex: 1,
+            totalPanels: explainer.panels.length,
+            brand,
+          });
       const result = await htmlToPng({
         html,
         format,
@@ -176,12 +196,13 @@ export async function POST(
 
       for (let i = 0; i < explainer.panels.length; i++) {
         const panel = explainer.panels[i];
-        const html = await buildPanelExportHtml({
+        const html = await template.renderPanel({
           explainer,
           panel,
           format,
           panelIndex: i + 1,
           totalPanels: explainer.panels.length,
+          brand,
         });
         await renderOne(html, [
           explainer.id,
@@ -191,7 +212,7 @@ export async function POST(
         ]);
       }
 
-      const attrHtml = await buildAttributionExportHtml({
+      const attrHtml = await template.renderAttribution({
         explainer,
         format,
         brand,

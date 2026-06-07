@@ -2,6 +2,7 @@
 
 import { PanelCard } from "./PanelCard";
 import type { PanelSlot } from "@/lib/scene/reducer";
+import type { TemplateId } from "@/lib/shared/schemas";
 
 interface Props {
   slots: PanelSlot[];
@@ -10,9 +11,17 @@ interface Props {
     sectionId: string,
     patch: { heading?: string; caption?: string; content?: string }
   ) => Promise<void>;
+  explainerId?: string;
+  template?: TemplateId;
 }
 
-export function PanelStream({ slots, onExportPanel, onEditPanel }: Props) {
+export function PanelStream({
+  slots,
+  onExportPanel,
+  onEditPanel,
+  explainerId,
+  template,
+}: Props) {
   if (slots.length === 0) return null;
   return (
     <section className="space-y-6">
@@ -25,6 +34,8 @@ export function PanelStream({ slots, onExportPanel, onEditPanel }: Props) {
               index={slot.index - 1}
               onExport={onExportPanel}
               onEdit={onEditPanel}
+              explainerId={explainerId}
+              template={template}
             />
           );
         }

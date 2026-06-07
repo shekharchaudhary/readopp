@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RenderedPanel } from "@/lib/shared/schemas";
+import type { RenderedPanel, TemplateId } from "@/lib/shared/schemas";
 import { themeSvg } from "@/lib/svg/theme";
 import { EditableHtmlTablePanel } from "./EditableHtmlTablePanel";
 import { EditableSvgPanel } from "./EditableSvgPanel";
 import { EditableText } from "./EditableText";
 import { PanelThemePopover, type ColorTriple } from "./NodeEditPopover";
+import { TemplatedPanelPreview } from "./TemplatedPanelPreview";
 
 interface Props {
   panel: RenderedPanel;
@@ -26,6 +27,15 @@ interface Props {
    * server reset endpoint and refresh the explainer in parent state.
    */
   onReset?: (sectionId: string) => Promise<void>;
+  /**
+   * When set to a template other than "tachyon", the body switches from
+   * the original SVG view to an iframe rendering the export HTML — so
+   * the in-page preview matches the downloaded PNG. Editing is paused
+   * in that mode because the templates render from text fields, not the
+   * SVG the editor knows how to mutate.
+   */
+  explainerId?: string;
+  template?: TemplateId;
 }
 
 function HtmlPanel({ html }: { html: string }) {
@@ -70,9 +80,21 @@ function HtmlPanel({ html }: { html: string }) {
   );
 }
 
-export function PanelCard({ panel, index, onExport, onEdit, onReset }: Props) {
+export function PanelCard({
+  panel,
+  index,
+  onExport,
+  onEdit,
+  onReset,
+  explainerId,
+  template,
+}: Props) {
   const heading = panel.heading?.trim() || `Panel ${index + 1}`;
-  const editable = Boolean(onEdit);
+  // When a non-default template is active we render the export-HTML
+  // preview instead of the SVG editor surface, so inline editing is off.
+  const templatedPreview =
+    Boolean(explainerId) && template !== undefined && template !== "tachyon";
+  const editable = Boolean(onEdit) && !templatedPreview;
   const canTheme = editable && panel.format === "svg";
   const canReset = Boolean(onReset && panel.edited && panel.plan);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -192,7 +214,15 @@ export function PanelCard({ panel, index, onExport, onEdit, onReset }: Props) {
       )}
 
       <div className="p-4">
-        {panel.format === "svg" ? (
+        {templatedPreview && explainerId && template ? (
+          <TemplatedPanelPreview
+            explainerId={explainerId}
+            sectionId={panel.sectionId}
+            templateId={template}
+            // Re-fetch when content edits would change the rendered output.
+            cacheKey={`${panel.heading ?? ""}::${panel.caption ?? ""}::${panel.content?.length ?? 0}`}
+          />
+        ) : panel.format === "svg" ? (
           editable ? (
             <EditableSvgPanel
               content={panel.content}

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ExportSheet } from "./ExportSheet";
 import { PanelCard } from "./PanelCard";
-import type { Explainer } from "@/lib/shared/schemas";
+import { TemplatePicker } from "./TemplatePicker";
+import type { Explainer, TemplateId } from "@/lib/shared/schemas";
 import { sourceIsLinkable, sourceLabel } from "@/lib/shared/source";
 
 interface Props {
@@ -104,6 +105,13 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             >
               {copied ? "Copied" : "Copy link"}
             </button>
+            <TemplatePicker
+              explainerId={explainer.id}
+              current={explainer.template}
+              onChange={(next: TemplateId) =>
+                setExplainer({ ...explainer, template: next })
+              }
+            />
             <button
               type="button"
               onClick={openExportAll}
@@ -124,6 +132,8 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             onExport={canExport ? openExportPanel : undefined}
             onEdit={canExport ? patchPanel : undefined}
             onReset={canExport ? resetPanel : undefined}
+            explainerId={explainer.id}
+            template={explainer.template}
           />
         ))}
       </section>
