@@ -10,7 +10,7 @@ import { Reveal } from "./Reveal";
  */
 export function FinalCTA() {
   return (
-    <section className="border-t border-paper-line bg-paper">
+    <section className="section-amb amb-center border-t border-paper-line bg-paper">
       <div className="mx-auto max-w-5xl px-6 pb-28 pt-20 text-center sm:pb-36 sm:pt-28">
         <Reveal>
           <ArrowDoodle />

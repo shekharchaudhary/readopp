@@ -88,7 +88,7 @@ export function Pricing() {
   const [billing, setBilling] = useState<Billing>("yearly");
 
   return (
-    <section id="pricing" className="border-b border-paper-line bg-paper">
+    <section id="pricing" className="section-amb amb-br border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="04" title="Pricing" />

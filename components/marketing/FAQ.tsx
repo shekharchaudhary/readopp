@@ -30,7 +30,7 @@ const FAQS = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="border-b border-paper-line bg-paper">
+    <section id="faq" className="section-amb amb-warm-tr border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-4xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="05" title="Questions" />

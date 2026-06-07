@@ -21,7 +21,7 @@ export default function HomePage() {
         {/* Hero — leads with the wedge ("you shouldn't have to design what
             you already understand") and grounds it visually with a LinkedIn
             post mockup containing a real Readopp carousel. */}
-        <section className="bg-paper">
+        <section className="section-amb amb-tr bg-paper">
           <div className="mx-auto max-w-6xl px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
             <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
               {/* Left: copy + CTA */}

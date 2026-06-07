@@ -51,27 +51,30 @@ body {
   }
 }
 
-/* Template showcase: continuous horizontal drift used by the marquee
-   rows. The track is rendered as two copies of its children side by
-   side, so a -50% translate lands exactly on the start of the second
-   copy — visually identical to t=0, so the loop is seamless. */
-@keyframes readopp-marquee-fwd {
-  from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(-50%, 0, 0); }
+/* Section ambient lighting. Each landing section gets a near-imperceptible
+   radial glow positioned in a different corner, so the page reads as a
+   sequence of paper sheets each lit from a slightly different angle —
+   rather than one flat canvas. Alpha is kept ≤6% so the eye registers
+   depth without consciously noticing the color. The ::before sits
+   behind children via z:-1 + isolation. */
+.section-amb {
+  position: relative;
+  isolation: isolate;
 }
-@keyframes readopp-marquee-rev {
-  from { transform: translate3d(-50%, 0, 0); }
-  to   { transform: translate3d(0, 0, 0); }
+.section-amb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--section-glow, none);
 }
-.readopp-marquee-track { animation-play-state: running; }
-.readopp-marquee-track[data-paused="true"] { animation-play-state: paused; }
-
-@media (prefers-reduced-motion: reduce) {
-  .readopp-marquee-track {
-    animation: none !important;
-    transform: none !important;
-  }
-}
+.amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(31,151,220,0.06), transparent 70%); }
+.amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(31,151,220,0.05), transparent 70%); }
+.amb-bl      { --section-glow: radial-gradient(55% 45% at 8% 100%, rgba(255,180,0,0.05),  transparent 70%); }
+.amb-br      { --section-glow: radial-gradient(60% 45% at 95% 100%, rgba(146,43,33,0.04), transparent 70%); }
+.amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(31,151,220,0.045), transparent 75%); }
+.amb-warm-tr { --section-glow: radial-gradient(60% 45% at 95% 8%,  rgba(255,180,0,0.05),  transparent 70%); }
 
 /* Subtle focus ring */
 :focus-visible {

@@ -4,7 +4,7 @@ import { TemplateLibraryShowcase } from "./TemplateLibraryShowcase";
 
 export function UseCases() {
   return (
-    <section id="use-cases" className="border-b border-paper-line bg-white">
+    <section id="use-cases" className="section-amb amb-bl border-b border-paper-line bg-white">
       <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="01" title="The template library" />

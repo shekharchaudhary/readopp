@@ -36,7 +36,7 @@ export function YourExplainersSection() {
   if (hasItems !== true) return null;
 
   return (
-    <section className="border-b border-paper-line bg-white">
+    <section className="section-amb amb-center border-b border-paper-line bg-white">
       <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="03" title="Your explainers" />

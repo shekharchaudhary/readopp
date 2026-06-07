@@ -39,7 +39,7 @@ const STEPS: Array<{
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="border-b border-paper-line bg-paper">
+    <section id="how-it-works" className="section-amb amb-tl border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-6xl px-6 py-28 sm:py-36">
         <Reveal>
           <SectionLabel number="02" title="How it works" />
