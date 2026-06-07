@@ -47,6 +47,12 @@ export function Nav() {
             For
           </a>
           <a
+            href="#pricing"
+            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+          >
+            Pricing
+          </a>
+          <a
             href="#faq"
             className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
           >

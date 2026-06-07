@@ -51,6 +51,28 @@ body {
   }
 }
 
+/* Template showcase: continuous horizontal drift used by the marquee
+   rows. The track is rendered as two copies of its children side by
+   side, so a -50% translate lands exactly on the start of the second
+   copy — visually identical to t=0, so the loop is seamless. */
+@keyframes readopp-marquee-fwd {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes readopp-marquee-rev {
+  from { transform: translate3d(-50%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+.readopp-marquee-track { animation-play-state: running; }
+.readopp-marquee-track[data-paused="true"] { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .readopp-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
 /* Subtle focus ring */
 :focus-visible {
   outline: 2px solid #1a1a1a;

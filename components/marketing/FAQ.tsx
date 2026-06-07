@@ -33,7 +33,7 @@ export function FAQ() {
     <section id="faq" className="border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-4xl px-6 py-28 sm:py-36">
         <Reveal>
-          <SectionLabel number="04" title="Questions" />
+          <SectionLabel number="05" title="Questions" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 text-3xl font-medium leading-[1.12] tracking-tight text-ink sm:text-4xl">

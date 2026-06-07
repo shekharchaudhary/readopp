@@ -1,14 +1,16 @@
 import { UrlInput } from "@/components/UrlInput";
 import { YourExplainersSection } from "@/components/YourExplainersSection";
 import { FAQ } from "@/components/marketing/FAQ";
+import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { Footer } from "@/components/marketing/Footer";
 import { HeroPostMockup } from "@/components/marketing/HeroPostMockup";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { Nav } from "@/components/marketing/Nav";
 import { PlatformsStrip } from "@/components/marketing/PlatformsStrip";
+import { Pricing } from "@/components/marketing/Pricing";
 import { Reveal } from "@/components/marketing/Reveal";
+import { StartHerePointer } from "@/components/marketing/StartHerePointer";
 import { UseCases } from "@/components/marketing/UseCases";
-import { WorkflowComparison } from "@/components/marketing/WorkflowComparison";
 
 export default function HomePage() {
   return (
@@ -48,8 +50,9 @@ export default function HomePage() {
                 <Reveal delayMs={220}>
                   <div
                     id="try"
-                    className="mt-8 rounded-lg border border-paper-line bg-white p-6"
+                    className="relative mt-8 rounded-lg border border-paper-line bg-white p-6"
                   >
+                    <StartHerePointer />
                     <UrlInput />
                   </div>
                 </Reveal>
@@ -80,16 +83,18 @@ export default function HomePage() {
 
         <PlatformsStrip />
 
-        <WorkflowComparison />
+        <UseCases />
 
         <HowItWorks />
-
-        <UseCases />
 
         {/* Personalised — only renders once the user has at least one explainer. */}
         <YourExplainersSection />
 
+        <Pricing />
+
         <FAQ />
+
+        <FinalCTA />
 
         <Footer />
       </main>
