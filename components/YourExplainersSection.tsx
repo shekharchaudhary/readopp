@@ -36,13 +36,13 @@ export function YourExplainersSection() {
   if (hasItems !== true) return null;
 
   return (
-    <section className="section-amb amb-center border-b border-paper-line bg-white">
+    <section className="section-amb amb-center border-b border-paper-line bg-surface">
       <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
         <Reveal>
-          <SectionLabel number="03" title="Your explainers" />
+          <SectionLabel number="04" title="Your explainers" />
         </Reveal>
         <Reveal delayMs={60}>
-          <h2 className="mt-6 max-w-3xl text-3xl font-medium leading-[1.12] tracking-tight text-ink sm:text-4xl">
+          <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
             Everything you&rsquo;ve made with Readopp.
           </h2>
         </Reveal>

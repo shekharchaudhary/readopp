@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
+          "var(--font-inter)",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",
@@ -18,6 +19,13 @@ const config: Config = {
           "Helvetica",
           "Arial",
           "sans-serif",
+        ],
+        display: [
+          "var(--font-fraunces)",
+          "ui-serif",
+          "Georgia",
+          "'Times New Roman'",
+          "serif",
         ],
         mono: [
           "ui-monospace",
@@ -30,20 +38,22 @@ const config: Config = {
       },
       colors: {
         ink: {
-          DEFAULT: "#1a1a1a",
-          soft: "#3a3a3a",
-          muted: "#6b6b6b",
-          faint: "#a3a3a3",
+          DEFAULT: "#171717",
+          soft: "#5F5A52",
+          muted: "#857E72",
+          faint: "#ABA395",
         },
         paper: {
-          DEFAULT: "#fafaf7",
-          soft: "#f1efe8",
-          line: "#e3e1d8",
+          DEFAULT: "#F7F3EA",
+          soft: "#EFE8DC",
+          line: "#D8CEC0",
         },
+        surface: "#FFFDF8",
+        dark: "#101010",
         accent: {
-          DEFAULT: "#1F97DC",
-          soft: "#E2F0FB",
-          deep: "#0D5786",
+          DEFAULT: "#E85D2A",
+          soft: "#F9E5D9",
+          deep: "#B23F14",
         },
       },
       keyframes: {

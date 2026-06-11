@@ -1,21 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 /**
- * Editorial specimen sheet for the template library. Five chapters
- * (one per category), three specimens per chapter, each specimen is
- * a bespoke mini-render of the actual format it represents — a
- * receipt looks like a receipt, a magazine cover looks like a magazine
- * cover, a terminal looks like a terminal. The whole point of
- * Readopp's templates is that they borrow trust from formats people
- * already recognize, so the showcase should *show* the format, not
- * narrate it from a generic card with a label that says "Receipt".
- *
- * No marquee, no parallax. The display is a magazine-style spread that
- * reveals on scroll with a quiet stagger — designed to look like a
- * designer's spec sheet, not a SaaS carousel.
+ * Tabbed specimen gallery for the template library. One tab per
+ * category, each specimen a bespoke mini-render of the actual format
+ * it represents — a receipt looks like a receipt, a magazine cover
+ * looks like a magazine cover, a terminal looks like a terminal. The
+ * whole point of Readopp's templates is that they borrow trust from
+ * formats people already recognize, so the showcase should *show*
+ * the format, not narrate it from a generic card with a label that
+ * says "Receipt".
  */
 
 type TemplateId =
@@ -33,7 +29,11 @@ type TemplateId =
   | "kindle-highlight"
   | "editorial-brutalist"
   | "tabloid-splash"
-  | "risograph-zine";
+  | "risograph-zine"
+  | "galaxy-brain"
+  | "aurora-glass"
+  | "bento-grid"
+  | "swiss-poster";
 
 interface TemplateMeta {
   id: TemplateId;
@@ -48,6 +48,27 @@ interface Chapter {
 }
 
 const CHAPTERS: Chapter[] = [
+  {
+    name: "Modern",
+    caption: "Launch-day looks — glass, bento, and the grid.",
+    templates: [
+      {
+        id: "aurora-glass",
+        name: "Aurora Glass",
+        tagline: "Dark glass card, aurora glow.",
+      },
+      {
+        id: "bento-grid",
+        name: "Bento Board",
+        tagline: "Keynote-style bento tiles.",
+      },
+      {
+        id: "swiss-poster",
+        name: "Swiss Poster",
+        tagline: "Müller-Brockmann grid discipline.",
+      },
+    ],
+  },
   {
     name: "Editorial",
     caption: "Magazine-page seriousness for longform writers.",
@@ -147,6 +168,11 @@ const CHAPTERS: Chapter[] = [
         tagline: "Tabloid front-page energy.",
       },
       {
+        id: "galaxy-brain",
+        name: "Galaxy Brain",
+        tagline: "Expanding-brain meme, tastefully cosmic.",
+      },
+      {
         id: "risograph-zine",
         name: "Risograph Zine",
         tagline: "Two-color riso with misregistration.",
@@ -156,15 +182,64 @@ const CHAPTERS: Chapter[] = [
 ];
 
 export function TemplateLibraryShowcase() {
+  const [active, setActive] = useState(0);
+  const chapter = CHAPTERS[active];
+
   return (
-    <div className="mt-16 sm:mt-20">
-      <div className="space-y-20 sm:space-y-28">
+    <div className="mt-12 sm:mt-16">
+      {/* Category tabs */}
+      <div
+        role="tablist"
+        aria-label="Template categories"
+        className="flex flex-wrap items-center gap-2"
+      >
         {CHAPTERS.map((c, i) => (
-          <ChapterRow key={c.name} chapter={c} index={i} />
+          <button
+            key={c.name}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            onClick={() => setActive(i)}
+            className={
+              "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition " +
+              (i === active
+                ? "border-ink bg-ink text-paper"
+                : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted hover:text-ink")
+            }
+          >
+            {c.name}
+            <span
+              className={
+                "font-mono text-[10px] tabular-nums " +
+                (i === active ? "text-paper/60" : "text-ink-faint")
+              }
+            >
+              {c.templates.length}
+            </span>
+          </button>
         ))}
       </div>
 
-      <div className="mt-20 flex justify-center">
+      <p className="mt-5 text-sm text-ink-soft sm:text-base">
+        {chapter.caption}
+      </p>
+
+      {/* Specimens for the active category. Keyed by chapter name so
+          switching tabs remounts the grid and replays the stagger. */}
+      <div
+        key={chapter.name}
+        className="mt-8 grid gap-7"
+        style={{
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+        }}
+      >
+        {chapter.templates.map((t, i) => (
+          <FormatCard key={t.id} template={t} index={i} />
+        ))}
+      </div>
+
+      <div className="mt-14 flex justify-center">
         <Link
           href="#try"
           className="group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
@@ -182,96 +257,19 @@ export function TemplateLibraryShowcase() {
   );
 }
 
-function ChapterRow({
-  chapter,
-  index,
-}: {
-  chapter: Chapter;
-  index: number;
-}) {
-  const ref = useRef<HTMLElement>(null);
-  const [revealed, setRevealed] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setRevealed(true);
-            io.disconnect();
-            return;
-          }
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  return (
-    <section ref={ref}>
-      {/* Chapter header — editorial chapter mark on the left, caption
-          on the right, like a real magazine spread. */}
-      <div
-        className="mb-10 grid gap-x-10 gap-y-3 border-b border-paper-line pb-6 sm:grid-cols-[auto_1fr] sm:items-end"
-        style={{
-          opacity: revealed ? 1 : 0,
-          transform: revealed ? "translateY(0)" : "translateY(14px)",
-          transition:
-            "opacity 700ms cubic-bezier(0.16, 1, 0.3, 1), transform 700ms cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      >
-        <div className="flex items-baseline gap-4">
-          <span className="font-mono text-[11px] tracking-[0.3em] text-accent">
-            CH. {String(index + 1).padStart(2, "0")}
-          </span>
-          <h3 className="text-2xl font-medium tracking-tight text-ink sm:text-3xl">
-            {chapter.name}
-          </h3>
-        </div>
-        <p className="max-w-xl text-sm text-ink-soft sm:justify-self-end sm:text-right sm:text-base">
-          {chapter.caption}
-        </p>
-      </div>
-
-      {/* Three specimens per chapter, stagger-revealed. */}
-      <div className="grid gap-8 sm:grid-cols-3 sm:gap-7">
-        {chapter.templates.map((t, i) => (
-          <FormatCard
-            key={t.id}
-            template={t}
-            revealed={revealed}
-            index={i}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function FormatCard({
   template,
-  revealed,
   index,
 }: {
   template: TemplateMeta;
-  revealed: boolean;
   index: number;
 }) {
-  const delay = 140 + index * 140;
   return (
     <article
-      className="group"
-      style={{
-        opacity: revealed ? 1 : 0,
-        transform: revealed ? "translateY(0)" : "translateY(24px)",
-        transition: `opacity 800ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform 900ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
-      }}
+      className="group animate-rise-in"
+      style={{ animationDelay: `${index * 90}ms` }}
     >
-      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-paper-line bg-white shadow-[0_2px_6px_rgba(15,17,21,0.05)] transition-all duration-500 group-hover:-translate-y-1.5 group-hover:shadow-[0_30px_60px_-25px_rgba(15,17,21,0.25)]">
+      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-paper-line bg-surface shadow-[0_2px_6px_rgba(23,23,23,0.05)] transition-all duration-500 group-hover:-translate-y-1.5 group-hover:shadow-[0_30px_60px_-25px_rgba(23,23,23,0.25)]">
         <FormatPreview templateId={template.id} />
       </div>
       <div className="mt-4 flex items-baseline justify-between gap-3 px-1">
@@ -314,8 +312,16 @@ function FormatPreview({ templateId }: { templateId: TemplateId }) {
       return <EditorialBrutalistPreview />;
     case "tabloid-splash":
       return <TabloidSplashPreview />;
+    case "galaxy-brain":
+      return <GalaxyBrainPreview />;
     case "risograph-zine":
       return <RisographZinePreview />;
+    case "aurora-glass":
+      return <AuroraGlassPreview />;
+    case "bento-grid":
+      return <BentoGridPreview />;
+    case "swiss-poster":
+      return <SwissPosterPreview />;
   }
 }
 
@@ -1107,6 +1113,109 @@ function TabloidSplashPreview() {
   );
 }
 
+function GalaxyBrainPreview() {
+  // Sparkle positions hand-placed for the small preview frame so the
+  // cosmic field reads without overwhelming the brain. The actual
+  // template uses a wider seeded distribution at export size.
+  const sparkles: Array<[number, number, number, number]> = [
+    [10, 16, 5, 0.85],
+    [18, 78, 4, 0.75],
+    [88, 14, 5, 0.85],
+    [82, 70, 4, 0.7],
+    [56, 8, 4, 0.8],
+    [62, 88, 5, 0.8],
+    [40, 32, 3, 0.55],
+    [72, 38, 3, 0.55],
+  ];
+  return (
+    <div
+      className="relative flex h-full flex-col overflow-hidden p-4 text-white"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 50% 50%, #6047C8 0%, #1A1438 60%, #050020 100%)",
+        fontFamily:
+          "'Söhne', 'Inter', ui-sans-serif, system-ui, sans-serif",
+      }}
+    >
+      {/* Cosmic sparkles */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {sparkles.map(([x, y, size, op], i) => (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: `${x}%`,
+              top: `${y}%`,
+              width: size,
+              height: size,
+              background: "#C8B3FF",
+              opacity: op,
+              boxShadow:
+                "0 0 8px rgba(200,179,255,0.85), 0 0 16px rgba(200,179,255,0.55)",
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Top — tier badge + counter */}
+      <div className="relative flex items-baseline justify-between font-mono text-[8px] uppercase tracking-[0.28em] text-[#C8B3FF]">
+        <span>
+          Tier 04
+          <span className="ml-2 font-bold tracking-[0.18em] text-white">
+            Cosmic
+          </span>
+        </span>
+        <span className="text-white/60">03 / 06</span>
+      </div>
+
+      {/* Big brain emoji with cosmic halo */}
+      <div className="relative flex flex-1 items-center justify-center">
+        <div
+          className="text-[105px] leading-none"
+          style={{
+            filter:
+              "drop-shadow(0 0 14px rgba(200,179,255,0.75)) drop-shadow(0 0 30px rgba(200,179,255,0.55)) drop-shadow(0 0 56px rgba(200,179,255,0.42))",
+          }}
+        >
+          🧠
+        </div>
+      </div>
+
+      {/* Headline */}
+      <h4
+        className="relative text-center text-[15px] font-extrabold leading-tight"
+        style={{ textShadow: "0 1px 18px rgba(200,179,255,0.65)" }}
+      >
+        Reading the source paper.
+      </h4>
+      <p className="relative mt-1 text-center text-[8.5px] text-white/85">
+        For when the headline isn&rsquo;t enough.
+      </p>
+
+      {/* Footer: brain power gauge */}
+      <div className="relative mt-3 flex items-center justify-between font-mono text-[7px] uppercase tracking-[0.24em] text-white/60">
+        <span>brain power</span>
+        <span className="flex items-center gap-[3px]">
+          {[true, true, true, true, false].map((lit, i) => (
+            <span
+              key={i}
+              className="h-[6px] w-[12px] rounded-[1px]"
+              style={{
+                background: lit ? "#C8B3FF" : "rgba(255,255,255,0.12)",
+                boxShadow: lit
+                  ? "0 0 6px rgba(200,179,255,0.75)"
+                  : "none",
+              }}
+            />
+          ))}
+        </span>
+        <span>readopp.com</span>
+      </div>
+    </div>
+  );
+}
+
 function RisographZinePreview() {
   return (
     <div
@@ -1149,6 +1258,152 @@ function RisographZinePreview() {
       <div className="relative mt-3 flex items-baseline justify-between font-mono text-[7.5px] uppercase tracking-widest text-[#1A1A1A]/50">
         <span>readopp press</span>
         <span>vol. 04 · 2026</span>
+      </div>
+    </div>
+  );
+}
+
+function AuroraGlassPreview() {
+  return (
+    <div
+      className="relative flex h-full flex-col overflow-hidden bg-[#07090F] p-4"
+      style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
+    >
+      {/* Aurora blooms */}
+      <div
+        className="pointer-events-none absolute -inset-1/4"
+        style={{
+          background:
+            "radial-gradient(40% 34% at 18% 10%, rgba(79,70,229,0.5), transparent 70%), radial-gradient(44% 38% at 88% 30%, rgba(6,182,212,0.38), transparent 70%), radial-gradient(50% 42% at 60% 105%, rgba(79,70,229,0.28), transparent 72%)",
+          filter: "blur(28px)",
+        }}
+      />
+      <div className="relative flex items-center justify-between text-[7px] font-semibold uppercase tracking-[0.22em] text-white/50">
+        <span>Readopp</span>
+        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/75">
+          02 / 05
+        </span>
+      </div>
+      <div
+        className="relative mt-3 text-[15px] font-bold leading-[1.08] tracking-tight"
+        style={{
+          background:
+            "linear-gradient(92deg, #F8FAFC 0%, #A5B4FC 55%, #67E8F9 100%)",
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          color: "transparent",
+        }}
+      >
+        Ship the launch deck.
+      </div>
+      <div className="relative mt-3 flex flex-1 items-center justify-center rounded-2xl border border-white/15 bg-[#FAFBFD]/95 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.45)]">
+        <div className="w-full space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <div className="h-5 flex-1 rounded bg-[#E6F1FB]" />
+            <div className="h-5 w-8 rounded bg-[#1F97DC]/80" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-5 flex-[1.6] rounded bg-[#E1F5EE]" />
+            <div className="h-5 w-5 rounded bg-[#EEEDFE]" />
+          </div>
+          <div className="h-1.5 w-3/4 rounded bg-[#1a1a1a]/15" />
+          <div className="h-1.5 w-1/2 rounded bg-[#1a1a1a]/10" />
+        </div>
+      </div>
+      <div className="relative mt-3 border-t border-white/10 pt-1.5 text-[6.5px] uppercase tracking-[0.16em] text-white/40">
+        <span>arxiv.org · readopp.com</span>
+      </div>
+    </div>
+  );
+}
+
+function BentoGridPreview() {
+  return (
+    <div
+      className="flex h-full flex-col gap-1.5 bg-[#F5F5F7] p-3"
+      style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
+    >
+      <div className="flex gap-1.5">
+        <div className="flex-1 rounded-xl bg-white p-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_18px_rgba(0,0,0,0.05)]">
+          <div className="text-[6px] font-semibold uppercase tracking-[0.18em] text-[#0A84FF]">
+            Readopp
+          </div>
+          <div className="mt-1 text-[12px] font-bold leading-[1.08] tracking-tight text-[#1D1D1F]">
+            Everything in its tile.
+          </div>
+        </div>
+        <div className="flex w-12 flex-col items-center justify-center rounded-xl bg-[#0A84FF] text-white shadow-[0_6px_18px_rgba(10,132,255,0.3)]">
+          <span className="text-[16px] font-bold leading-none tracking-tight">
+            03
+          </span>
+          <span className="mt-0.5 text-[5px] font-semibold tracking-[0.12em] opacity-75">
+            OF 05
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-1 items-center justify-center rounded-xl bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_18px_rgba(0,0,0,0.05)]">
+        <div className="flex w-full items-end justify-around gap-1.5 px-2">
+          <div className="w-5 rounded-t bg-[#E3F0FF]" style={{ height: 22 }} />
+          <div className="w-5 rounded-t bg-[#0A84FF]/70" style={{ height: 38 }} />
+          <div className="w-5 rounded-t bg-[#E3F0FF]" style={{ height: 30 }} />
+          <div className="w-5 rounded-t bg-[#0A84FF]" style={{ height: 52 }} />
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <div className="flex-[2] rounded-xl bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_18px_rgba(0,0,0,0.05)]">
+          <div className="h-1 w-5/6 rounded bg-[#1D1D1F]/15" />
+          <div className="mt-1 h-1 w-3/5 rounded bg-[#1D1D1F]/10" />
+        </div>
+        <div className="flex-1 rounded-xl bg-white p-2 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_6px_18px_rgba(0,0,0,0.05)]">
+          <div className="text-[5px] font-semibold uppercase tracking-[0.16em] text-[#515154]">
+            Source
+          </div>
+          <div className="mt-0.5 text-[6.5px] font-semibold text-[#1D1D1F]">
+            stripe.com
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SwissPosterPreview() {
+  return (
+    <div
+      className="relative flex h-full flex-col overflow-hidden bg-[#F4F2ED] p-4"
+      style={{
+        fontFamily: "Helvetica, 'Inter', Arial, sans-serif",
+      }}
+    >
+      {/* Modular grid columns */}
+      <div
+        className="pointer-events-none absolute inset-4"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(17,17,17,0.12) 1px, transparent 1px)",
+          backgroundSize: "25% 100%",
+        }}
+      />
+      <div className="relative flex items-baseline justify-between text-[7px] font-medium text-[#111111]">
+        <span>readopp — essay</span>
+        <span className="font-bold text-[#E63312]">2/5</span>
+      </div>
+      <div className="relative flex flex-1 items-center justify-end pr-3">
+        <div
+          className="bg-[#E63312]"
+          style={{ width: 64, height: 64, borderRadius: "0 100% 0 0" }}
+        />
+      </div>
+      <div className="relative text-[19px] font-bold lowercase leading-[0.98] tracking-[-0.045em] text-[#111111]">
+        grid above all.
+      </div>
+      <div className="relative mt-2 max-w-[80%] text-[7px] leading-[1.45] text-[#111111]/80">
+        One geometric accent per panel. Flat color, strict columns, lowercase
+        grotesk — the poster does the talking.
+      </div>
+      <div className="relative mt-3 flex justify-between border-t-2 border-[#111111] pt-1.5 text-[6.5px] font-medium text-[#111111]">
+        <span>zeitschrift.ch</span>
+        <span>readopp.com</span>
       </div>
     </div>
   );

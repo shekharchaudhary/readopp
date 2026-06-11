@@ -48,7 +48,7 @@ export function DemoFrame({
   return (
     <div
       className={
-        "relative w-full overflow-hidden rounded-xl border border-paper-line bg-paper shadow-[0_1px_0_rgba(31,151,220,0.06)] " +
+        "relative w-full overflow-hidden rounded-xl border border-paper-line bg-paper shadow-[0_1px_0_rgba(232,93,42,0.06)] " +
         (aspect !== "auto" ? aspect : "")
       }
       aria-hidden

@@ -82,7 +82,7 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
           className={
             "shrink-0 rounded-md border bg-white px-2.5 py-1 text-xs font-medium transition-all duration-200 " +
             (shareTap
-              ? "border-accent text-accent shadow-[0_0_0_3px_rgba(31,151,220,0.2)]"
+              ? "border-accent text-accent shadow-[0_0_0_3px_rgba(232,93,42,0.2)]"
               : "border-paper-line text-ink-soft")
           }
         >
@@ -176,7 +176,7 @@ function ExportSheet({
           (fmt
             ? "bg-accent text-paper " +
               (downloadPulse
-                ? "shadow-[0_0_0_4px_rgba(31,151,220,0.25)]"
+                ? "shadow-[0_0_0_4px_rgba(232,93,42,0.25)]"
                 : "")
             : "bg-ink-faint text-paper opacity-70")
         }

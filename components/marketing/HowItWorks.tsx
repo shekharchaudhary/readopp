@@ -45,7 +45,7 @@ export function HowItWorks() {
           <SectionLabel number="02" title="How it works" />
         </Reveal>
         <Reveal delayMs={60}>
-          <h2 className="mt-6 max-w-3xl text-3xl font-medium leading-[1.12] tracking-tight text-ink sm:text-4xl">
+          <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
             A team of agents, not a single prompt.
           </h2>
         </Reveal>
@@ -61,11 +61,13 @@ export function HowItWorks() {
           {STEPS.map((step, i) => (
             <Reveal key={step.n} delayMs={i * 60}>
               <li className="grid gap-6 py-10 lg:grid-cols-[60px_minmax(0,1fr)_minmax(0,460px)] lg:gap-10 lg:py-14">
-                <div className="font-mono text-base font-medium tabular-nums text-accent lg:text-lg">
-                  {step.n}
+                <div>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-accent/40 bg-accent-soft font-mono text-sm font-medium tabular-nums text-accent-deep">
+                    {step.n}
+                  </span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-medium tracking-tight text-ink sm:text-2xl">
+                  <h3 className="font-display text-xl font-medium tracking-tight text-ink sm:text-2xl">
                     {step.title}
                   </h3>
                   <p className="mt-2 max-w-2xl text-base leading-relaxed text-ink-soft">

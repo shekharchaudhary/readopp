@@ -199,7 +199,7 @@ function ReadoppMock({
           (ready
             ? "bg-accent text-paper " +
               (explainPulse
-                ? "shadow-[0_0_0_4px_rgba(31,151,220,0.25)]"
+                ? "shadow-[0_0_0_4px_rgba(232,93,42,0.25)]"
                 : "")
             : "bg-ink-faint text-paper opacity-70")
         }

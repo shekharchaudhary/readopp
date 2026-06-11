@@ -18,22 +18,28 @@ export function Nav() {
     <nav
       aria-label="Primary"
       className={
-        "sticky top-0 z-40 w-full transition-colors " +
+        "sticky top-0 z-40 w-full bg-paper/80 backdrop-blur-md transition-colors " +
         (scrolled
-          ? "border-b border-paper-line bg-paper/85 backdrop-blur"
-          : "border-b border-transparent bg-transparent")
+          ? "border-b border-paper-line"
+          : "border-b border-transparent")
       }
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
         <Link
           href="/"
-          className="inline-flex items-baseline gap-2 text-base font-semibold tracking-tight text-ink"
+          className="inline-flex items-baseline gap-2 font-display text-lg font-semibold tracking-tight text-ink"
           aria-label="Readopp — home"
         >
           <span aria-hidden className="inline-block h-2 w-2 translate-y-px rounded-full bg-accent" />
           Readopp
         </Link>
         <div className="flex items-center gap-1 text-sm">
+          <a
+            href="#templates"
+            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+          >
+            Templates
+          </a>
           <a
             href="#how-it-works"
             className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"

@@ -10,20 +10,29 @@ import { Reveal } from "./Reveal";
  */
 export function FinalCTA() {
   return (
-    <section className="section-amb amb-center border-t border-paper-line bg-paper">
+    <section className="relative isolate overflow-hidden bg-dark">
+      {/* Warm bloom so the dark closer doesn't read flat. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(55% 45% at 50% 0%, rgba(232,93,42,0.14), transparent 70%)",
+        }}
+      />
       <div className="mx-auto max-w-5xl px-6 pb-28 pt-20 text-center sm:pb-36 sm:pt-28">
         <Reveal>
           <ArrowDoodle />
         </Reveal>
 
         <Reveal delayMs={120}>
-          <h2 className="mt-8 text-4xl font-semibold leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[64px]">
+          <h2 className="mt-8 font-display text-4xl font-medium leading-[1.05] tracking-tight text-paper sm:text-5xl lg:text-[64px]">
             Turn your next read into a post.
           </h2>
         </Reveal>
 
         <Reveal delayMs={200}>
-          <p className="mx-auto mt-5 max-w-xl text-base text-ink-soft sm:text-lg">
+          <p className="mx-auto mt-5 max-w-xl text-base text-paper-line sm:text-lg">
             Paste a URL. Pick a template. Hit Explain. The whole thing takes
             less than a coffee.
           </p>
@@ -33,7 +42,7 @@ export function FinalCTA() {
           <div className="mt-9 flex flex-col items-center gap-3">
             <Link
               href="#try"
-              className="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-base font-medium text-paper transition hover:bg-ink-soft"
+              className="group inline-flex items-center gap-3 rounded-full bg-accent px-7 py-4 text-base font-medium text-white transition hover:bg-accent-deep"
             >
               Generate your first carousel
               <span
@@ -43,7 +52,7 @@ export function FinalCTA() {
                 →
               </span>
             </Link>
-            <p className="text-[12px] text-ink-muted">
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-paper-line/70">
               3 free posts · no credit card · works with any URL or PDF
             </p>
           </div>
@@ -64,7 +73,7 @@ function ArrowDoodle() {
     <svg
       aria-hidden
       viewBox="0 0 120 160"
-      className="mx-auto h-32 w-24 text-ink"
+      className="mx-auto h-32 w-24 text-accent"
       fill="none"
       stroke="currentColor"
       strokeWidth="6"

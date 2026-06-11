@@ -58,7 +58,7 @@ const PLANS: Plan[] = [
     cta: { text: "Get Author", href: "/signup?plan=author" },
     features: [
       "60 posts per month",
-      "All 15 templates",
+      "All 19 templates",
       "PNG, MP4 and GIF export",
       "Your brand color and no watermark",
       "Long sources — up to 12,000 words",
@@ -91,10 +91,10 @@ export function Pricing() {
     <section id="pricing" className="section-amb amb-br border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
         <Reveal>
-          <SectionLabel number="04" title="Pricing" />
+          <SectionLabel number="05" title="Pricing" />
         </Reveal>
         <Reveal delayMs={60}>
-          <h2 className="mt-6 max-w-3xl text-3xl font-medium leading-[1.12] tracking-tight text-ink sm:text-4xl">
+          <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
             Free until you find your rhythm.
           </h2>
         </Reveal>
@@ -176,7 +176,7 @@ function BillingToggle({
     <div
       role="tablist"
       aria-label="Billing period"
-      className="inline-flex items-center gap-1 rounded-full border border-paper-line bg-white p-1 shadow-[0_1px_2px_rgba(15,17,21,0.04)]"
+      className="inline-flex items-center gap-1 rounded-full border border-paper-line bg-surface p-1 shadow-[0_1px_2px_rgba(23,23,23,0.04)]"
     >
       <ToggleBtn
         active={billing === "monthly"}
@@ -238,10 +238,10 @@ function PlanCard({ plan, billing }: { plan: Plan; billing: Billing }) {
 
   return (
     <article
-      className={`relative flex h-full flex-col rounded-2xl border bg-white p-7 transition-transform duration-500 ${
+      className={`relative flex h-full flex-col rounded-2xl border bg-surface p-7 transition-transform duration-500 ${
         isHighlight
-          ? "border-accent shadow-[0_24px_60px_-30px_rgba(31,151,220,0.5)] sm:-translate-y-2 sm:hover:-translate-y-3"
-          : "border-paper-line shadow-[0_1px_2px_rgba(15,17,21,0.04)] hover:-translate-y-0.5"
+          ? "border-accent shadow-[0_24px_60px_-30px_rgba(232,93,42,0.45)] sm:-translate-y-2 sm:hover:-translate-y-3"
+          : "border-paper-line shadow-[0_1px_2px_rgba(23,23,23,0.04)] hover:-translate-y-0.5"
       }`}
     >
       {plan.badge && (
@@ -292,7 +292,7 @@ function PlanCard({ plan, billing }: { plan: Plan; billing: Billing }) {
             ? "bg-accent text-white hover:bg-accent-deep"
             : isPaid
             ? "bg-ink text-paper hover:bg-ink-soft"
-            : "border border-paper-line bg-white text-ink hover:bg-paper-soft"
+            : "border border-paper-line bg-surface text-ink hover:bg-paper-soft"
         }`}
       >
         {plan.cta.text}
