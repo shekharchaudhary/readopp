@@ -8,18 +8,15 @@ const CYCLE_MS = 9000;
 //   0    – 1400   Explainer view with Share button idle
 //   1400 – 1900   Share button highlight + tap
 //   1900 – 2400   Export sheet slides up
-//   2400 – 4100   Format = Instagram (1:1)
-//   4100 – 5800   Format = TikTok (9:16)
-//   5800 – 7500   Format = LinkedIn (1.91:1)
-//   7500 – 8400   Download button pulse
-//   8400 – 9000   Hold + reset
+//   2400 – 3600   Format = Instagram (1:1), kind = PNG
+//   3600 – 4600   Format = TikTok (9:16); kind flips to MP4 at 3900
+//   4600 – 7200   Movie renders — progress bar fills 0 → 100%
+//   7200 – 9000   Done — "Saved reel.mp4", play overlay on the preview
 type Format = "instagram" | "tiktok" | "linkedin";
 
 function currentFormat(t: number): Format | null {
-  if (between(t, 2400, 4100)) return "instagram";
-  if (between(t, 4100, 5800)) return "tiktok";
-  if (between(t, 5800, 7500)) return "linkedin";
-  if (t >= 7500) return "linkedin";
+  if (between(t, 2400, 3600)) return "instagram";
+  if (t >= 3600) return "tiktok";
   return null;
 }
 
@@ -41,7 +38,10 @@ export function Demo4Share() {
   const shareTap = between(t, 1400, 1900);
   const sheetUp = t >= 1900;
   const fmt = currentFormat(t);
-  const downloadPulse = between(t, 7500, 8400);
+  const kind: "png" | "mp4" = t >= 3900 ? "mp4" : "png";
+  const renderProgress = Math.min(1, Math.max(0, (t - 4600) / (7200 - 4600)));
+  const rendering = t >= 4600 && t < 7200;
+  const done = t >= 7200;
 
   return (
     <DemoFrame label="Share">
@@ -62,7 +62,13 @@ export function Demo4Share() {
             (sheetUp ? "translate-y-0 opacity-100" : "translate-y-full opacity-0")
           }
         >
-          <ExportSheet fmt={fmt} downloadPulse={downloadPulse} />
+          <ExportSheet
+            fmt={fmt}
+            kind={kind}
+            rendering={rendering}
+            renderProgress={renderProgress}
+            done={done}
+          />
         </div>
       </div>
     </DemoFrame>
@@ -93,35 +99,22 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
       {/* One panel preview */}
       <div className="mt-3 rounded-md border border-paper-line bg-white p-3">
         <svg viewBox="0 0 200 70" className="h-16 w-full" aria-hidden>
-          <rect
-            x="0"
-            y="40"
-            width="200"
-            height="30"
-            fill="#E6F1FB"
-            opacity="0.6"
-          />
-          <line
-            x1="0"
-            y1="40"
-            x2="200"
-            y2="40"
-            stroke="#185FA5"
-            opacity="0.4"
-          />
-          <path
-            d="M 88 40 L 100 14 L 112 40 Z"
-            fill="#ffffff"
-            stroke="#185FA5"
-            strokeWidth="1"
-          />
-          <path
-            d="M 70 40 L 56 64 L 144 64 L 138 40 Z"
-            fill="#ffffff"
-            stroke="#185FA5"
-            strokeWidth="1"
-            opacity="0.92"
-          />
+          <g transform="rotate(-90 48 36)">
+            <circle cx="48" cy="36" r="17" fill="none" stroke="#F9E5D9" strokeWidth="9" />
+            <circle
+              cx="48"
+              cy="36"
+              r="17"
+              fill="none"
+              stroke="#E85D2A"
+              strokeWidth="9"
+              strokeDasharray="66.2 106.9"
+            />
+          </g>
+          <rect x="110" y="44" width="14" height="22" rx="1.5" fill="#F9E5D9" />
+          <rect x="130" y="32" width="14" height="34" rx="1.5" fill="#ECA77F" />
+          <rect x="150" y="18" width="14" height="48" rx="1.5" fill="#E85D2A" />
+          <line x1="104" y1="66" x2="170" y2="66" stroke="#171717" strokeWidth="1" opacity="0.5" />
         </svg>
         <div className="mt-2 h-1.5 w-3/4 rounded-sm bg-ink/20" />
         <div className="mt-1 h-1.5 w-2/3 rounded-sm bg-ink/15" />
@@ -132,58 +125,171 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
 
 function ExportSheet({
   fmt,
-  downloadPulse,
+  kind,
+  rendering,
+  renderProgress,
+  done,
 }: {
   fmt: Format | null;
-  downloadPulse: boolean;
+  kind: "png" | "mp4";
+  rendering: boolean;
+  renderProgress: number;
+  done: boolean;
 }) {
   const tabs: Format[] = ["instagram", "tiktok", "linkedin"];
   return (
     <div className="rounded-t-xl border-t border-paper-line bg-white p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-      {/* Tabs */}
-      <div className="flex gap-1.5">
+      {/* Format tabs + kind toggle */}
+      <div className="flex items-center gap-1.5">
         {tabs.map((tabKey) => {
           const active = fmt === tabKey;
           return (
             <div
               key={tabKey}
               className={
-                "flex-1 rounded-md border px-2.5 py-1.5 text-center text-[11px] font-medium transition-all duration-200 " +
+                "flex-1 rounded-md border px-2 py-1 text-center text-[11px] font-medium transition-all duration-200 " +
                 (active
                   ? "border-accent bg-accent-soft text-accent-deep"
                   : "border-paper-line bg-white text-ink-muted")
               }
             >
               <div>{FORMAT_LABEL[tabKey]}</div>
-              <div className="text-[9px] font-mono text-ink-faint">
+              <div className="font-mono text-[9px] text-ink-faint">
                 {FORMAT_RATIO[tabKey].tag}
               </div>
             </div>
           );
         })}
+        <div className="ml-1 flex shrink-0 flex-col gap-1">
+          {(["png", "mp4"] as const).map((k) => (
+            <div
+              key={k}
+              className={
+                "rounded-sm border px-1.5 py-0.5 text-center font-mono text-[9px] font-medium uppercase transition-all duration-200 " +
+                (kind === k
+                  ? "border-ink bg-ink text-paper"
+                  : "border-paper-line bg-white text-ink-faint")
+              }
+            >
+              {k}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Preview that swaps aspect ratio */}
+      {/* Preview that swaps aspect ratio, becomes a movie when MP4 */}
       <div className="mt-3 flex h-[120px] items-center justify-center rounded-md border border-paper-line bg-paper-soft p-2">
-        {fmt ? <FormatPreview fmt={fmt} /> : null}
+        {fmt ? (
+          kind === "mp4" ? (
+            <MoviePreview progress={done ? 1 : renderProgress} done={done} />
+          ) : (
+            <FormatPreview fmt={fmt} />
+          )
+        ) : null}
       </div>
 
-      {/* Download button */}
-      <button
-        type="button"
+      {/* Download / render button */}
+      <div
         className={
-          "mt-3 w-full rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 " +
-          (fmt
-            ? "bg-accent text-paper " +
-              (downloadPulse
-                ? "shadow-[0_0_0_4px_rgba(232,93,42,0.25)]"
-                : "")
-            : "bg-ink-faint text-paper opacity-70")
+          "relative mt-3 w-full overflow-hidden rounded-md text-center text-xs font-medium transition-all duration-200 " +
+          (fmt ? "bg-accent text-paper" : "bg-ink-faint text-paper opacity-70")
         }
       >
-        Download {fmt ? FORMAT_LABEL[fmt] : "…"}
-      </button>
+        {/* Render progress fill */}
+        <div
+          className="absolute inset-y-0 left-0 bg-accent-deep transition-[width] duration-150 ease-linear"
+          style={{ width: rendering ? `${renderProgress * 100}%` : "0%" }}
+        />
+        <div className="relative px-3 py-2">
+          {done ? (
+            <span className="inline-flex items-center gap-1.5">
+              <CheckMini /> Saved · readopp-reel.mp4
+            </span>
+          ) : rendering ? (
+            <span className="font-mono text-[11px]">
+              Rendering movie… {Math.round(renderProgress * 100)}%
+            </span>
+          ) : (
+            <>Download {fmt ? (kind === "mp4" ? "MP4" : "PNG") : "…"}</>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** Vertical 9:16 movie frame: dark player, animated scene bar, scrubber. */
+function MoviePreview({ progress, done }: { progress: number; done: boolean }) {
+  const maxH = 96;
+  const w = (9 / 16) * maxH;
+  return (
+    <div
+      className="relative overflow-hidden rounded-sm border border-ink/30 bg-dark animate-[demoSwap_300ms_ease-out]"
+      style={{ width: `${w}px`, height: `${maxH}px` }}
+    >
+      {/* Tiny title scene */}
+      <div className="absolute inset-x-1.5 top-2 space-y-0.5">
+        <div className="h-1 w-3/4 rounded-sm bg-paper/80" />
+        <div className="h-1 w-1/2 rounded-sm bg-paper/40" />
+      </div>
+      {/* Panel scene sliding as the movie "plays" */}
+      <div
+        className="absolute inset-x-1.5 top-7 h-10 rounded-[2px] bg-surface transition-transform duration-200"
+        style={{ transform: `translateY(${(1 - progress) * 6}px)` }}
+      >
+        <svg viewBox="0 0 40 26" className="h-full w-full" aria-hidden>
+          <g transform="rotate(-90 9 13)">
+            <circle cx="9" cy="13" r="6" fill="none" stroke="#F9E5D9" strokeWidth="3.5" />
+            <circle
+              cx="9"
+              cy="13"
+              r="6"
+              fill="none"
+              stroke="#E85D2A"
+              strokeWidth="3.5"
+              strokeDasharray="23.4 37.7"
+            />
+          </g>
+          <rect x="19" y="15" width="4.5" height="7" rx="0.8" fill="#F9E5D9" />
+          <rect x="26" y="11" width="4.5" height="11" rx="0.8" fill="#ECA77F" />
+          <rect x="33" y="6" width="4.5" height="16" rx="0.8" fill="#E85D2A" />
+        </svg>
+      </div>
+      {/* Play overlay when done */}
+      <div
+        className={
+          "absolute inset-0 flex items-center justify-center bg-dark/40 transition-opacity duration-300 " +
+          (done ? "opacity-100" : "opacity-0")
+        }
+      >
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-paper/90">
+          <svg viewBox="0 0 10 10" className="ml-0.5 h-2.5 w-2.5" aria-hidden>
+            <path d="M 1.5 0.5 L 9 5 L 1.5 9.5 Z" fill="#171717" />
+          </svg>
+        </span>
+      </div>
+      {/* Scrubber */}
+      <div className="absolute inset-x-1.5 bottom-1.5 h-0.5 overflow-hidden rounded-full bg-paper/25">
+        <div
+          className="h-full rounded-full bg-accent transition-[width] duration-150 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+      <style>{`
+        @keyframes demoSwap {
+          from { opacity: 0; transform: scale(0.92); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function CheckMini() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 8.5 L 6.5 12 L 13 4" />
+    </svg>
   );
 }
 
@@ -203,26 +309,22 @@ function FormatPreview({ fmt }: { fmt: Format }) {
         <div className="h-1.5 w-3/4 rounded-sm bg-ink/40" />
         <div className="my-1 flex flex-1 items-center justify-center">
           <svg viewBox="0 0 60 36" className="h-full" aria-hidden>
-            <rect
-              x="0"
-              y="22"
-              width="60"
-              height="14"
-              fill="#E6F1FB"
-              opacity="0.6"
-            />
-            <path
-              d="M 26 22 L 30 8 L 34 22 Z"
-              fill="#fff"
-              stroke="#185FA5"
-              strokeWidth="0.6"
-            />
-            <path
-              d="M 22 22 L 18 32 L 42 32 L 40 22 Z"
-              fill="#fff"
-              stroke="#185FA5"
-              strokeWidth="0.6"
-            />
+            <g transform="rotate(-90 15 18)">
+              <circle cx="15" cy="18" r="8" fill="none" stroke="#F9E5D9" strokeWidth="4.5" />
+              <circle
+                cx="15"
+                cy="18"
+                r="8"
+                fill="none"
+                stroke="#E85D2A"
+                strokeWidth="4.5"
+                strokeDasharray="31.2 50.3"
+              />
+            </g>
+            <rect x="32" y="22" width="6" height="8" rx="1" fill="#F9E5D9" />
+            <rect x="41" y="17" width="6" height="13" rx="1" fill="#ECA77F" />
+            <rect x="50" y="10" width="6" height="20" rx="1" fill="#E85D2A" />
+            <line x1="30" y1="30" x2="58" y2="30" stroke="#171717" strokeWidth="0.6" opacity="0.5" />
           </svg>
         </div>
         <div className="flex items-center justify-between">

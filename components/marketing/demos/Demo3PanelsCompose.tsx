@@ -53,10 +53,12 @@ function PanelSlot({
     <div className="flex flex-col gap-1.5">
       <div
         className={
-          "relative aspect-[5/3] overflow-hidden rounded-md border bg-white transition-all duration-400 " +
+          "relative aspect-[5/3] overflow-hidden rounded-md border bg-white transition-all duration-500 " +
           (phase === "missing"
             ? "border-dashed border-paper-line opacity-30"
-            : "border-paper-line opacity-100")
+            : phase === "skeleton"
+            ? "border-paper-line opacity-100"
+            : "border-paper-line opacity-100 shadow-[0_8px_20px_-10px_rgba(23,23,23,0.25)] -translate-y-0.5")
         }
       >
         {/* Skeleton layer */}
@@ -71,8 +73,10 @@ function PanelSlot({
         {/* Content layer */}
         <div
           className={
-            "absolute inset-0 p-1.5 transition-opacity duration-400 " +
-            (phase === "content" ? "opacity-100" : "opacity-0")
+            "absolute inset-0 transition-all duration-500 " +
+            (phase === "content"
+              ? "opacity-100 scale-100"
+              : "opacity-0 scale-[0.96]")
           }
         >
           <Visual index={index} />
@@ -109,96 +113,103 @@ function Skeleton() {
   );
 }
 
+const SERIF = "ui-serif, Georgia, 'Times New Roman', serif";
+const SANS = "ui-sans-serif, system-ui, sans-serif";
+
 function Visual({ index }: { index: number }) {
   if (index === 0) {
-    // Iceberg
+    // Audience donut — warm editorial light panel
     return (
       <svg viewBox="0 0 100 60" className="h-full w-full" aria-hidden>
-        <rect
-          x="0"
-          y="28"
-          width="100"
-          height="32"
-          fill="#E6F1FB"
-          opacity="0.6"
-        />
-        <line
-          x1="0"
-          y1="28"
-          x2="100"
-          y2="28"
-          stroke="#185FA5"
-          opacity="0.4"
-        />
-        <path
-          d="M 42 28 L 50 10 L 58 28 Z"
-          fill="#ffffff"
-          stroke="#185FA5"
-          strokeWidth="1"
-        />
-        <path
-          d="M 32 28 L 22 52 L 68 54 L 65 28 Z"
-          fill="#ffffff"
-          stroke="#185FA5"
-          strokeWidth="1"
-          opacity="0.92"
-        />
+        <rect x="0" y="0" width="100" height="60" fill="#FFFDF8" />
+        <g transform="rotate(-90 30 31)">
+          <circle cx="30" cy="31" r="16" fill="none" stroke="#F9E5D9" strokeWidth="8" />
+          <circle
+            cx="30"
+            cy="31"
+            r="16"
+            fill="none"
+            stroke="#ECA77F"
+            strokeWidth="8"
+            strokeDasharray="24.1 100.6"
+            strokeDashoffset="-62.3"
+          />
+          <circle
+            cx="30"
+            cy="31"
+            r="16"
+            fill="none"
+            stroke="#E85D2A"
+            strokeWidth="8"
+            strokeDasharray="62.3 100.6"
+          />
+        </g>
+        <text
+          x="30"
+          y="34"
+          fontSize="9"
+          fontWeight="600"
+          fill="#171717"
+          fontFamily={SERIF}
+          textAnchor="middle"
+        >
+          62%
+        </text>
+        <rect x="58" y="15" width="4" height="4" rx="0.8" fill="#E85D2A" />
+        <text x="65" y="18.6" fontSize="4.5" fill="#5F5A52" fontFamily={SANS}>
+          Read it all
+        </text>
+        <rect x="58" y="27" width="4" height="4" rx="0.8" fill="#ECA77F" />
+        <text x="65" y="30.6" fontSize="4.5" fill="#5F5A52" fontFamily={SANS}>
+          Skimmed
+        </text>
+        <rect x="58" y="39" width="4" height="4" rx="0.8" fill="#F9E5D9" stroke="#D8CEC0" strokeWidth="0.3" />
+        <text x="65" y="42.6" fontSize="4.5" fill="#5F5A52" fontFamily={SANS}>
+          Bounced
+        </text>
       </svg>
     );
   }
   if (index === 1) {
-    // Mountain with camps
+    // Stat callout — dark template card
     return (
       <svg viewBox="0 0 100 60" className="h-full w-full" aria-hidden>
-        <path
-          d="M 0 54 L 30 26 L 50 40 L 70 16 L 100 54 Z"
-          fill="#FAEEDA"
-          stroke="#854F0B"
-          strokeWidth="0.8"
-        />
-        <circle cx="50" cy="40" r="2" fill="#633806" />
-        <circle cx="70" cy="16" r="2" fill="#633806" />
-        <path
-          d="M 30 50 L 50 40 L 70 16"
-          fill="none"
-          stroke="#633806"
-          strokeWidth="0.6"
-          strokeDasharray="2 2"
-        />
+        <rect x="0" y="0" width="100" height="60" fill="#101010" />
+        <circle cx="86" cy="-6" r="26" fill="#E85D2A" opacity="0.18" />
+        <rect x="14" y="12" width="14" height="2" rx="1" fill="#E85D2A" />
+        <text
+          x="14"
+          y="40"
+          fontSize="21"
+          fontWeight="500"
+          fill="#F7F3EA"
+          fontFamily={SERIF}
+        >
+          3.2&#215;
+        </text>
+        <text x="14" y="50" fontSize="5.5" fill="#ABA395" fontFamily={SANS}>
+          faster than writing it by hand
+        </text>
       </svg>
     );
   }
-  // Stat callout
+  // Bar chart — accent data panel
   return (
     <svg viewBox="0 0 100 60" className="h-full w-full" aria-hidden>
-      <line
-        x1="38"
-        y1="14"
-        x2="62"
-        y2="14"
-        stroke="#185FA5"
-        strokeWidth="0.8"
-      />
-      <text
-        x="50"
-        y="40"
-        fontSize="22"
-        fontWeight="500"
-        fill="#185FA5"
-        textAnchor="middle"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-      >
-        87%
+      <rect x="0" y="0" width="100" height="60" fill="#FFFDF8" />
+      {[20, 32, 44].map((y) => (
+        <line key={y} x1="12" y1={y} x2="88" y2={y} stroke="#D8CEC0" strokeWidth="0.4" />
+      ))}
+      <rect x="16" y="38" width="11" height="12" rx="1" fill="#F9E5D9" />
+      <rect x="34" y="32" width="11" height="18" rx="1" fill="#ECA77F" />
+      <rect x="52" y="24" width="11" height="26" rx="1" fill="#E85D2A" />
+      <rect x="70" y="14" width="11" height="36" rx="1" fill="#B23F14" />
+      <line x1="12" y1="50" x2="88" y2="50" stroke="#171717" strokeWidth="0.7" />
+      <text x="12" y="11" fontSize="6" fontWeight="600" fill="#171717" fontFamily={SANS}>
+        +212%
       </text>
-      <text
-        x="50"
-        y="52"
-        fontSize="6"
-        fill="#3a3a3a"
-        textAnchor="middle"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-      >
-        of time saved
+      <text x="36" y="11" fontSize="4.5" fill="#857E72" fontFamily={SANS}>
+        reach per post
       </text>
     </svg>
   );
@@ -207,9 +218,9 @@ function Visual({ index }: { index: number }) {
 function PipelineHint({ t }: { t: number }) {
   const labels = [
     { from: 0, to: 1500, text: "Planning panel layouts…" },
-    { from: 1500, to: 3200, text: "Rendering iceberg metaphor…" },
-    { from: 3200, to: 4900, text: "Rendering mountain metaphor…" },
-    { from: 4900, to: 7000, text: "Rendering stat callout…" },
+    { from: 1500, to: 3200, text: "Rendering audience donut…" },
+    { from: 3200, to: 4900, text: "Rendering stat callout…" },
+    { from: 4900, to: 7000, text: "Rendering reach chart…" },
     { from: 7000, to: CYCLE_MS, text: "Explainer ready" },
   ];
   const active = labels.find((l) => between(t, l.from, l.to)) ?? labels[0];
