@@ -1,14 +1,7 @@
 import QRCode from "qrcode";
-import type { Explainer, RenderedPanel } from "../shared/schemas";
+import type { BrandKit, Explainer } from "../shared/schemas";
 import { sourceLabel } from "../shared/source";
-
-const ACCENT = "#1F97DC";
-const PAPER = "#fafaf7";
-const INK = "#1a1a1a";
-const INK_SOFT = "#3a3a3a";
-const INK_MUTED = "#6b6b6b";
-const INK_FAINT = "#a3a3a3";
-const PAPER_LINE = "#e3e1d8";
+import type { TemplateDef } from "../templates/types";
 
 /** Per-format dimensions and typography for video output. */
 export type VideoFormat = "vertical" | "square";
@@ -55,7 +48,7 @@ async function qrSvg(target: string, size: number): Promise<string> {
     type: "svg",
     margin: 0,
     width: size,
-    color: { dark: INK, light: "#00000000" },
+    color: { dark: "#1a1a1a", light: "#00000000" },
     errorCorrectionLevel: "M",
   });
 }
@@ -63,12 +56,9 @@ async function qrSvg(target: string, size: number): Promise<string> {
 interface Layout {
   padding: number;
   heroSize: number;
-  headingSize: number;
   captionSize: number;
-  brandSize: number;
   metaSize: number;
   qrSize: number;
-  panelMaxH: number;
 }
 
 function layoutFor(format: VideoFormat): Layout {
@@ -77,23 +67,17 @@ function layoutFor(format: VideoFormat): Layout {
       return {
         padding: 80,
         heroSize: 80,
-        headingSize: 60,
         captionSize: 32,
-        brandSize: 34,
         metaSize: 24,
         qrSize: 180,
-        panelMaxH: 1000,
       };
     case "square":
       return {
         padding: 64,
         heroSize: 54,
-        headingSize: 44,
         captionSize: 24,
-        brandSize: 26,
         metaSize: 18,
         qrSize: 140,
-        panelMaxH: 620,
       };
   }
 }
@@ -107,16 +91,24 @@ interface VideoBuild {
 interface BuildInput {
   explainer: Explainer;
   format: VideoFormat;
+  /** Visual identity to render panel scenes with — same contract as the
+   *  image export, so the video always matches what the user picked. */
+  template: TemplateDef;
+  brand?: BrandKit | null;
 }
 
 /**
  * Build a single self-contained HTML doc that auto-plays as a timed slideshow.
- * Scenes are absolutely positioned so they cross-fade in place. Animations
- * start paused; a tiny inline script flips `body.go` once everything is
- * settled — Playwright waits for that signal before timing the recording.
+ *
+ * Panel scenes embed the explainer's template renderer output (the same
+ * full-bleed slides the PNG export produces) inside sandboxed iframes, so
+ * switching templates changes the video too. Scenes cross-fade in place with
+ * a slow zoom for motion. Animations start paused; a tiny inline script flips
+ * `body.go` once every iframe has loaded — the recorder's timing starts from
+ * document load, so scenes must already be settled by then.
  */
 export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
-  const { explainer, format } = input;
+  const { explainer, format, template, brand } = input;
   const dims = VIDEO_DIMENSIONS[format];
   const L = layoutFor(format);
   const panels = explainer.panels.slice(0, MAX_PANELS);
@@ -126,6 +118,32 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;
   const qr = await qrSvg(shareUrl, L.qrSize);
 
+  // Theme the intro/outro chrome from the template's identity so the video
+  // reads as one piece, even though those scenes are video-specific.
+  const BG = template.preview.background;
+  const INK = template.preview.foreground;
+  const ACCENT = template.preview.accent;
+  const FONT = template.preview.fontFamily;
+  const INK_SOFT = `color-mix(in srgb, ${INK} 80%, ${BG})`;
+  const INK_MUTED = `color-mix(in srgb, ${INK} 58%, ${BG})`;
+  const LINE = `color-mix(in srgb, ${INK} 16%, ${BG})`;
+
+  // Render every panel through the template — identical inputs to the
+  // PNG export, and "vertical" / "square" are valid export formats with
+  // the same pixel dimensions.
+  const slides = await Promise.all(
+    panels.map((panel, i) =>
+      template.renderPanel({
+        explainer,
+        panel,
+        format,
+        panelIndex: i + 1,
+        totalPanels,
+        brand,
+      })
+    )
+  );
+
   // Scene timing: each scene starts staggered by (SCENE_MS - CROSSFADE_MS).
   const stepMs = SCENE_MS - CROSSFADE_MS;
   const introStart = 0;
@@ -133,8 +151,8 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   const outroStart = firstSceneStart + shown * stepMs;
   const totalMs = outroStart + OUTRO_MS;
 
-  const sceneHtml = panels
-    .map((p, i) => renderScene(p, i, shown, totalPanels, L, firstSceneStart, stepMs))
+  const sceneHtml = slides
+    .map((slide, i) => renderScene(slide, i, shown, firstSceneStart, stepMs))
     .join("\n");
 
   return {
@@ -146,8 +164,8 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
 <meta charset="utf-8" />
 <style>
   :root { color-scheme: light; }
-  html, body { margin: 0; padding: 0; background: ${PAPER}; color: ${INK};
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  html, body { margin: 0; padding: 0; background: ${BG}; color: ${INK};
+    font-family: ${FONT};
     -webkit-font-smoothing: antialiased;
   }
   body { width: ${dims.w}px; height: ${dims.h}px; overflow: hidden; }
@@ -156,7 +174,7 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
     position: relative;
     width: ${dims.w}px;
     height: ${dims.h}px;
-    background: ${PAPER};
+    background: ${BG};
   }
 
   .scene {
@@ -182,23 +200,6 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
     10%  { opacity: 1; transform: translateY(0); }
     100% { opacity: 1; transform: translateY(0); }
   }
-
-  /* Persistent footer wordmark across all scenes */
-  .corner-mark {
-    position: absolute;
-    left: ${L.padding}px;
-    bottom: ${Math.round(L.padding * 0.6)}px;
-    display: inline-flex; align-items: center; gap: 10px;
-    font-size: ${L.metaSize}px; color: ${INK_MUTED}; font-weight: 500;
-    z-index: 5;
-    opacity: 0;
-    animation: fade-in 600ms ease 800ms forwards;
-    animation-play-state: paused;
-  }
-  body.go .corner-mark { animation-play-state: running; }
-  .corner-mark .dot { width: 10px; height: 10px; border-radius: 999px; background: ${ACCENT}; }
-  .corner-mark .name { color: ${INK}; font-weight: 600; letter-spacing: -0.01em; }
-  .corner-mark .sep { color: ${INK_FAINT}; }
 
   @keyframes fade-in {
     from { opacity: 0; } to { opacity: 1; }
@@ -236,75 +237,31 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   body.go .intro-source { animation-play-state: running; }
   .intro-source .pip { width: 6px; height: 6px; border-radius: 999px; background: ${ACCENT}; }
 
-  /* -------- Panel scene -------- */
-  .scene-panel { justify-content: flex-start; }
-  .panel-header {
-    display: flex; align-items: baseline; gap: 14px;
-    margin-bottom: 28px;
-  }
-  .panel-num {
-    font-variant-numeric: tabular-nums;
-    font-size: ${L.metaSize}px; color: ${ACCENT}; font-weight: 600;
-    letter-spacing: 0.04em;
-  }
-  .panel-num::before {
-    content: ""; display: inline-block; width: 24px; height: 1px;
-    background: ${ACCENT}; vertical-align: middle; margin-right: 10px;
-    transform-origin: left;
-    transform: scaleX(0);
-    animation: rule-grow 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* -------- Panel scenes: full-bleed templated slides -------- */
+  .scene-panel { padding: 0; }
+  .panel-zoom {
+    position: absolute; inset: 0;
+    transform-origin: 50% 50%;
+    animation: panel-zoom ${SCENE_MS}ms linear both;
     animation-play-state: paused;
   }
-  body.go .panel-num::before { animation-play-state: running; }
-  @keyframes rule-grow { to { transform: scaleX(1); } }
-
-  .panel-heading {
-    font-size: ${L.headingSize}px; line-height: 1.08; font-weight: 600;
-    color: ${INK}; letter-spacing: -0.018em;
-    opacity: 0; transform: translateY(10px);
-    animation: rise 600ms cubic-bezier(0.22, 1, 0.36, 1) 180ms forwards;
-    animation-play-state: paused;
+  body.go .panel-zoom { animation-play-state: running; }
+  @keyframes panel-zoom {
+    from { transform: scale(1); }
+    to { transform: scale(1.035); }
   }
-  body.go .panel-heading { animation-play-state: running; }
-
-  .panel-visual {
-    margin-top: 32px;
-    display: flex; align-items: center; justify-content: center;
-    flex: 1; min-height: 0;
+  .panel-frame {
+    display: block; width: ${dims.w}px; height: ${dims.h}px;
+    border: 0; pointer-events: none; background: ${BG};
   }
-  .panel-visual > * { max-width: 100%; max-height: ${L.panelMaxH}px; }
-  .panel-visual svg { width: 100%; height: auto; max-height: ${L.panelMaxH}px; }
-  .panel-visual .html-panel { background: #ffffff; border: 1px solid ${PAPER_LINE};
-    border-radius: 14px; padding: 22px; width: 100%; }
-  .panel-visual .html-panel table { border-collapse: collapse; width: 100%; }
-  .panel-visual .html-panel td, .panel-visual .html-panel th {
-    padding: 10px 12px; font-size: 16px; vertical-align: top; border-bottom: 1px solid ${PAPER_LINE};
-  }
-  .panel-visual .html-panel th { font-weight: 500; background: #F1EFE8; text-align: left; }
-
-  /* Stagger draw-in for SVG children once the scene shows. */
-  .panel-visual svg > * {
-    opacity: 0;
-    animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-play-state: paused;
-  }
-  body.go .panel-visual svg > * { animation-play-state: running; }
-
-  .panel-caption {
-    margin-top: 28px;
-    font-size: ${L.captionSize}px; line-height: 1.4; color: ${INK_SOFT};
-    opacity: 0; transform: translateY(8px);
-    animation: rise 600ms cubic-bezier(0.22, 1, 0.36, 1) 1200ms forwards;
-    animation-play-state: paused;
-  }
-  body.go .panel-caption { animation-play-state: running; }
 
   @keyframes rise {
     to { opacity: 1; transform: translateY(0); }
   }
 
   /* -------- Outro scene -------- */
-  .scene-outro { justify-content: center; align-items: center; text-align: center; }
+  /* Opaque background so the held last panel doesn't show through after the crossfade. */
+  .scene-outro { justify-content: center; align-items: center; text-align: center; background: ${BG}; }
   .outro-block { display: flex; flex-direction: column; align-items: center; gap: 28px; }
   .outro-eyebrow {
     font-size: ${L.metaSize}px; color: ${ACCENT}; font-weight: 600;
@@ -322,7 +279,7 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   body.go .outro-title { animation-play-state: running; }
   .outro-qr {
     margin-top: 12px; padding: 24px; background: #ffffff;
-    border: 1px solid ${PAPER_LINE}; border-radius: 18px; line-height: 0;
+    border: 1px solid ${LINE}; border-radius: 18px; line-height: 0;
     opacity: 0; transform: scale(0.96);
     animation: pop 700ms cubic-bezier(0.22, 1, 0.36, 1) 500ms forwards;
     animation-play-state: paused;
@@ -343,14 +300,6 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
 </head>
 <body>
   <div class="stage">
-
-    <!-- Persistent corner brand mark (hidden during intro/outro) -->
-    <div class="corner-mark">
-      <span class="dot"></span>
-      <span class="name">Readopp</span>
-      <span class="sep">·</span>
-      <span>${escapeHtml(domain)}</span>
-    </div>
 
     <!-- Intro scene -->
     <section class="scene scene-intro" style="animation: scene-show ${INTRO_MS}ms ease ${introStart}ms both;">
@@ -385,10 +334,24 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   </div>
 
   <script>
-    // Two RAFs to make sure layout + first paint are settled before timing starts.
-    requestAnimationFrame(() => {
+    // Wait for every templated slide iframe to finish loading, then two RAFs
+    // so layout + first paint are settled before the timeline starts.
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    Promise.all(
+      frames.map((f) => new Promise((resolve) => {
+        try {
+          if (f.contentDocument && f.contentDocument.readyState === 'complete') {
+            resolve(); return;
+          }
+        } catch (e) {}
+        f.addEventListener('load', resolve, { once: true });
+        setTimeout(resolve, 3000);
+      }))
+    ).then(() => {
       requestAnimationFrame(() => {
-        document.body.classList.add('go');
+        requestAnimationFrame(() => {
+          document.body.classList.add('go');
+        });
       });
     });
   </script>
@@ -398,11 +361,9 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
 }
 
 function renderScene(
-  panel: RenderedPanel,
+  slideHtml: string,
   i: number,
   shown: number,
-  totalPanels: number,
-  L: Layout,
   firstStart: number,
   stepMs: number
 ): string {
@@ -411,50 +372,15 @@ function renderScene(
   // Last scene holds slightly so it doesn't fade out before the outro fades in.
   const dur = isLast ? SCENE_MS + 200 : SCENE_MS;
 
-  const heading = panel.heading?.trim() || `Panel ${i + 1}`;
-  const content = panelInnerHtml(panel);
-
-  // Per-child SVG draw-in delays. The svg children animation-delay is relative
-  // to the scene's start, so we offset by sceneStart + a small lead (300ms)
-  // for the heading to land first.
-  const svgChildLead = sceneStart + 280;
-  const styleBlock = `
-    .scene-panel[data-i="${i}"] .panel-num::before { animation-delay: ${sceneStart + 60}ms; }
-    .scene-panel[data-i="${i}"] .panel-heading { animation-delay: ${sceneStart + 180}ms; }
-    .scene-panel[data-i="${i}"] .panel-caption { animation-delay: ${sceneStart + 1300}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(1)  { animation-delay: ${svgChildLead}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(2)  { animation-delay: ${svgChildLead + 110}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(3)  { animation-delay: ${svgChildLead + 220}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(4)  { animation-delay: ${svgChildLead + 330}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(5)  { animation-delay: ${svgChildLead + 440}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(6)  { animation-delay: ${svgChildLead + 550}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(7)  { animation-delay: ${svgChildLead + 660}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(8)  { animation-delay: ${svgChildLead + 770}ms; }
-    .scene-panel[data-i="${i}"] .panel-visual svg > *:nth-child(n+9) { animation-delay: ${svgChildLead + 880}ms; }
-  `;
-
-  return `<style>${styleBlock}</style>
-<section class="scene scene-panel" data-i="${i}" style="animation: ${
+  return `<section class="scene scene-panel" data-i="${i}" style="animation: ${
     isLast ? "scene-show-hold" : "scene-show"
   } ${dur}ms ease ${sceneStart}ms both;">
-  <div class="panel-header">
-    <span class="panel-num">${String(i + 1).padStart(2, "0")} / ${String(
-    totalPanels
-  ).padStart(2, "0")}</span>
+  <div class="panel-zoom" style="animation-delay: ${sceneStart}ms;">
+    <iframe class="panel-frame" scrolling="no" srcdoc="${escapeHtml(
+      slideHtml
+    )}"></iframe>
   </div>
-  <h2 class="panel-heading">${escapeHtml(heading)}</h2>
-  <div class="panel-visual">${content}</div>
-  ${
-    panel.caption
-      ? `<p class="panel-caption">${escapeHtml(panel.caption)}</p>`
-      : ""
-  }
 </section>`;
-}
-
-function panelInnerHtml(panel: RenderedPanel): string {
-  if (panel.format === "svg") return panel.content;
-  return `<div class="html-panel">${panel.content}</div>`;
 }
 
 function stripScheme(u: string): string {
