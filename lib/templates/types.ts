@@ -49,6 +49,7 @@ export interface TemplateDef {
     | "Technical"
     | "Document"
     | "Bold"
+    | "Modern"
     | "Default";
   /** One-sentence pitch shown under the name on the gallery card. */
   tagline: string;

@@ -160,6 +160,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
  *  Document · Bold. Anything unknown lands at the end. */
 const CATEGORY_ORDER: string[] = [
   "Default",
+  "Modern",
   "Editorial",
   "Reader",
   "Technical",

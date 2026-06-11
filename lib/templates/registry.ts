@@ -1,9 +1,12 @@
 import { TemplateIdSchema, type TemplateId } from "../shared/schemas";
 import type { TemplateDef } from "./types";
+import { auroraGlassTemplate } from "./aurora-glass";
+import { bentoGridTemplate } from "./bento-grid";
 import { boardingPassTemplate } from "./boarding-pass";
 import { editorialBroadsheetTemplate } from "./editorial-broadsheet";
 import { editorialBrutalistTemplate } from "./editorial-brutalist";
 import { engineeringSpecTemplate } from "./engineering-spec";
+import { galaxyBrainTemplate } from "./galaxy-brain";
 import { highlighterReaderTemplate } from "./highlighter-reader";
 import { indexCardTemplate } from "./index-card";
 import { kindleHighlightTemplate } from "./kindle-highlight";
@@ -13,6 +16,7 @@ import { notebookCellTemplate } from "./notebook-cell";
 import { receiptTemplate } from "./receipt";
 import { risographZineTemplate } from "./risograph-zine";
 import { stickyNotesTemplate } from "./sticky-notes";
+import { swissPosterTemplate } from "./swiss-poster";
 import { tabloidSplashTemplate } from "./tabloid-splash";
 import { tachyonTemplate } from "./tachyon";
 import { terminalBrutalistTemplate } from "./terminal-brutalist";
@@ -48,6 +52,11 @@ const TEMPLATES: Record<TemplateId, TemplateDef | undefined> = {
   "editorial-brutalist": editorialBrutalistTemplate,
   "tabloid-splash": tabloidSplashTemplate,
   "risograph-zine": risographZineTemplate,
+  "galaxy-brain": galaxyBrainTemplate,
+  // Modern
+  "aurora-glass": auroraGlassTemplate,
+  "bento-grid": bentoGridTemplate,
+  "swiss-poster": swissPosterTemplate,
 };
 
 export const DEFAULT_TEMPLATE_ID: TemplateId = "tachyon";

@@ -179,6 +179,20 @@ function placeholderFor(id: string) {
         fontFamily: "'GT America Mono', 'IBM Plex Mono', monospace",
       },
     },
+    "galaxy-brain": {
+      name: "Galaxy Brain",
+      category: "Bold",
+      tagline: "Expanding-brain meme energy, tastefully cosmic.",
+      audience:
+        "Hot-take threads and self-aware essayists who've earned a wink from their feed.",
+      preview: {
+        background: "#1A0838",
+        foreground: "#FFFFFF",
+        accent: "#FFD2FF",
+        sampleHeading: "Reading the source paper.",
+        fontFamily: "'Söhne', 'Inter', sans-serif",
+      },
+    },
   };
   const fallback = NAMES[id] ?? {
     name: id,

@@ -546,6 +546,11 @@ export const TemplateIdSchema = z.enum([
   "editorial-brutalist",
   "tabloid-splash",
   "risograph-zine",
+  "galaxy-brain",
+  // Modern
+  "aurora-glass",
+  "bento-grid",
+  "swiss-poster",
 ]);
 export type TemplateId = z.infer<typeof TemplateIdSchema>;
 
