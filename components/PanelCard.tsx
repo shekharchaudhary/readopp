@@ -30,9 +30,10 @@ interface Props {
   /**
    * When set to a template other than "tachyon", the body switches from
    * the original SVG view to an iframe rendering the export HTML — so
-   * the in-page preview matches the downloaded PNG. Editing is paused
-   * in that mode because the templates render from text fields, not the
-   * SVG the editor knows how to mutate.
+   * the in-page preview matches the downloaded PNG. In that mode heading
+   * + caption stay editable (the iframe re-fetches its srcDoc when those
+   * change), but SVG body edits and theme swaps are disabled because
+   * templates ignore the original SVG.
    */
   explainerId?: string;
   template?: TemplateId;
@@ -94,8 +95,14 @@ export function PanelCard({
   // preview instead of the SVG editor surface, so inline editing is off.
   const templatedPreview =
     Boolean(explainerId) && template !== undefined && template !== "tachyon";
-  const editable = Boolean(onEdit) && !templatedPreview;
-  const canTheme = editable && panel.format === "svg";
+  // Heading + caption are plain text fields the template reads at render
+  // time, so they're safe to edit in any mode — TemplatedPanelPreview's
+  // cacheKey includes both and refetches the iframe on change.
+  const canEditText = Boolean(onEdit);
+  // Body edits (raw SVG mutation, theme swap) only make sense when the
+  // SVG editor is the surface — templates ignore the original SVG.
+  const canEditContent = Boolean(onEdit) && !templatedPreview;
+  const canTheme = canEditContent && panel.format === "svg";
   const canReset = Boolean(onReset && panel.edited && panel.plan);
   const [themeOpen, setThemeOpen] = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
@@ -161,7 +168,7 @@ export function PanelCard({
             )}
           </div>
           <h2 className="mt-1 text-lg font-medium leading-snug tracking-tight text-ink sm:text-xl">
-            {editable ? (
+            {canEditText ? (
               <EditableText
                 value={heading}
                 onSave={(next) => onEdit!(panel.sectionId, { heading: next })}
@@ -223,7 +230,7 @@ export function PanelCard({
             cacheKey={`${panel.heading ?? ""}::${panel.caption ?? ""}::${panel.content?.length ?? 0}`}
           />
         ) : panel.format === "svg" ? (
-          editable ? (
+          canEditContent ? (
             <EditableSvgPanel
               content={panel.content}
               onSave={(next) => onEdit!(panel.sectionId, { content: next })}
@@ -237,7 +244,7 @@ export function PanelCard({
               dangerouslySetInnerHTML={{ __html: panel.content }}
             />
           )
-        ) : editable && /<table[\s>]/i.test(panel.content) ? (
+        ) : canEditContent && /<table[\s>]/i.test(panel.content) ? (
           <EditableHtmlTablePanel
             content={panel.content}
             onSave={(next) => onEdit!(panel.sectionId, { content: next })}
@@ -247,9 +254,9 @@ export function PanelCard({
         )}
       </div>
 
-      {(panel.caption || editable) && (
+      {(panel.caption || canEditText) && (
         <div className="border-t border-paper-line px-5 py-3 text-sm leading-relaxed text-ink-soft">
-          {editable ? (
+          {canEditText ? (
             <EditableText
               value={panel.caption || ""}
               onSave={(next) => onEdit!(panel.sectionId, { caption: next })}
