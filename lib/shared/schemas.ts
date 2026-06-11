@@ -145,6 +145,10 @@ export const VisualTypeSchema = z.enum([
   "profile_card",     // resume / about: name + headline + 2-3 stats
   "skills_matrix",    // resume: skills grouped by category
   "chart",            // any: real bar / donut / line chart from data
+  // Genre-specific types (Phase 7c — articulation)
+  "quote_card",       // book chapters / essays: pull quote + attribution
+  "key_findings",     // research papers / whitepapers: numbered findings
+  "definition_card",  // documentation: term + plain definition + analogy
   // Legacy types — still supported by the renderer; demoted in selection
   "flowchart",
   "illustrative",
@@ -319,6 +323,48 @@ export const ChartPlanSchema = z.object({
 });
 export type ChartPlan = z.infer<typeof ChartPlanSchema>;
 
+// ===== Phase 7c: articulation slot shapes =====
+
+/** quote_card — a pull quote lifted from the source, with attribution. */
+export const QuoteCardPlanSchema = z.object({
+  /** The quote itself, verbatim or lightly trimmed from the source. */
+  text: z.string().min(1).max(280),
+  /** Who said/wrote it: author name, character, or speaker. */
+  attribution: z.string().max(80).nullish(),
+  /** Where it sits: book title, chapter, page, section ("Chapter 3", "p. 142"). */
+  context: z.string().max(80).nullish(),
+});
+export type QuoteCardPlan = z.infer<typeof QuoteCardPlanSchema>;
+
+/** key_findings — numbered findings list for papers / whitepapers / reports. */
+export const KeyFindingsPlanSchema = z.object({
+  /** Optional kicker above the list ("KEY FINDINGS", "WHAT THE DATA SHOWS"). */
+  label: z.string().max(40).nullish(),
+  findings: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(70),
+        detail: z.string().max(140).nullish(),
+        /** Optional hero figure attached to the finding ("3.2×", "41%"). */
+        figure: z.string().max(16).nullish(),
+      })
+    )
+    .min(2)
+    .max(4),
+});
+export type KeyFindingsPlan = z.infer<typeof KeyFindingsPlanSchema>;
+
+/** definition_card — a term unpacked in plain language, with an analogy. */
+export const DefinitionCardPlanSchema = z.object({
+  term: z.string().min(1).max(60),
+  /** Optional pronunciation / part-of-speech style sub ("noun · /kæʃ/"). */
+  kicker: z.string().max(60).nullish(),
+  definition: z.string().min(1).max(220),
+  /** "Think of it like..." analogy line. */
+  analogy: z.string().max(160).nullish(),
+});
+export type DefinitionCardPlan = z.infer<typeof DefinitionCardPlanSchema>;
+
 export const AnnotatedHeroPlanSchema = z.object({
   // A concrete depictable subject: "smartphone with chat app", "open book",
   // "growth chart", "coffee brewer cross-section". Not abstract concepts.
@@ -407,6 +453,10 @@ export const PanelPlanSchema = z.object({
   profileCard: ProfileCardPlanSchema.nullish(),
   skillsMatrix: SkillsMatrixPlanSchema.nullish(),
   chart: ChartPlanSchema.nullish(),
+  // Articulation slots (Phase 7c)
+  quoteCard: QuoteCardPlanSchema.nullish(),
+  keyFindings: KeyFindingsPlanSchema.nullish(),
+  definitionCard: DefinitionCardPlanSchema.nullish(),
   // One sentence explaining why the planner chose this visual for this section.
   // Dev-only surface (exposed via ?debug=1); kept on every plan so we can sample
   // and tune selection without re-running the pipeline.

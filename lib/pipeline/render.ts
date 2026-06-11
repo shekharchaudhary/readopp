@@ -107,7 +107,10 @@ export async function renderPanel(
     plan.visualType === "profile_card" ||
     plan.visualType === "career_timeline" ||
     plan.visualType === "skills_matrix" ||
-    plan.visualType === "chart"
+    plan.visualType === "chart" ||
+    plan.visualType === "quote_card" ||
+    plan.visualType === "key_findings" ||
+    plan.visualType === "definition_card"
   ) {
     const svg = renderGenrePanel(plan);
     if (svg) {

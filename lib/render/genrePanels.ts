@@ -11,8 +11,11 @@
 import type {
   CareerTimelinePlan,
   ChartPlan,
+  DefinitionCardPlan,
+  KeyFindingsPlan,
   PanelPlan,
   ProfileCardPlan,
+  QuoteCardPlan,
   SkillsMatrixPlan,
 } from "../shared/schemas";
 
@@ -61,6 +64,14 @@ export function renderGenrePanel(plan: PanelPlan): string | null {
       return plan.skillsMatrix ? renderSkillsMatrix(plan.skillsMatrix) : null;
     case "chart":
       return plan.chart ? renderChart(plan.chart) : null;
+    case "quote_card":
+      return plan.quoteCard ? renderQuoteCard(plan.quoteCard) : null;
+    case "key_findings":
+      return plan.keyFindings ? renderKeyFindings(plan.keyFindings) : null;
+    case "definition_card":
+      return plan.definitionCard
+        ? renderDefinitionCard(plan.definitionCard)
+        : null;
     default:
       return null;
   }
@@ -570,5 +581,174 @@ function renderLineChart(p: ChartPlan): string {
       )
       .join(" | "),
     `${headerEl}${legendEls.join("")}${gridEls}${seriesEls.join("")}${xLabels}${yAxisLabel}${xAxisLabel}`
+  );
+}
+
+// ---------- quote_card ----------
+
+const SERIF_FONT =
+  "Georgia, 'Iowan Old Style', 'Times New Roman', ui-serif, serif";
+
+function renderQuoteCard(p: QuoteCardPlan): string {
+  // Scale type with quote length so short quotes feel like posters and
+  // long ones stay readable.
+  const len = p.text.length;
+  const fontSize = len <= 90 ? 28 : len <= 170 ? 24 : 20;
+  const wrapChars = len <= 90 ? 34 : len <= 170 ? 42 : 50;
+  const lineH = fontSize * 1.45;
+  const lines = wrap(p.text, wrapChars, 7);
+
+  const TEXT_X = 120;
+  const quoteTopY = 96;
+  const quoteBottomY = quoteTopY + (lines.length - 1) * lineH;
+
+  const attribution = p.attribution?.trim();
+  const context = p.context?.trim();
+  const metaY = quoteBottomY + 52;
+  const metaH = attribution || context ? 40 + (attribution && context ? 20 : 0) : 0;
+  const H = Math.max(260, metaY + metaH + 24);
+
+  const lineEls = lines
+    .map(
+      (l, i) =>
+        `<text x="${TEXT_X}" y="${quoteTopY + i * lineH}" font-family="${SERIF_FONT}" font-size="${fontSize}" fill="${C.ink}">${esc(l)}</text>`
+    )
+    .join("");
+
+  const metaEls = [
+    attribution
+      ? `<line x1="${TEXT_X}" y1="${metaY - 18}" x2="${TEXT_X + 36}" y2="${metaY - 18}" stroke="${C.accent}" stroke-width="2"/>
+         <text x="${TEXT_X}" y="${metaY + 4}" font-size="14" font-weight="500" fill="${C.inkSoft}">${esc(attribution)}</text>`
+      : "",
+    context
+      ? `<text x="${TEXT_X}" y="${metaY + (attribution ? 24 : 4)}" font-size="12" fill="${C.inkMuted}">${esc(context)}</text>`
+      : "",
+  ].join("");
+
+  const body = `
+    <!-- Oversized quotation mark -->
+    <text x="44" y="${quoteTopY + 18}" font-family="${SERIF_FONT}" font-size="96" fill="${C.accentSoft}">&#8220;</text>
+    <text x="46" y="${quoteTopY + 16}" font-family="${SERIF_FONT}" font-size="96" fill="${C.accent}" opacity="0.35">&#8220;</text>
+    ${lineEls}
+    ${metaEls}
+  `;
+  return svgWrap(
+    H,
+    "Quote",
+    `${p.text}${attribution ? ` — ${attribution}` : ""}`,
+    body
+  );
+}
+
+// ---------- key_findings ----------
+
+function renderKeyFindings(p: KeyFindingsPlan): string {
+  const findings = p.findings.slice(0, 4);
+  const label = p.label?.trim();
+  const PAD_TOP = label ? 72 : 40;
+  const ROW_GAP = 14;
+
+  function rowHeight(f: { detail?: string | null }) {
+    const detailLines = f.detail ? wrap(f.detail, 58, 2).length : 0;
+    return 56 + detailLines * 18;
+  }
+  const heights = findings.map(rowHeight);
+  const totalH = heights.reduce((a, b) => a + b, 0) + (findings.length - 1) * ROW_GAP;
+  const H = PAD_TOP + totalH + 36;
+
+  const labelEl = label
+    ? `<text x="40" y="44" font-size="12" font-weight="500" fill="${C.accentDeep}" letter-spacing="0.12em">${esc(label.toUpperCase())}</text>
+       <line x1="40" y1="54" x2="120" y2="54" stroke="${C.accent}" stroke-width="2"/>`
+    : "";
+
+  let cursorY = PAD_TOP;
+  const rowEls = findings.map((f, i) => {
+    const top = cursorY;
+    cursorY += heights[i] + ROW_GAP;
+    const num = String(i + 1).padStart(2, "0");
+    const figure = f.figure?.trim();
+    const titleMax = figure ? 44 : 56;
+    const title =
+      f.title.length > titleMax ? f.title.slice(0, titleMax - 1) + "…" : f.title;
+    const detailLines = f.detail ? wrap(f.detail, 58, 2) : [];
+    return `
+      <rect x="40" y="${top}" width="600" height="${heights[i]}" rx="10" ry="10" fill="${C.paper}" stroke="${C.line}" stroke-width="1"/>
+      <rect x="40" y="${top}" width="4" height="${heights[i]}" rx="2" ry="2" fill="${C.accent}"/>
+      <text x="66" y="${top + 34}" font-size="20" font-weight="500" fill="${C.accent}" opacity="0.85">${num}</text>
+      <text x="108" y="${top + 33}" font-size="16" font-weight="500" fill="${C.ink}">${esc(title)}</text>
+      ${detailLines
+        .map(
+          (l, j) =>
+            `<text x="108" y="${top + 56 + j * 18}" font-size="12.5" fill="${C.inkSoft}">${esc(l)}</text>`
+        )
+        .join("")}
+      ${
+        figure
+          ? `<text x="616" y="${top + 36}" font-size="24" font-weight="500" fill="${C.accentDeep}" text-anchor="end">${esc(figure)}</text>`
+          : ""
+      }
+    `;
+  });
+
+  return svgWrap(
+    H,
+    label || "Key findings",
+    findings.map((f) => f.title).join(" · "),
+    `${labelEl}${rowEls.join("")}`
+  );
+}
+
+// ---------- definition_card ----------
+
+function renderDefinitionCard(p: DefinitionCardPlan): string {
+  const defLines = wrap(p.definition, 56, 4);
+  const analogy = p.analogy?.trim();
+  const analogyLines = analogy ? wrap(analogy, 52, 3) : [];
+
+  const TERM_Y = 92;
+  const RULE_Y = TERM_Y + 28;
+  const DEF_Y = RULE_Y + 36;
+  const defBottom = DEF_Y + (defLines.length - 1) * 24;
+  const analogyTop = defBottom + 36;
+  const analogyH = analogy ? 34 + analogyLines.length * 20 : 0;
+  const H = Math.max(280, (analogy ? analogyTop + analogyH : defBottom) + 44);
+
+  const kicker = p.kicker?.trim();
+
+  const analogyEl = analogy
+    ? `
+      <rect x="56" y="${analogyTop}" width="568" height="${analogyH}" rx="10" ry="10" fill="${C.accentSoft}" stroke="${C.accent}" stroke-width="1" stroke-opacity="0.35"/>
+      <text x="76" y="${analogyTop + 24}" font-size="11" font-weight="500" fill="${C.accentDeep}" letter-spacing="0.1em">THINK OF IT LIKE</text>
+      ${analogyLines
+        .map(
+          (l, i) =>
+            `<text x="76" y="${analogyTop + 24 + 20 + i * 20}" font-size="13" fill="${C.accentDeep}">${esc(l)}</text>`
+        )
+        .join("")}
+    `
+    : "";
+
+  const body = `
+    <text x="56" y="${TERM_Y}" font-family="${SERIF_FONT}" font-size="34" font-weight="500" fill="${C.ink}">${esc(p.term)}</text>
+    ${
+      kicker
+        ? `<text x="${56 + p.term.length * 19 + 16}" y="${TERM_Y}" font-size="13" font-style="italic" fill="${C.inkMuted}">${esc(kicker)}</text>`
+        : ""
+    }
+    <line x1="56" y1="${RULE_Y}" x2="624" y2="${RULE_Y}" stroke="${C.line}" stroke-width="1"/>
+    <line x1="56" y1="${RULE_Y}" x2="128" y2="${RULE_Y}" stroke="${C.accent}" stroke-width="2"/>
+    ${defLines
+      .map(
+        (l, i) =>
+          `<text x="56" y="${DEF_Y + i * 24}" font-size="15" fill="${C.inkSoft}">${esc(l)}</text>`
+      )
+      .join("")}
+    ${analogyEl}
+  `;
+  return svgWrap(
+    H,
+    p.term,
+    p.definition,
+    body
   );
 }

@@ -76,6 +76,31 @@ FILL FIELDS BY VISUALTYPE
     Only emit numbers actually present in the source document or directly
     derivable from it. Never fabricate data.
 
+• quote_card -> "quoteCard" with:
+    - text: the quote VERBATIM from the source (light trims with … allowed),
+      ≤280 chars. Never paraphrase — the power is in the original words.
+    - attribution?: who said/wrote it ("Annie Dillard", "the author",
+      an interviewee's name). Omit if unknown.
+    - context?: where it sits ("Chapter 3", "closing paragraph",
+      "interview, 2024"). Omit if it adds nothing.
+
+• key_findings -> "keyFindings" with:
+    - label?: optional kicker ≤40 chars ("KEY FINDINGS", "WHAT CHANGED").
+    - findings: 2–4 entries. Each:
+      - title: the finding in one punchy line (≤70 chars).
+      - detail?: one supporting sentence (≤140 chars).
+      - figure?: the hero number attached to it ("3.2×", "41%", "$2B") —
+        ONLY if the source states it. Never fabricate figures.
+    Order findings by importance, strongest first.
+
+• definition_card -> "definitionCard" with:
+    - term: the concept being unpacked (≤60 chars).
+    - kicker?: part-of-speech / category sub ("noun", "protocol", "metric").
+    - definition: plain-language explanation a stranger gets in one read
+      (≤220 chars). No circular definitions, no jargon inside the definition.
+    - analogy?: a "think of it like…" comparison to something everyday
+      (≤160 chars). Strongly encouraged — it's what makes the card land.
+
 • metaphor -> "metaphor" with:
     - kind: pick ONE of the 26 below.
     - Fill the fields that kind needs (see the recipe below). Leave irrelevant
@@ -138,6 +163,28 @@ Spatial / navigation:
                 hub = start, outcome = goal, items = key choice points.
 
 ═══════════════════════════════════════════════════════════════════════════
+GENRE VOICE — match the panel's wording to the document's genre
+═══════════════════════════════════════════════════════════════════════════
+
+The user message tells you the document's GENRE. Write labels and captions
+in that genre's native register:
+
+  research_paper : precise and quantified. Use the paper's own method terms
+                   and reported numbers. Captions may name the dataset,
+                   sample size, or benchmark. Never soften a finding.
+  book_chapter   : evocative and narrative. Borrow the author's imagery.
+                   Captions read like a book review pull — voice over data.
+  resume         : achievement-first. Verbs + numbers ("Shipped", "Scaled",
+                   "Led"). No fluff adjectives.
+  news           : factual and dated. Who/what/when up front, attribute
+                   claims to their source.
+  documentation  : instructional and concrete. Second person OK ("you
+                   configure…"). Name the actual commands/components.
+  whitepaper     : business-consequence framing. Tie findings to cost,
+                   risk, or opportunity.
+  article/other  : conversational but sharp — LinkedIn-native phrasing.
+
+═══════════════════════════════════════════════════════════════════════════
 HARD RULES
 ═══════════════════════════════════════════════════════════════════════════
 
@@ -174,8 +221,15 @@ function userMessage(
     .map((c, i) => `  - ${c}`)
     .join("\n");
 
+  const featureFlags = Object.entries(comprehension.contentFeatures)
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(", ");
+
   return [
     `Audience level: ${audience}`,
+    `Genre: ${comprehension.genre} (confidence: ${comprehension.genreConfidence})`,
+    featureFlags ? `Content features: ${featureFlags}` : null,
     "",
     "Section to design:",
     `  id: ${section.id}`,
@@ -189,7 +243,15 @@ function userMessage(
     "Article context (do not invent beyond this):",
     `  core idea: ${comprehension.coreIdea}`,
     `  narrative arc: ${comprehension.narrativeArc}`,
-  ].join("\n");
+    comprehension.entities.length > 0
+      ? `  notable entities: ${comprehension.entities
+          .slice(0, 8)
+          .map((e) => `${e.name} (${e.kind})`)
+          .join(", ")}`
+      : null,
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
 }
 
 export async function runPlanner(
@@ -225,6 +287,23 @@ export async function runPlanner(
     parsed.sectionId = section.id;
     parsed.visualType = section.visualType;
     const plan = PanelPlanSchema.parse(parsed);
+
+    // Sanity: the articulation types are slot-driven — a missing slot would
+    // fall through to freeform AI render, which for quotes means fabrication.
+    // Force a retry instead.
+    if (plan.visualType === "quote_card" && !plan.quoteCard) {
+      throw new Error('visualType "quote_card" requires the "quoteCard" field');
+    }
+    if (plan.visualType === "key_findings" && !plan.keyFindings) {
+      throw new Error(
+        'visualType "key_findings" requires the "keyFindings" field'
+      );
+    }
+    if (plan.visualType === "definition_card" && !plan.definitionCard) {
+      throw new Error(
+        'visualType "definition_card" requires the "definitionCard" field'
+      );
+    }
 
     // Sanity: edges reference existing node ids; if not, drop the bad ones.
     if (plan.nodes && plan.edges) {

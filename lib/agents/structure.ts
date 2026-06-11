@@ -41,13 +41,18 @@ GENRE PLAYBOOKS — start from the genre-specific ladder, then fall back
                         ("from engineer to founder" → mountain or bridge).
   Use comparison/timeline metaphors only if they clearly fit.
 
-▸ genre = "research_paper"
-  Standard arc: problem → method → results → implications. Suggested:
+▸ genre = "research_paper"  (incl. arXiv preprints)
+  Standard arc: gap → method → findings → implications. Suggested:
     1. stat_callout OR metaphor (iceberg) — the headline finding / gap.
-    2. metaphor (flowchart fallback only if nothing else fits) — methodology.
-    3. chart — IF contentFeatures.hasNumericData is true, pick chart for the
-       results section. Otherwise comparison or stat_callout.
-    4. metaphor (bridge, scale, or comparison) — implications / limitations.
+    2. metaphor (engine, funnel, bridge) — methodology / experimental setup.
+    3. key_findings — the 2–4 main results as numbered findings, each with
+       its figure if the paper reports one. STRONGLY PREFERRED for the
+       results section of a paper.
+    4. chart — IF contentFeatures.hasNumericData is true and the results
+       carry 3+ comparable numbers, use chart INSTEAD OF or IN ADDITION TO
+       key_findings (one for the data, one for the takeaways).
+    5. metaphor (bridge, scale) OR comparison — implications / limitations /
+       comparison against prior work.
 
 ▸ genre = "news"
   Inverted pyramid: who/what when → details → implications. Suggested:
@@ -58,26 +63,53 @@ GENRE PLAYBOOKS — start from the genre-specific ladder, then fall back
 
 ▸ genre = "documentation"
   Practical: what it is → how it works → how to use. Suggested:
-    1. metaphor (engine, gears, layers, pyramid) — the system / mechanism.
-    2. annotated_hero — a UI screen, code structure, or component anatomy.
-    3. metaphor (mountain, staircase) — setup / usage sequence.
-    4. comparison — alternatives, options, when-to-use.
+    1. definition_card — IF the doc centres on one concept/term, open by
+       defining it in plain language with an analogy. Great hook panel.
+    2. metaphor (engine, gears, layers, pyramid) — the system / mechanism.
+    3. annotated_hero — a UI screen, code structure, or component anatomy.
+    4. metaphor (mountain, staircase) — setup / usage sequence.
+    5. comparison — alternatives, options, when-to-use.
 
-▸ genre = "whitepaper" / "book_chapter" / "article" / "other"
+▸ genre = "book_chapter"
+  Treat it as literature, not data. The reader should feel the book's
+  voice. Suggested sequence:
+    1. quote_card — the chapter's single most arresting line, verbatim.
+       ALMOST ALWAYS panel 1 — it is the hook.
+    2. metaphor — the chapter's central idea as a conceptual shape
+       (garden, mountain, iceberg, loop... pick what the narrative implies).
+    3. timeline OR metaphor (domino) — IF the chapter narrates events.
+    4. key_findings — "what this chapter teaches" as 2–4 takeaways.
+    5. (optional) quote_card — a SECOND quote as the closer, only if the
+       chapter genuinely has two killer lines. Never more than two.
+
+▸ genre = "whitepaper"
+  A business argument: stakes → evidence → recommendation. Suggested:
+    1. stat_callout — the market/risk number that justifies reading.
+    2. key_findings — the paper's core claims as numbered findings with
+       figures. The signature panel for whitepapers.
+    3. chart — IF contentFeatures.hasNumericData is true.
+    4. comparison — current state vs proposed state, or vendor options.
+    5. metaphor (bridge, crossroads, funnel) — the recommendation.
+
+▸ genre = "article" / "other"
   Use the storytelling-metaphor flow: walk this ladder TOP-DOWN and stop
   at the first match per section:
     1. stat_callout    — one striking number summarises the section.
-    2. comparison      — 2–4 named things contrasted.
-    3. timeline        — dated or sequenced events.
-    4. chart           — section has 3+ labeled numbers worth charting
+    2. quote_card      — the section pivots on a striking quotable line
+                        (interviewee quote, thesis sentence, famous line).
+    3. comparison      — 2–4 named things contrasted.
+    4. timeline        — dated or sequenced events.
+    5. chart           — section has 3+ labeled numbers worth charting
                         (only if contentFeatures.hasNumericData is true).
-    5. metaphor        — section describes a conceptual pattern (duality,
+    6. key_findings    — section enumerates 2–4 discrete takeaways/lessons.
+    7. definition_card — section unpacks one term of art for outsiders.
+    8. metaphor        — section describes a conceptual pattern (duality,
                         sequence, aggregation, divergence, tension, cycle,
                         hierarchy, signal vs noise, growth, navigation).
                         Storytelling default.
-    6. annotated_hero  — section walks reader through a concrete depictable
+    9. annotated_hero  — section walks reader through a concrete depictable
                         subject (UI, device, chart, document, object).
-    7. flowchart       — LAST RESORT. Use sparingly; a metaphor is richer.
+    10. flowchart      — LAST RESORT. Use sparingly; a metaphor is richer.
 
 ═══════════════════════════════════════════════════════════════════════════
 WHEN TO REACH FOR chart SPECIFICALLY
