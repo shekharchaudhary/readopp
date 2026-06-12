@@ -44,11 +44,11 @@ export function UseCases() {
   return (
     <section
       id="use-cases"
-      className="section-amb amb-warm-tr border-b border-paper-line bg-paper"
+      className="section-amb amb-warm-tr border-b border-paper-line bg-surface"
     >
-      <div className="mx-auto max-w-6xl px-6 py-28 sm:py-36">
+      <div className="mx-auto max-w-6xl px-6 py-24 sm:py-32">
         <Reveal>
-          <SectionLabel number="03" title="Who it's for" />
+          <SectionLabel title="Who it's for" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
@@ -61,7 +61,7 @@ export function UseCases() {
           {PERSONAS.map((p, i) => (
             <Reveal key={p.kicker} delayMs={120 + i * 70}>
               <article className="flex h-full flex-col rounded-2xl border border-paper-line bg-surface p-7 shadow-[0_1px_2px_rgba(23,23,23,0.04)] transition-transform duration-500 hover:-translate-y-0.5 sm:p-8">
-                <div className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+                <div className="text-[13px] font-semibold tracking-tight text-accent">
                   {p.kicker}
                 </div>
                 <h3 className="mt-3 font-display text-xl font-medium tracking-tight text-ink sm:text-2xl">
@@ -70,7 +70,7 @@ export function UseCases() {
                 <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">
                   {p.body}
                 </p>
-                <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-paper-line pt-5 font-mono text-[11px] text-ink-muted">
+                <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-paper-line pt-5 text-xs text-ink-muted">
                   <span>{p.source}</span>
                   <span aria-hidden className="text-ink-faint">
                     →

@@ -67,7 +67,7 @@ export function Nav() {
           </a>
           <a
             href="#try"
-            className="ml-2 rounded-md border border-ink px-3.5 py-1.5 font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
+            className="btn-primary ml-2 !px-4 !py-1.5"
           >
             Try it
           </a>

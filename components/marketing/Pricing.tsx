@@ -88,10 +88,10 @@ export function Pricing() {
   const [billing, setBilling] = useState<Billing>("yearly");
 
   return (
-    <section id="pricing" className="section-amb amb-br border-b border-paper-line bg-paper">
-      <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
+    <section id="pricing" className="section-amb amb-br border-b border-paper-line bg-surface">
+      <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
         <Reveal>
-          <SectionLabel number="05" title="Pricing" />
+          <SectionLabel title="Pricing" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
@@ -247,7 +247,7 @@ function PlanCard({ plan, billing }: { plan: Plan; billing: Billing }) {
       {plan.badge && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <span
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] ${
+            className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold tracking-tight ${
               isHighlight
                 ? "bg-accent text-white"
                 : "bg-paper-soft text-ink-soft"
@@ -287,13 +287,7 @@ function PlanCard({ plan, billing }: { plan: Plan; billing: Billing }) {
 
       <Link
         href={plan.cta.href}
-        className={`mt-7 inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition ${
-          isHighlight
-            ? "bg-accent text-white hover:bg-accent-deep"
-            : isPaid
-            ? "bg-ink text-paper hover:bg-ink-soft"
-            : "border border-paper-line bg-surface text-ink hover:bg-paper-soft"
-        }`}
+        className={`mt-7 ${isHighlight ? "btn-accent" : isPaid ? "btn-primary" : "btn-ghost"}`}
       >
         {plan.cta.text}
         <span aria-hidden>&rarr;</span>

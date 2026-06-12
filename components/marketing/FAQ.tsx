@@ -31,9 +31,9 @@ const FAQS = [
 export function FAQ() {
   return (
     <section id="faq" className="section-amb amb-warm-tr border-b border-paper-line bg-paper">
-      <div className="mx-auto max-w-4xl px-6 py-28 sm:py-36">
+      <div className="mx-auto max-w-4xl px-6 py-24 sm:py-32">
         <Reveal>
-          <SectionLabel number="06" title="Questions" />
+          <SectionLabel title="Questions" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">

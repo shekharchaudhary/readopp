@@ -28,7 +28,7 @@ export default function HomePage() {
               {/* Left: copy + CTA */}
               <div>
                 <Reveal>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-accent-deep">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-paper-line bg-surface px-3.5 py-1.5 text-xs font-medium tracking-tight text-ink-soft">
                     <span className="h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
                     Visual posts from anything you read
                   </span>
@@ -36,7 +36,7 @@ export default function HomePage() {
                 <Reveal delayMs={80}>
                   <h1 className="mt-6 max-w-2xl font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
                     You shouldn&rsquo;t have to design what you{" "}
-                    <em className="not-italic text-accent">
+                    <em className="not-italic box-decoration-clone rounded-lg bg-accent-soft px-2 text-accent-deep">
                       already understand
                     </em>
                     .
@@ -62,7 +62,7 @@ export default function HomePage() {
                 </Reveal>
 
                 <Reveal delayMs={260}>
-                  <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted">
+                  <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-muted">
                     <span>3 free posts</span>
                     <span aria-hidden className="text-ink-faint">·</span>
                     <span>no credit card</span>
@@ -76,7 +76,7 @@ export default function HomePage() {
               <Reveal delayMs={300}>
                 <div className="lg:pl-4">
                   <HeroPostMockup />
-                  <p className="mt-3 px-2 text-center font-mono text-[11px] text-ink-muted">
+                  <p className="mt-3 px-2 text-center text-xs text-ink-muted">
                     A 4,000-word article became this carousel in 22 seconds.
                   </p>
                 </div>

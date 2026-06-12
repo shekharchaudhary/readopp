@@ -20,7 +20,7 @@ export function Footer() {
             </p>
           </div>
           <nav aria-label="Sections" className="flex flex-col gap-2 text-sm">
-            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-paper-line/50">
+            <p className="mb-1 text-xs font-medium tracking-tight text-paper-line/50">
               Read
             </p>
             <a href="#templates" className="text-paper-line/80 hover:text-paper">
@@ -37,7 +37,7 @@ export function Footer() {
             </a>
           </nav>
           <nav aria-label="Project" className="flex flex-col gap-2 text-sm">
-            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-paper-line/50">
+            <p className="mb-1 text-xs font-medium tracking-tight text-paper-line/50">
               Project
             </p>
             <a

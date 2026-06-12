@@ -8,9 +8,9 @@ export function TemplateGallery() {
       id="templates"
       className="section-amb amb-bl border-b border-paper-line bg-surface"
     >
-      <div className="mx-auto max-w-5xl px-6 py-28 sm:py-36">
+      <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
         <Reveal>
-          <SectionLabel number="01" title="The template library" />
+          <SectionLabel title="The template library" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">

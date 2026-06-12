@@ -40,10 +40,7 @@ export function FinalCTA() {
 
         <Reveal delayMs={280}>
           <div className="mt-9 flex flex-col items-center gap-3">
-            <Link
-              href="#try"
-              className="group inline-flex items-center gap-3 rounded-full bg-accent px-7 py-4 text-base font-medium text-white transition hover:bg-accent-deep"
-            >
+            <Link href="#try" className="btn-accent btn-lg group">
               Generate your first carousel
               <span
                 aria-hidden
@@ -52,7 +49,7 @@ export function FinalCTA() {
                 →
               </span>
             </Link>
-            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-paper-line/70">
+            <p className="text-[13px] text-paper-line/70">
               3 free posts · no credit card · works with any URL or PDF
             </p>
           </div>

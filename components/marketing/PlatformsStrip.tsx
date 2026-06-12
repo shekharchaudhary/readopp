@@ -14,7 +14,7 @@ export function PlatformsStrip() {
       <div className="mx-auto max-w-5xl px-6 py-14">
         <Reveal>
           <div className="grid items-baseline gap-8 sm:grid-cols-[180px_1fr]">
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-ink-muted">
+            <p className="text-xs font-medium tracking-tight text-ink-muted">
               Output
             </p>
             <ul className="flex flex-wrap items-baseline gap-x-7 gap-y-4">
