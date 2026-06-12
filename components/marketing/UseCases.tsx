@@ -1,5 +1,6 @@
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
+import { Squiggle } from "./Squiggle";
 
 interface Persona {
   kicker: string;
@@ -52,15 +53,15 @@ export function UseCases() {
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            Different readers, same problem: the good stuff never leaves the
-            tab.
+            Different readers, same problem: the good stuff{" "}
+            <Squiggle>never leaves</Squiggle> the tab.
           </h2>
         </Reveal>
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2">
           {PERSONAS.map((p, i) => (
             <Reveal key={p.kicker} delayMs={120 + i * 70}>
-              <article className="flex h-full flex-col rounded-2xl border border-paper-line bg-surface p-7 shadow-[0_1px_2px_rgba(23,23,23,0.04)] transition-transform duration-500 hover:-translate-y-0.5 sm:p-8">
+              <article className="card-int flex h-full flex-col rounded-2xl border border-paper-line bg-surface p-7 shadow-[0_1px_2px_rgba(23,23,23,0.04)] sm:p-8">
                 <div className="text-[13px] font-semibold tracking-tight text-accent">
                   {p.kicker}
                 </div>

@@ -1,6 +1,7 @@
 import { AgentDemoReel } from "./AgentDemoReel";
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
+import { Squiggle } from "./Squiggle";
 
 export function HowItWorks() {
   return (
@@ -11,7 +12,7 @@ export function HowItWorks() {
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            A team of agents, not a single prompt.
+            A team of <Squiggle>agents</Squiggle>, not a single prompt.
           </h2>
         </Reveal>
         <Reveal delayMs={120}>

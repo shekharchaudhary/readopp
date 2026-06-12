@@ -1,5 +1,6 @@
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
+import { Squiggle } from "./Squiggle";
 
 const FAQS = [
   {
@@ -37,7 +38,7 @@ export function FAQ() {
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            The questions people ask first.
+            The questions people ask <Squiggle>first</Squiggle>.
           </h2>
         </Reveal>
 
@@ -46,12 +47,12 @@ export function FAQ() {
             <Reveal key={f.q} delayMs={i * 40}>
               <details className="group py-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left">
-                  <span className="text-base font-medium text-ink transition-colors group-open:text-accent sm:text-lg">
+                  <span className="text-base font-medium text-ink transition-colors group-hover:text-accent-deep group-open:text-accent sm:text-lg">
                     {f.q}
                   </span>
                   <Chevron />
                 </summary>
-                <p className="mt-3 max-w-[64ch] pr-10 text-base leading-relaxed text-ink-soft">
+                <p className="mt-3 max-w-[64ch] pr-10 text-base leading-relaxed text-ink-soft group-open:animate-rise-in">
                   {f.a}
                 </p>
               </details>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Reveal } from "./Reveal";
+import { Squiggle } from "./Squiggle";
 
 /**
  * Bottom-of-page closer. Same "I've read everything, now what?" anchor
@@ -27,7 +28,7 @@ export function FinalCTA() {
 
         <Reveal delayMs={120}>
           <h2 className="mt-8 font-display text-4xl font-medium leading-[1.05] tracking-tight text-paper sm:text-5xl lg:text-[64px]">
-            Turn your next read into a post.
+            Turn your next read into a <Squiggle>post</Squiggle>.
           </h2>
         </Reveal>
 

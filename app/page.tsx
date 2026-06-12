@@ -36,7 +36,7 @@ export default function HomePage() {
                 <Reveal delayMs={80}>
                   <h1 className="mt-6 max-w-2xl font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
                     You shouldn&rsquo;t have to design what you{" "}
-                    <em className="not-italic box-decoration-clone rounded-lg bg-accent-soft px-2 text-accent-deep">
+                    <em className="hl-sweep not-italic box-decoration-clone rounded-lg px-2 text-accent-deep">
                       already understand
                     </em>
                     .

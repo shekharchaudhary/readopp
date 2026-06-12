@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Hero visual: a LinkedIn-style post mockup with a Readopp carousel panel
@@ -130,28 +130,45 @@ export function HeroPostMockup() {
   const postVisible = t >= DEMO_MS;
   const demoMounted = t < DEMO_END_MS;
 
+  // Manual navigation pauses the auto-rotation briefly so the reader can
+  // actually look at the panel they picked.
+  const pausedUntil = useRef(0);
+
   // Carousel rotation starts only after the intro hand-off, so the first
   // slide the viewer sees is the one the demo just "generated".
   useEffect(() => {
     if (!postVisible) return;
     const id = setInterval(() => {
+      if (performance.now() < pausedUntil.current) return;
       setCursor((c) => (c + 1) % SLIDES.length);
     }, 8000);
     return () => clearInterval(id);
   }, [postVisible]);
 
+  const go = (delta: number) => {
+    pausedUntil.current = performance.now() + 15000;
+    setCursor((c) => (c + delta + SLIDES.length) % SLIDES.length);
+  };
+
   const slide = SLIDES[cursor];
   const captionText = `Just finished “${truncate(slide.title, 56)}”. Made a quick visual breakdown — what do you think?`;
 
   return (
-    <div className="relative">
+    <div className="relative rotate-[1.2deg] transition-transform duration-500 ease-out hover:rotate-0 motion-reduce:rotate-0">
       <div
         className={
           "transition-all duration-700 ease-out " +
           (postVisible ? "scale-100 opacity-100" : "scale-[0.98] opacity-0")
         }
       >
-        <PostCard slide={slide} captionText={captionText} />
+        <PostCard
+          slide={slide}
+          captionText={captionText}
+          onPrev={() => go(-1)}
+          onNext={() => go(1)}
+          index={cursor}
+          count={SLIDES.length}
+        />
       </div>
       {demoMounted && (
         <div
@@ -170,9 +187,17 @@ export function HeroPostMockup() {
 function PostCard({
   slide,
   captionText,
+  onPrev,
+  onNext,
+  index,
+  count,
 }: {
   slide: Slide;
   captionText: string;
+  onPrev: () => void;
+  onNext: () => void;
+  index: number;
+  count: number;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-paper-line bg-surface shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
@@ -202,14 +227,43 @@ function PostCard({
 
       {/* Carousel area */}
       <div className="relative border-t border-paper-line bg-paper">
-        <div className="relative aspect-square w-full p-5 sm:p-6">
+        <div className="group relative aspect-square w-full p-5 sm:p-6">
           <div
             key={slide.id}
             className="hero-post-fade flex h-full w-full items-center justify-center"
             dangerouslySetInnerHTML={{ __html: slide.svg }}
           />
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/85 px-2.5 py-1 text-[10px] font-medium text-paper backdrop-blur">
-            {slide.page}
+          <button
+            type="button"
+            aria-label="Previous panel"
+            onClick={onPrev}
+            className="absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-paper-line bg-surface/90 text-ink opacity-0 shadow-sm backdrop-blur transition-all duration-200 hover:scale-110 hover:border-accent group-hover:opacity-100"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next panel"
+            onClick={onNext}
+            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-paper-line bg-surface/90 text-ink opacity-0 shadow-sm backdrop-blur transition-all duration-200 hover:scale-110 hover:border-accent group-hover:opacity-100"
+          >
+            ›
+          </button>
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink/85 px-2.5 py-1 backdrop-blur">
+            <span className="text-[10px] font-medium text-paper">
+              {slide.page}
+            </span>
+            <span aria-hidden className="flex items-center gap-1">
+              {Array.from({ length: count }, (_, i) => (
+                <span
+                  key={i}
+                  className={
+                    "h-1 w-1 rounded-full transition-colors duration-300 " +
+                    (i === index ? "bg-accent" : "bg-paper/40")
+                  }
+                />
+              ))}
+            </span>
           </div>
         </div>
         {/* Slim caption / heading under the carousel */}
@@ -397,6 +451,53 @@ function HeroIntroDemo({ t }: { t: number }) {
               (t < PANEL_AT ? "opacity-100" : "opacity-0")
             }
           >
+            {/* Sketch doodles: the agents "thinking on paper" around the list. */}
+            <svg
+              aria-hidden
+              viewBox="0 0 400 400"
+              className="pointer-events-none absolute inset-0 h-full w-full text-accent/50"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle
+                cx="58"
+                cy="64"
+                r="22"
+                pathLength={1}
+                className="animate-[introSketch_700ms_ease-out_200ms_both]"
+              />
+              <path
+                d="M330 52 l 36 0 m -18 -18 l 0 36"
+                pathLength={1}
+                className="animate-[introSketch_600ms_ease-out_700ms_both]"
+              />
+              <path
+                d="M40 330 c 14 -12, 22 10, 36 -2 c 14 -12, 22 10, 36 -2"
+                pathLength={1}
+                className="animate-[introSketch_700ms_ease-out_1200ms_both]"
+              />
+              <path
+                d="M322 318 l 44 24 m -8 -22 l 8 22 l -23 -3"
+                pathLength={1}
+                className="animate-[introSketch_700ms_ease-out_1700ms_both]"
+              />
+              <rect
+                x="318"
+                y="170"
+                width="34"
+                height="26"
+                rx="6"
+                pathLength={1}
+                className="animate-[introSketch_700ms_ease-out_2200ms_both]"
+              />
+              <path
+                d="M44 180 a 20 20 0 1 1 8 38"
+                pathLength={1}
+                className="animate-[introSketch_700ms_ease-out_2700ms_both]"
+              />
+            </svg>
             <div className="w-full max-w-[280px] space-y-2 px-6">
               {AGENTS.map((a, i) => {
                 const done = t >= AGENT_START + (i + 1) * AGENT_MS;
@@ -556,6 +657,10 @@ function HeroIntroDemo({ t }: { t: number }) {
         @keyframes introScan {
           from { top: -3rem; }
           to { top: 100%; }
+        }
+        @keyframes introSketch {
+          from { stroke-dasharray: 1; stroke-dashoffset: 1; }
+          to { stroke-dasharray: 1; stroke-dashoffset: 0; }
         }
       `}</style>
     </div>

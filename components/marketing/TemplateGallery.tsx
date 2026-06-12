@@ -1,5 +1,6 @@
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
+import { Squiggle } from "./Squiggle";
 import { TemplateLibraryShowcase } from "./TemplateLibraryShowcase";
 
 export function TemplateGallery() {
@@ -15,7 +16,7 @@ export function TemplateGallery() {
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
             Nineteen templates, six categories &mdash; pick one that already
-            feels like you.
+            feels like <Squiggle>you</Squiggle>.
           </h2>
         </Reveal>
         <Reveal delayMs={120}>

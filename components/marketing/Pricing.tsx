@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ReactNode, useState } from "react";
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
+import { Squiggle } from "./Squiggle";
 
 /**
  * Pricing section. Three tiers, single highlight, monthly/yearly toggle,
@@ -95,7 +96,7 @@ export function Pricing() {
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            Free until you find your rhythm.
+            Free until you find your <Squiggle>rhythm</Squiggle>.
           </h2>
         </Reveal>
         <Reveal delayMs={120}>
@@ -238,10 +239,10 @@ function PlanCard({ plan, billing }: { plan: Plan; billing: Billing }) {
 
   return (
     <article
-      className={`relative flex h-full flex-col rounded-2xl border bg-surface p-7 transition-transform duration-500 ${
+      className={`relative flex h-full flex-col rounded-2xl border bg-surface p-7 transition-all duration-300 ease-out ${
         isHighlight
           ? "border-accent shadow-[0_24px_60px_-30px_rgba(232,93,42,0.45)] sm:-translate-y-2 sm:hover:-translate-y-3"
-          : "border-paper-line shadow-[0_1px_2px_rgba(23,23,23,0.04)] hover:-translate-y-0.5"
+          : "card-int border-paper-line shadow-[0_1px_2px_rgba(23,23,23,0.04)]"
       }`}
     >
       {plan.badge && (

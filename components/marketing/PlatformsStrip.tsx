@@ -17,10 +17,13 @@ export function PlatformsStrip() {
             <p className="text-xs font-medium tracking-tight text-ink-muted">
               Output
             </p>
-            <ul className="flex flex-wrap items-baseline gap-x-7 gap-y-4">
+            <ul className="flex flex-wrap items-center gap-2.5">
               {PLATFORMS.map((p) => (
-                <li key={p.name} className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium tracking-tight text-ink sm:text-base">
+                <li
+                  key={p.name}
+                  className="flex cursor-default items-baseline gap-2 rounded-full border border-paper-line bg-surface px-3.5 py-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-[0_8px_20px_-12px_rgba(232,93,42,0.4)]"
+                >
+                  <span className="text-sm font-medium tracking-tight text-ink">
                     {p.name}
                   </span>
                   <span className="font-mono text-[11px] text-ink-faint">
