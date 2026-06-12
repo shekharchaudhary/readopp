@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { ICON_NAMES } from "@/lib/render/icons";
 
 // ---------- Job-level ----------
+
+/** Planner-pickable icon from the curated library (lib/render/icons.ts). */
+export const IconNameSchema = z.enum(ICON_NAMES);
 
 export const AudienceLevelSchema = z.enum([
   "general",
@@ -198,11 +202,13 @@ export type MetaphorKind = z.infer<typeof MetaphorKindSchema>;
 const SlotItemSchema = z.object({
   name: z.string().min(1).max(40),
   sub: z.string().max(80).nullish(),
+  icon: IconNameSchema.nullish(),
 });
 
 const PoleItemSchema = z.object({
   label: z.string().min(1).max(40),
   sub: z.string().max(80).nullish(),
+  icon: IconNameSchema.nullish(),
 });
 
 // Single permissive shape — each metaphor template reads the fields it cares
@@ -427,6 +433,9 @@ export const PanelPlanSchema = z.object({
   comparison: z
     .object({
       columns: z.array(z.string()).default([]),
+      // Aligned with `columns` — icon for each side's medallion in the VS
+      // scene. Optional; renderers fall back to initials when absent.
+      columnIcons: z.array(IconNameSchema.nullable()).nullish(),
       // Defaults on label + cells so the model's occasional `[{}, {}]` payload
       // still parses; the planner filters empty rows before returning.
       rows: z

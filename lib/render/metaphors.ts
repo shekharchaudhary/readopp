@@ -9,6 +9,7 @@
  * Style matches the samples in /samples — editorial illustration, leader-line
  * labels, one hero color per panel, organic where it should be organic.
  */
+import { iconSvg, isIconName } from "./icons";
 import type { MetaphorKind, MetaphorPlan, PanelPlan } from "../shared/schemas";
 
 type TemplateFn = (plan: MetaphorPlan) => string;
@@ -65,7 +66,7 @@ export function hasMetaphorTemplate(kind: MetaphorKind): boolean {
 const FONT =
   "ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif";
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -77,7 +78,7 @@ function esc(s: string): string {
  * Word-wrap a label into up to `maxLines` lines, each at most `maxChars` chars.
  * Returns the lines; a trailing line is ellipsised if there's overflow.
  */
-function wrap(text: string, maxChars: number, maxLines: number): string[] {
+export function wrap(text: string, maxChars: number, maxLines: number): string[] {
   const words = text.trim().split(/\s+/);
   const lines: string[] = [];
   let cur = "";
@@ -106,7 +107,7 @@ function wrap(text: string, maxChars: number, maxLines: number): string[] {
 /**
  * Multi-line <text> block. lineHeight is in px between baselines.
  */
-function textBlock(
+export function textBlock(
   x: number,
   y: number,
   lines: string[],
@@ -129,12 +130,27 @@ function textBlock(
     .join("");
 }
 
-function svgWrap(viewH: number, title: string, desc: string, body: string): string {
+export function svgWrap(viewH: number, title: string, desc: string, body: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 ${viewH}" role="img" font-family="${FONT}"><title>${esc(title)}</title><desc>${esc(desc)}</desc>${body}</svg>`;
 }
 
+/**
+ * Planner-chosen icon for a pole/item/hub slot, or "" when absent/unknown.
+ * x/y is the top-left of the icon box.
+ */
+function slotIcon(
+  icon: string | null | undefined,
+  x: number,
+  y: number,
+  size: number,
+  stroke: string
+): string {
+  if (!icon || !isIconName(icon)) return "";
+  return iconSvg(icon, { x, y, size, stroke });
+}
+
 // Palette tokens reused across templates.
-const C = {
+export const C = {
   blue: { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" },
   teal: { fill: "#E1F5EE", stroke: "#0F6E56", text: "#085041" },
   amber: { fill: "#FAEEDA", stroke: "#854F0B", text: "#633806" },
@@ -174,9 +190,11 @@ function renderIceberg(m: MetaphorPlan): string {
     ${ratio ? `<text x="338" y="316" font-size="56" font-weight="500" fill="${C.blue.stroke}" text-anchor="middle" opacity="0.18">${esc(ratio)}</text>` : ""}
     <line x1="384" y1="135" x2="490" y2="105" stroke="${C.inkMuted}" stroke-width="1"/>
     <circle cx="384" cy="135" r="2.5" fill="${C.inkMuted}"/>
+    ${slotIcon(visible.icon, 500, 64, 22, C.blue.stroke)}
     ${textBlock(500, 100, visLines, { fontSize: 14, fontWeight: 500, fill: C.blue.text, lineHeight: 18 })}
     <line x1="290" y1="340" x2="160" y2="380" stroke="${C.inkMuted}" stroke-width="1"/>
     <circle cx="290" cy="340" r="2.5" fill="${C.inkMuted}"/>
+    ${slotIcon(hidden.icon, 40, 340, 22, C.blue.stroke)}
     ${textBlock(40, 376, hidLines, { fontSize: 14, fontWeight: 500, fill: C.blue.text, lineHeight: 18 })}
   `;
   return svgWrap(H, visible.label, hidden.label, body);
@@ -219,6 +237,7 @@ function renderMountain(m: MetaphorPlan): string {
       <line x1="${pos.cx}" y1="${pos.cy}" x2="${pos.cx}" y2="${pos.cy - 20}" stroke="${C.amber.text}" stroke-width="1.5"/>
       <path d="M ${pos.cx} ${pos.cy - 20} L ${pos.cx + 22} ${pos.cy - 13} L ${pos.cx} ${pos.cy - 6} Z" fill="${C.amber.text}"/>
       <line x1="${leaderX1}" y1="${leaderY}" x2="${leaderX2}" y2="${leaderY}" stroke="${C.inkMuted}" stroke-width="1" opacity="0.7"/>
+      ${slotIcon(s.icon, lx, pos.cy - 48, 20, C.amber.stroke)}
       <text x="${lx}" y="${pos.cy - 14}" font-size="12" font-weight="500" fill="${C.amber.stroke}" text-anchor="${anchor}">${esc(labelLines[0])}</text>
       <text x="${lx}" y="${pos.cy + 4}" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="${anchor}">${esc(labelLines[1] || "")}</text>
       ${labelLines
@@ -316,10 +335,12 @@ function renderBridge(m: MetaphorPlan): string {
     ${via ? `<text x="340" y="220" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(via)}</text>` : ""}
     ${via ? `<line x1="340" y1="228" x2="340" y2="244" stroke="${C.amber.stroke}" stroke-width="1" opacity="0.4"/>` : ""}
     <!-- Before label -->
+    ${slotIcon(before.icon, 84, 48, 32, C.gray.stroke)}
     <text x="100" y="100" font-size="12" font-weight="500" fill="${C.gray.stroke}" text-anchor="middle">BEFORE</text>
     <text x="100" y="124" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(before.label)}</text>
     ${before.sub ? `<text x="100" y="142" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(before.sub)}</text>` : ""}
     <!-- After label -->
+    ${slotIcon(after.icon, 564, 48, 32, C.amber.stroke)}
     <text x="580" y="100" font-size="12" font-weight="500" fill="${C.amber.stroke}" text-anchor="middle">AFTER</text>
     <text x="580" y="124" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(after.label)}</text>
     ${after.sub ? `<text x="580" y="142" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(after.sub)}</text>` : ""}
@@ -332,6 +353,11 @@ function renderScale(m: MetaphorPlan): string {
   const right = m.poles[1] ?? { label: "Side B", sub: null };
   const question = m.hint || "";
   const H = 420;
+  const leftIcon = slotIcon(left.icon, 186, 168, 28, C.blue.stroke);
+  const rightIcon = slotIcon(right.icon, 466, 168, 28, C.amber.stroke);
+  // With an icon resting on the pan, the label pair moves up to clear it.
+  const lLabelY = leftIcon ? 140 : 160;
+  const rLabelY = rightIcon ? 140 : 160;
 
   // Balance beam with two pans. Slight tilt: render level for neutrality.
   const body = `
@@ -355,11 +381,14 @@ function renderScale(m: MetaphorPlan): string {
     <!-- Right pan -->
     <path d="M 420 200 Q 480 240, 540 200" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
     <line x1="420" y1="200" x2="540" y2="200" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    <!-- Icons resting on the pans -->
+    ${leftIcon}
+    ${rightIcon}
     <!-- Labels above pans -->
-    <text x="200" y="160" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(left.label)}</text>
-    ${left.sub ? `<text x="200" y="178" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
-    <text x="480" y="160" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
-    ${right.sub ? `<text x="480" y="178" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
+    <text x="200" y="${lLabelY}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(left.label)}</text>
+    ${left.sub ? `<text x="200" y="${lLabelY + 18}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
+    <text x="480" y="${rLabelY}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
+    ${right.sub ? `<text x="480" y="${rLabelY + 18}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
   `;
   return svgWrap(H, `${left.label} vs ${right.label}`, question, body);
 }
@@ -443,8 +472,10 @@ function renderTugOfWar(m: MetaphorPlan): string {
   const body = `
     ${prize ? `<text x="340" y="60" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle">${esc(prize)}</text>` : ""}
     <rect x="80" y="200" width="60" height="60" rx="6" ry="6" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+    ${slotIcon(left.icon, 94, 214, 32, C.blue.stroke)}
     <line x1="60" y1="260" x2="160" y2="260" stroke="${C.blue.stroke}" stroke-width="1.5"/>
     <rect x="540" y="200" width="60" height="60" rx="6" ry="6" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    ${slotIcon(right.icon, 554, 214, 32, C.amber.stroke)}
     <line x1="520" y1="260" x2="620" y2="260" stroke="${C.amber.stroke}" stroke-width="1.5"/>
     <line x1="140" y1="230" x2="540" y2="230" stroke="${C.gray.stroke}" stroke-width="4" stroke-linecap="round"/>
     <line x1="140" y1="230" x2="540" y2="230" stroke="${C.paper}" stroke-width="1" stroke-dasharray="2 4"/>
@@ -502,6 +533,7 @@ function renderStaircase(m: MetaphorPlan): string {
     const nameLines = wrap(s.name, 14, 2);
     return `
       <rect x="${x}" y="${y}" width="${STEP_W}" height="${STEP_H}" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+      ${slotIcon(s.icon, x + STEP_W / 2 - 11, y - 50, 22, C.blue.stroke)}
       <text x="${x + STEP_W / 2}" y="${y - 8}" font-size="12" font-weight="500" fill="${C.blue.stroke}" text-anchor="middle">STEP ${i + 1}</text>
       ${nameLines.map((l, j) => `<text x="${x + STEP_W / 2}" y="${y + 26 + j * 16}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(l)}</text>`).join("")}
       ${s.sub ? `<text x="${x + STEP_W / 2}" y="${y + STEP_H - 8}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(s.sub)}</text>` : ""}
@@ -745,6 +777,7 @@ function renderCrossroads(m: MetaphorPlan): string {
       <path d="${d}" fill="none" stroke="${pal.stroke}" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
       <path d="${d}" fill="none" stroke="${pal.stroke}" stroke-width="2"/>
       <rect x="${tx - 56}" y="${PATH_TOP_Y - 68}" width="112" height="54" rx="6" ry="6" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      ${slotIcon(p.icon, tx - 13, PATH_TOP_Y - 100, 26, pal.stroke)}
       ${nameLines.map((l, j) => `<text x="${tx}" y="${PATH_TOP_Y - 44 + j * 16}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(l)}</text>`).join("")}
       ${subLines.map((l, j) => `<text x="${tx}" y="${PATH_TOP_Y + 14 + j * 16}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(l)}</text>`).join("")}
     `;

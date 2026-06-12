@@ -1,4 +1,5 @@
 import { callMessages, MODEL_STRONG } from "../anthropic";
+import { ICON_CATALOG_LINE } from "../render/icons";
 import {
   PanelPlanSchema,
   type AudienceLevel,
@@ -21,6 +22,11 @@ FILL FIELDS BY VISUALTYPE
 • stat_callout -> "stat" { value, label }. Value is a short string like "90%", "$2.4B", "3×".
 
 • comparison   -> "comparison" with 2–3 columns and 2–5 rows. Cell text short.
+  "columns" is REQUIRED: the name of each thing being compared
+  (e.g. ["Remote work", "Office work"]). Never leave it empty.
+  Also fill "columnIcons": one icon per column from the ICON LIBRARY below,
+  picking the icon that best embodies each side (e.g. ["rocket","shield"] for
+  speed vs safety). Use null for a column with no good fit.
 
 • timeline     -> "timeline" items (when, what), 3–6 entries.
 
@@ -105,6 +111,16 @@ FILL FIELDS BY VISUALTYPE
     - kind: pick ONE of the 26 below.
     - Fill the fields that kind needs (see the recipe below). Leave irrelevant
       fields empty / omit them.
+    - Each pole, item, and hub may carry an "icon" from the ICON LIBRARY below.
+      Pick the icon that depicts the THING the label names, not the metaphor
+      shape itself. Omit "icon" when nothing fits — a wrong icon is worse
+      than none.
+
+═══════════════════════════════════════════════════════════════════════════
+ICON LIBRARY — the only valid values for any "icon" / "columnIcons" field
+═══════════════════════════════════════════════════════════════════════════
+
+${ICON_CATALOG_LINE}
 
 ═══════════════════════════════════════════════════════════════════════════
 METAPHOR PICK RULES — walk this ladder TOP-DOWN, stop at the first match
@@ -323,6 +339,14 @@ export async function runPlanner(
       if (realRows.length < 2 && section.visualType === "comparison") {
         throw new Error(
           "comparison.rows must contain at least 2 rows, each with a non-empty label and at least one non-empty cell"
+        );
+      }
+      if (
+        section.visualType === "comparison" &&
+        plan.comparison.columns.filter((c) => c.trim()).length < 2
+      ) {
+        throw new Error(
+          'comparison.columns must name each side being compared, e.g. ["Remote work", "Office work"]'
         );
       }
       plan.comparison = { ...plan.comparison, rows: realRows };

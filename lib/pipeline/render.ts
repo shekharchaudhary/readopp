@@ -1,10 +1,11 @@
-import { callMessages, MODEL_STRONG } from "../anthropic";
+import { callMessages, MODEL_DRAW } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import { fixSvg } from "../render/fixer";
 import { renderGenrePanel } from "../render/genrePanels";
 import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
+import { renderVsScene } from "../render/vsScene";
 import {
   stripFences,
   validateHtmlPanel,
@@ -102,6 +103,25 @@ export async function renderPanel(
     }
   }
 
+  // Two-column comparisons become a deterministic Napkin-style VS scene;
+  // anything wider or wordier falls through to the model-rendered HTML table.
+  if (plan.visualType === "comparison") {
+    const svg = renderVsScene(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+  }
+
   // Phase 7b genre-specific templates — also deterministic.
   if (
     plan.visualType === "profile_card" ||
@@ -147,10 +167,10 @@ export async function renderPanel(
     let text = "";
     try {
       const res = await callMessages(
+        // No temperature: Opus 4.7 rejects the param outright.
         {
-          model: MODEL_STRONG,
+          model: MODEL_DRAW,
           max_tokens: 4096,
-          temperature: 0.3,
           system,
           messages,
         },
@@ -190,6 +210,7 @@ export async function renderPanel(
   }
 
   // Fallback: titled card with the caption so the explainer isn't broken.
+  console.warn(`render[${plan.sectionId}] fell back to placeholder: ${lastError}`);
   return buildFallbackPanel(plan.sectionId, heading, plan.caption);
 }
 

@@ -4,11 +4,15 @@ import { addUsage } from "./store";
 
 // Strong tier: comprehension / planning / render quality.
 // Fast tier: mechanical cleanups / classification.
-// Override either via env if you want to swap models without code changes.
+// Draw tier: freeform SVG/HTML panel drawing — the one stage where raw
+// drawing ability visibly moves output quality, so it gets the top model.
+// Override any tier via env if you want to swap models without code changes.
 export const MODEL_STRONG =
   process.env.ANTHROPIC_MODEL_STRONG || "claude-sonnet-4-5";
 export const MODEL_FAST =
   process.env.ANTHROPIC_MODEL_FAST || "claude-haiku-4-5-20251001";
+export const MODEL_DRAW =
+  process.env.ANTHROPIC_MODEL_DRAW || "claude-opus-4-7";
 
 let _client: Anthropic | null = null;
 
