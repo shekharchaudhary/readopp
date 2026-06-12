@@ -44,7 +44,8 @@ export function Demo4Share() {
   const done = t >= 7200;
 
   return (
-    <DemoFrame label="Share">
+    // No frame label — the mock's own "Share ▾" button sits in that corner.
+    <DemoFrame>
       <div className="relative h-[300px] sm:h-[320px]">
         {/* Background: a faded mock of the explainer page */}
         <div
@@ -86,7 +87,7 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
         </div>
         <div
           className={
-            "shrink-0 rounded-md border bg-white px-2.5 py-1 text-xs font-medium transition-all duration-200 " +
+            "shrink-0 rounded-md border bg-surface px-2.5 py-1 text-xs font-medium transition-all duration-200 " +
             (shareTap
               ? "border-accent text-accent shadow-[0_0_0_3px_rgba(232,93,42,0.2)]"
               : "border-paper-line text-ink-soft")
@@ -97,7 +98,7 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
       </div>
 
       {/* One panel preview */}
-      <div className="mt-3 rounded-md border border-paper-line bg-white p-3">
+      <div className="mt-3 rounded-md border border-paper-line bg-surface p-3">
         <svg viewBox="0 0 200 70" className="h-16 w-full" aria-hidden>
           <g transform="rotate(-90 48 36)">
             <circle cx="48" cy="36" r="17" fill="none" stroke="#F9E5D9" strokeWidth="9" />
@@ -138,7 +139,7 @@ function ExportSheet({
 }) {
   const tabs: Format[] = ["instagram", "tiktok", "linkedin"];
   return (
-    <div className="rounded-t-xl border-t border-paper-line bg-white p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+    <div className="rounded-t-xl border-t border-paper-line bg-surface p-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
       {/* Format tabs + kind toggle */}
       <div className="flex items-center gap-1.5">
         {tabs.map((tabKey) => {
@@ -150,7 +151,7 @@ function ExportSheet({
                 "flex-1 rounded-md border px-2 py-1 text-center text-[11px] font-medium transition-all duration-200 " +
                 (active
                   ? "border-accent bg-accent-soft text-accent-deep"
-                  : "border-paper-line bg-white text-ink-muted")
+                  : "border-paper-line bg-surface text-ink-muted")
               }
             >
               <div>{FORMAT_LABEL[tabKey]}</div>
@@ -168,7 +169,7 @@ function ExportSheet({
                 "rounded-sm border px-1.5 py-0.5 text-center font-mono text-[9px] font-medium uppercase transition-all duration-200 " +
                 (kind === k
                   ? "border-ink bg-ink text-paper"
-                  : "border-paper-line bg-white text-ink-faint")
+                  : "border-paper-line bg-surface text-ink-faint")
               }
             >
               {k}
@@ -224,7 +225,7 @@ function MoviePreview({ progress, done }: { progress: number; done: boolean }) {
   const w = (9 / 16) * maxH;
   return (
     <div
-      className="relative overflow-hidden rounded-sm border border-ink/30 bg-dark animate-[demoSwap_300ms_ease-out]"
+      className="force-light relative overflow-hidden rounded-sm border border-ink/30 bg-dark animate-[demoSwap_300ms_ease-out]"
       style={{ width: `${w}px`, height: `${maxH}px` }}
     >
       {/* Tiny title scene */}
@@ -302,7 +303,7 @@ function FormatPreview({ fmt }: { fmt: Format }) {
   return (
     <div
       key={fmt}
-      className="overflow-hidden rounded-sm border border-paper-line bg-white animate-[demoSwap_300ms_ease-out]"
+      className="overflow-hidden rounded-sm border border-paper-line bg-surface animate-[demoSwap_300ms_ease-out]"
       style={{ width: `${scaleW}px`, height: `${scaleH}px` }}
     >
       <div className="flex h-full flex-col p-1.5">

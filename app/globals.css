@@ -2,14 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic palette as RGB channels so Tailwind alpha modifiers
+   (e.g. bg-ink/15) keep working. Light is the default; .dark flips
+   every token to the warm-charcoal counterpart. */
 :root {
   color-scheme: light;
+  --c-ink: 23 23 23; /* #171717 */
+  --c-ink-soft: 95 90 82; /* #5F5A52 */
+  --c-ink-muted: 133 126 114; /* #857E72 */
+  --c-ink-faint: 171 163 149; /* #ABA395 */
+  --c-paper: 247 243 234; /* #F7F3EA */
+  --c-paper-soft: 239 232 220; /* #EFE8DC */
+  --c-paper-line: 216 206 192; /* #D8CEC0 */
+  --c-surface: 255 253 248; /* #FFFDF8 */
+  --c-dark: 16 16 16; /* #101010 */
+  --c-accent: 232 93 42; /* #E85D2A */
+  --c-accent-soft: 249 229 217; /* #F9E5D9 */
+  --c-accent-deep: 178 63 20; /* #B23F14 */
+}
+
+.dark {
+  color-scheme: dark;
+  --c-ink: 242 238 227; /* #F2EEE3 */
+  --c-ink-soft: 205 198 184; /* #CDC6B8 */
+  --c-ink-muted: 163 155 139; /* #A39B8B */
+  --c-ink-faint: 118 112 97; /* #767061 */
+  --c-paper: 20 18 16; /* #141210 */
+  --c-paper-soft: 30 27 23; /* #1E1B17 */
+  --c-paper-line: 54 49 42; /* #36312A */
+  --c-surface: 26 24 20; /* #1A1814 */
+  --c-dark: 8 8 8; /* keeps "dark" cards darker than the dark paper */
+  --c-accent: 235 104 56; /* #EB6838 — nudged brighter for dark bg */
+  --c-accent-soft: 60 36 23; /* #3C2417 — deep warm tint */
+  --c-accent-deep: 240 138 95; /* #F08A5F — light enough to read as text */
+}
+
+/* Regions whose look must not flip with the theme: always-dark chrome
+   (footer, CTA band, editor toolbars) and artifact previews that depict
+   exported panels. Re-pins every token to the light palette so the
+   existing semantic classes inside keep today's colors in dark mode. */
+.force-light {
+  color-scheme: light;
+  --c-ink: 23 23 23;
+  --c-ink-soft: 95 90 82;
+  --c-ink-muted: 133 126 114;
+  --c-ink-faint: 171 163 149;
+  --c-paper: 247 243 234;
+  --c-paper-soft: 239 232 220;
+  --c-paper-line: 216 206 192;
+  --c-surface: 255 253 248;
+  --c-dark: 16 16 16;
+  --c-accent: 232 93 42;
+  --c-accent-soft: 249 229 217;
+  --c-accent-deep: 178 63 20;
 }
 
 html,
 body {
-  background: #f7f3ea;
-  color: #171717;
+  background: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -76,8 +127,16 @@ body {
 .amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(232,93,42,0.045), transparent 75%); }
 .amb-warm-tr { --section-glow: radial-gradient(60% 45% at 95% 8%,  rgba(214,158,46,0.05), transparent 70%); }
 
+/* Ambient glows need a touch more alpha to register on dark paper. */
+.dark .amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(235,104,56,0.10), transparent 70%); }
+.dark .amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(235,104,56,0.08), transparent 70%); }
+.dark .amb-bl      { --section-glow: radial-gradient(55% 45% at 8% 100%, rgba(214,158,46,0.08), transparent 70%); }
+.dark .amb-br      { --section-glow: radial-gradient(60% 45% at 95% 100%, rgba(240,138,95,0.07), transparent 70%); }
+.dark .amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(235,104,56,0.07), transparent 75%); }
+.dark .amb-warm-tr { --section-glow: radial-gradient(60% 45% at 95% 8%,  rgba(214,158,46,0.08), transparent 70%); }
+
 /* Subtle focus ring */
 :focus-visible {
-  outline: 2px solid #171717;
+  outline: 2px solid rgb(var(--c-ink));
   outline-offset: 2px;
 }

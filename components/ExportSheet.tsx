@@ -173,14 +173,14 @@ export function ExportSheet({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-paper-line bg-white px-3 py-1.5 text-sm text-ink-soft hover:border-ink-muted"
+            className="rounded-md border border-paper-line bg-surface px-3 py-1.5 text-sm text-ink-soft hover:border-ink-muted"
           >
             Close
           </button>
         </header>
 
         <div className="border-b border-paper-line px-5 pt-3">
-          <div className="inline-flex rounded-md border border-paper-line bg-white p-0.5">
+          <div className="inline-flex rounded-md border border-paper-line bg-surface p-0.5">
             <ModeTab
               active={mode === "image"}
               onClick={() => {
@@ -352,7 +352,7 @@ function ImageFormats({
               "rounded-md border px-3 py-3 text-left text-sm transition-colors " +
               (selected
                 ? "border-ink bg-ink text-paper"
-                : "border-paper-line bg-white text-ink-soft hover:border-ink-muted")
+                : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted")
             }
             aria-pressed={selected}
           >
@@ -402,7 +402,7 @@ function VideoFormats({
               "rounded-md border px-3 py-3 text-left text-sm transition-colors " +
               (selected
                 ? "border-accent bg-accent text-paper"
-                : "border-paper-line bg-white text-ink-soft hover:border-ink-muted")
+                : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted")
             }
             aria-pressed={selected}
           >
@@ -484,7 +484,7 @@ function ImagePreview({
                     : `readopp-${format}-${img.panelIndex}.png`
                 }
                 className={
-                  "block overflow-hidden rounded-md border bg-white " +
+                  "block overflow-hidden rounded-md border bg-surface " +
                   (isAttribution
                     ? "border-accent/40 ring-1 ring-accent/15"
                     : "border-paper-line")
@@ -515,7 +515,7 @@ function ImagePreview({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-md border border-paper-line bg-white">
+      <div className="overflow-hidden rounded-md border border-paper-line bg-surface">
         <img
           src={result.url}
           alt={`${format} export preview`}
@@ -607,7 +607,7 @@ function CaptionPack({
 
   if (!socialPack) {
     return (
-      <div className="space-y-3 rounded-md border border-paper-line bg-white p-4">
+      <div className="space-y-3 rounded-md border border-paper-line bg-surface p-4">
         <p className="text-sm text-ink-soft">
           No caption yet. Generate one and we&rsquo;ll write a 2-line post
           caption + hashtags + alt-text for each panel.
@@ -638,7 +638,7 @@ function CaptionPack({
             type="button"
             onClick={regenerate}
             disabled={busy}
-            className="rounded-md border border-paper-line bg-white px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? "Refreshing…" : "Refresh"}
           </button>
@@ -682,7 +682,7 @@ function CaptionPack({
             {socialPack.altTexts.map((a) => (
               <div
                 key={a.sectionId}
-                className="rounded-md border border-paper-line bg-white p-2.5"
+                className="rounded-md border border-paper-line bg-surface p-2.5"
               >
                 <div className="text-[10px] font-medium uppercase tracking-wider text-ink-faint">
                   {a.sectionId}
@@ -733,7 +733,7 @@ function Block({
             <button
               type="button"
               onClick={copy}
-              className="rounded-md border border-paper-line bg-white px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted"
+              className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted"
             >
               {copied ? "Copied!" : "Copy"}
             </button>

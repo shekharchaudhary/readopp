@@ -54,7 +54,7 @@ export function DemoFrame({
       aria-hidden
     >
       {label && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-faint backdrop-blur">
+        <span className="absolute right-3 top-3 z-10 rounded-full bg-surface/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-faint backdrop-blur">
           {label}
         </span>
       )}

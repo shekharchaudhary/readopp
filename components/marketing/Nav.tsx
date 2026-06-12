@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AuthMenu } from "@/components/AuthMenu";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -71,6 +72,7 @@ export function Nav() {
             Try it
           </a>
           <span aria-hidden className="mx-1 h-5 w-px bg-paper-line" />
+          <ThemeToggle />
           <AuthMenu />
         </div>
       </div>

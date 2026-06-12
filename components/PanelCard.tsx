@@ -137,7 +137,7 @@ export function PanelCard({
 
   return (
     <article
-      className="relative rounded-lg border border-paper-line bg-white motion-safe:animate-rise-in"
+      className="relative rounded-lg border border-paper-line bg-surface motion-safe:animate-rise-in"
       style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
     >
       <div className="flex items-start justify-between gap-4 border-b border-paper-line px-5 py-4">
@@ -220,7 +220,8 @@ export function PanelCard({
         />
       )}
 
-      <div className="p-4">
+      {/* Panel artwork is authored against white — pin it light in dark mode. */}
+      <div className="force-light bg-white p-4">
         {templatedPreview && explainerId && template ? (
           <TemplatedPanelPreview
             explainerId={explainerId}

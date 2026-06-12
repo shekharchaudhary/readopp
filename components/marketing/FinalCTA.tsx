@@ -10,7 +10,7 @@ import { Reveal } from "./Reveal";
  */
 export function FinalCTA() {
   return (
-    <section className="relative isolate overflow-hidden bg-dark">
+    <section className="force-light relative isolate overflow-hidden bg-dark">
       {/* Warm bloom so the dark closer doesn't read flat. */}
       <div
         aria-hidden

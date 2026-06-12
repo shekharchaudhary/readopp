@@ -175,7 +175,7 @@ function PostCard({
   captionText: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-paper-line bg-white shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
+    <div className="overflow-hidden rounded-2xl border border-paper-line bg-surface shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
       {/* Header: avatar + name + timestamp + more */}
       <div className="flex items-start gap-3 px-4 pt-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-deep text-sm font-semibold text-white">
@@ -333,10 +333,10 @@ function HeroIntroDemo({ t }: { t: number }) {
   const showAgents = t >= AGENT_START && t < PANEL_AT + 500;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-paper-line bg-white shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-paper-line bg-surface shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
       {/* URL bar */}
       <div className="flex items-center gap-2 border-b border-paper-line bg-paper-soft/60 px-4 py-3">
-        <div className="flex h-9 min-w-0 flex-1 items-center rounded-md border border-paper-line bg-white px-3">
+        <div className="flex h-9 min-w-0 flex-1 items-center rounded-md border border-paper-line bg-surface px-3">
           <span className="truncate font-mono text-[11px] text-ink">
             {typed}
             {t < 1600 && (
@@ -367,7 +367,7 @@ function HeroIntroDemo({ t }: { t: number }) {
               (t < AGENT_START ? "opacity-100" : "opacity-0")
             }
           >
-            <div className="relative w-full max-w-[280px] overflow-hidden rounded-lg border border-paper-line bg-white p-5">
+            <div className="relative w-full max-w-[280px] force-light overflow-hidden rounded-lg border border-paper-line bg-white p-5">
               <div className="h-3 w-3/4 animate-[introUp_400ms_both] rounded-sm bg-ink/30" />
               {[100, 92, 96, 100, 88, 64].map((w, i) => (
                 <div
@@ -405,7 +405,7 @@ function HeroIntroDemo({ t }: { t: number }) {
                   <div
                     key={a}
                     className={
-                      "flex animate-[introRow_400ms_ease-out_backwards] items-center gap-2.5 rounded-md border bg-white px-3 py-2 transition-all duration-300 " +
+                      "flex animate-[introRow_400ms_ease-out_backwards] items-center gap-2.5 rounded-md border bg-surface px-3 py-2 transition-all duration-300 " +
                       (working
                         ? "border-accent shadow-[0_0_0_3px_rgba(232,93,42,0.12)]"
                         : done

@@ -122,7 +122,7 @@ export function AuthMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-md border border-paper-line bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+          className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-md border border-paper-line bg-surface shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         >
           <a
             href="/brand"

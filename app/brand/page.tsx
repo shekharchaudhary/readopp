@@ -152,7 +152,7 @@ export default function BrandPage() {
 
         <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-start">
           {/* Form */}
-          <div className="space-y-8 rounded-xl border border-paper-line bg-white p-7">
+          <div className="space-y-8 rounded-xl border border-paper-line bg-surface p-7">
             <Field label="Brand color">
               <div className="flex items-center gap-2">
                 <span
@@ -167,7 +167,7 @@ export default function BrandPage() {
                     setDraft({ ...draft, color: e.target.value })
                   }
                   placeholder="#1F97DC"
-                  className="w-32 rounded-md border border-paper-line bg-white px-2 py-1.5 font-mono text-sm uppercase text-ink focus:border-ink focus:outline-none"
+                  className="w-32 rounded-md border border-paper-line bg-surface px-2 py-1.5 font-mono text-sm uppercase text-ink focus:border-ink focus:outline-none"
                 />
                 <div className="ml-2 flex flex-wrap gap-1.5">
                   {PRESET_COLORS.map((c) => (
@@ -203,7 +203,7 @@ export default function BrandPage() {
                         "rounded-md border px-3 py-3 transition-colors " +
                         (active
                           ? "border-ink bg-ink text-paper"
-                          : "border-paper-line bg-white text-ink-soft hover:border-ink-muted")
+                          : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted")
                       }
                     >
                       <div
@@ -230,7 +230,7 @@ export default function BrandPage() {
                   setDraft({ ...draft, logoUrl: e.target.value })
                 }
                 placeholder="https://example.com/your-logo.png"
-                className="w-full rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                className="w-full rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
               />
             </Field>
 
@@ -242,7 +242,7 @@ export default function BrandPage() {
                   setDraft({ ...draft, authorName: e.target.value })
                 }
                 placeholder="Sarah Bennett"
-                className="w-full rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                className="w-full rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
               />
             </Field>
 
@@ -258,7 +258,7 @@ export default function BrandPage() {
                 }
                 placeholder="Indie founder · writes weekly"
                 maxLength={120}
-                className="w-full rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                className="w-full rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
               />
             </Field>
 

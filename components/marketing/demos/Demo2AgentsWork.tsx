@@ -66,7 +66,7 @@ export function Demo2AgentsWork() {
         </div>
 
         {/* Live transcript */}
-        <div className="mt-2 flex items-start gap-2 rounded-md border border-paper-line bg-white px-3 py-2">
+        <div className="mt-2 flex items-start gap-2 rounded-md border border-paper-line bg-surface px-3 py-2">
           <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-medium uppercase tracking-wider text-ink-faint">
@@ -98,7 +98,7 @@ function AgentRow({
         (state === "working"
           ? "border-accent bg-accent-soft"
           : state === "done"
-          ? "border-paper-line bg-white"
+          ? "border-paper-line bg-surface"
           : "border-paper-line bg-paper-soft/50")
       }
     >

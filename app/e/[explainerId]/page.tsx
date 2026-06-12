@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExplainerView } from "@/components/ExplainerView";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getExplainer } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -16,12 +17,15 @@ export default async function ExplainerPermalink({
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
-      <Link
-        href="/"
-        className="inline-block text-sm text-ink-muted hover:text-ink"
-      >
-        ← New explainer
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/"
+          className="inline-block text-sm text-ink-muted hover:text-ink"
+        >
+          ← New explainer
+        </Link>
+        <ThemeToggle />
+      </div>
       <ExplainerView explainer={explainer} canExport />
     </main>
   );

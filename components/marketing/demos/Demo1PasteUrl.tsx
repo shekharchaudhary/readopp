@@ -97,13 +97,13 @@ export function Demo1PasteUrl() {
 
 function BrowserMock({ url, selecting }: { url: string; selecting: boolean }) {
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-surface">
       {/* Title bar */}
       <div className="flex items-center gap-2 border-b border-paper-line bg-paper-soft px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-[#ED6A5E]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#F5BD4F]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#62C554]" />
-        <div className="ml-2 flex flex-1 items-center gap-2 rounded-md border border-paper-line bg-white px-2 py-1">
+        <div className="ml-2 flex flex-1 items-center gap-2 rounded-md border border-paper-line bg-surface px-2 py-1">
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
             <path
               d="M4 1 a3 3 0 1 0 0.01 0 M6.5 6.5 L9 9"
@@ -163,7 +163,7 @@ function ReadoppMock({
       <div className="mb-1.5 text-[11px] font-medium text-ink-soft">
         Article URL
       </div>
-      <div className="flex items-center gap-2 rounded-md border border-paper-line bg-white px-3 py-2.5">
+      <div className="flex items-center gap-2 rounded-md border border-paper-line bg-surface px-3 py-2.5">
         <span className="font-mono text-xs text-ink sm:text-sm">
           {typedText || (
             <span className="text-ink-faint">
@@ -184,7 +184,7 @@ function ReadoppMock({
               "rounded-md border px-2 py-1 text-center text-[10px] sm:text-xs " +
               (i === 0
                 ? "border-accent bg-accent text-paper"
-                : "border-paper-line bg-white text-ink-muted")
+                : "border-paper-line bg-surface text-ink-muted")
             }
           >
             {label}

@@ -85,7 +85,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+        className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
       >
         Template: {currentLabel} ▾
       </button>
@@ -96,7 +96,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
           onClick={() => setOpen(false)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-surface p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-baseline justify-between">
@@ -110,7 +110,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-paper-line bg-white px-3 py-1 text-sm text-ink-soft"
+                className="rounded-md border border-paper-line bg-surface px-3 py-1 text-sm text-ink-soft"
               >
                 Close
               </button>
@@ -230,7 +230,7 @@ function TemplateCard({
           </div>
         </div>
       </div>
-      <div className="space-y-1 bg-white p-3">
+      <div className="space-y-1 bg-surface p-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-medium text-ink">{option.name}</div>
           <div className="text-[11px] uppercase tracking-wider text-ink-soft">

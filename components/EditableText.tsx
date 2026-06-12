@@ -125,7 +125,7 @@ export function EditableText({
       "aria-label": ariaLabel,
       disabled: saving,
       className:
-        "w-full resize-none rounded-md border border-accent/60 bg-white px-2 py-1 outline-none ring-2 ring-accent/20 focus:border-accent focus:ring-accent/30 disabled:opacity-60 " +
+        "w-full resize-none rounded-md border border-accent/60 bg-surface px-2 py-1 outline-none ring-2 ring-accent/20 focus:border-accent focus:ring-accent/30 disabled:opacity-60 " +
         editClassName,
     };
     return (

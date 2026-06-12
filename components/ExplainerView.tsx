@@ -101,7 +101,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             <button
               type="button"
               onClick={copyLink}
-              className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+              className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
             >
               {copied ? "Copied" : "Copy link"}
             </button>
@@ -115,7 +115,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             <button
               type="button"
               onClick={openExportAll}
-              className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+              className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
             >
               Export all
             </button>

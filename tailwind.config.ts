@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -36,24 +37,26 @@ const config: Config = {
           "monospace",
         ],
       },
+      // Semantic tokens resolve through CSS variables (RGB channels) so the
+      // whole palette flips under `.dark` without per-class dark: variants.
       colors: {
         ink: {
-          DEFAULT: "#171717",
-          soft: "#5F5A52",
-          muted: "#857E72",
-          faint: "#ABA395",
+          DEFAULT: "rgb(var(--c-ink) / <alpha-value>)",
+          soft: "rgb(var(--c-ink-soft) / <alpha-value>)",
+          muted: "rgb(var(--c-ink-muted) / <alpha-value>)",
+          faint: "rgb(var(--c-ink-faint) / <alpha-value>)",
         },
         paper: {
-          DEFAULT: "#F7F3EA",
-          soft: "#EFE8DC",
-          line: "#D8CEC0",
+          DEFAULT: "rgb(var(--c-paper) / <alpha-value>)",
+          soft: "rgb(var(--c-paper-soft) / <alpha-value>)",
+          line: "rgb(var(--c-paper-line) / <alpha-value>)",
         },
-        surface: "#FFFDF8",
-        dark: "#101010",
+        surface: "rgb(var(--c-surface) / <alpha-value>)",
+        dark: "rgb(var(--c-dark) / <alpha-value>)",
         accent: {
-          DEFAULT: "#E85D2A",
-          soft: "#F9E5D9",
-          deep: "#B23F14",
+          DEFAULT: "rgb(var(--c-accent) / <alpha-value>)",
+          soft: "rgb(var(--c-accent-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-accent-deep) / <alpha-value>)",
         },
       },
       keyframes: {

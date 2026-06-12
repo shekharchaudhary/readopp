@@ -22,7 +22,7 @@ export function WorkingScene({ scene, collapsed }: Props) {
   return (
     <section
       aria-label="Pipeline progress"
-      className="overflow-hidden rounded-xl border border-paper-line bg-white shadow-[0_1px_0_rgba(0,0,0,0.02)]"
+      className="overflow-hidden rounded-xl border border-paper-line bg-surface shadow-[0_1px_0_rgba(0,0,0,0.02)]"
     >
       <StepStrip scene={scene} />
       <Spotlight scene={scene} />
@@ -35,7 +35,7 @@ function CollapsedStrip({ scene }: { scene: SceneState }) {
   return (
     <section
       aria-label="Pipeline progress"
-      className="rounded-lg border border-paper-line bg-white px-4 py-3"
+      className="rounded-lg border border-paper-line bg-surface px-4 py-3"
     >
       <ol className="grid grid-cols-6 gap-x-2" role="list">
         {AGENT_KEYS.map((key, i) => (

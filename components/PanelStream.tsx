@@ -48,7 +48,7 @@ export function PanelStream({
 function SkeletonCard({ index }: { index: number }) {
   return (
     <article
-      className="rounded-lg border border-paper-line bg-white"
+      className="rounded-lg border border-paper-line bg-surface"
       aria-busy="true"
     >
       <div className="border-b border-paper-line px-5 py-4">

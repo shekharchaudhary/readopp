@@ -186,7 +186,7 @@ export function UrlInput() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={submitting || !!uploading || blocked}
-          className="w-full rounded-md border border-paper-line bg-white px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:bg-paper-soft"
+          className="w-full rounded-md border border-paper-line bg-surface px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:bg-paper-soft"
         />
       </div>
 
@@ -208,7 +208,7 @@ export function UrlInput() {
                   "rounded-md border px-3 py-2 text-sm transition-colors " +
                   (selected
                     ? "border-accent bg-accent text-paper"
-                    : "border-paper-line bg-white text-ink-soft hover:border-ink-muted") +
+                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
                 aria-pressed={selected}

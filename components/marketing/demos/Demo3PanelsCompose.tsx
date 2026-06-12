@@ -53,7 +53,7 @@ function PanelSlot({
     <div className="flex flex-col gap-1.5">
       <div
         className={
-          "relative aspect-[5/3] overflow-hidden rounded-md border bg-white transition-all duration-500 " +
+          "relative aspect-[5/3] overflow-hidden rounded-md border bg-surface transition-all duration-500 " +
           (phase === "missing"
             ? "border-dashed border-paper-line opacity-30"
             : phase === "skeleton"
@@ -225,7 +225,7 @@ function PipelineHint({ t }: { t: number }) {
   ];
   const active = labels.find((l) => between(t, l.from, l.to)) ?? labels[0];
   return (
-    <div className="flex items-center gap-2 rounded-md border border-paper-line bg-white px-3 py-2">
+    <div className="flex items-center gap-2 rounded-md border border-paper-line bg-surface px-3 py-2">
       <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
       <span className="font-mono text-[11px] text-ink-soft sm:text-xs">
         {active.text}

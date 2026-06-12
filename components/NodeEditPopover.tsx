@@ -212,7 +212,7 @@ export function NodeEditPopover({
         left: position.left,
         zIndex: 20,
       }}
-      className="flex w-[300px] flex-col gap-3 rounded-lg border border-paper-line bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+      className="flex w-[300px] flex-col gap-3 rounded-lg border border-paper-line bg-surface p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
     >
       <div className="flex items-center justify-between px-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">
@@ -284,7 +284,7 @@ export function PanelThemePopover({
       role="dialog"
       aria-label="Panel theme"
       style={style}
-      className="flex w-[300px] flex-col gap-3 rounded-lg border border-paper-line bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+      className="flex w-[300px] flex-col gap-3 rounded-lg border border-paper-line bg-surface p-3 shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
     >
       <div className="flex items-center justify-between px-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-faint">

@@ -71,7 +71,7 @@ export function ExampleGallery() {
             <li
               key={it.id}
               className={
-                "group relative rounded-lg border border-paper-line bg-white transition-colors hover:border-ink-muted " +
+                "group relative rounded-lg border border-paper-line bg-surface transition-colors hover:border-ink-muted " +
                 (isDeleting ? "opacity-50" : "")
               }
             >

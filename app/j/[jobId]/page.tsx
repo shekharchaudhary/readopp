@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ExportSheet } from "@/components/ExportSheet";
 import { PanelStream } from "@/components/PanelStream";
 import { TemplatePicker } from "@/components/TemplatePicker";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { WorkingScene } from "@/components/WorkingScene";
 import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
@@ -137,12 +138,15 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
-      <Link
-        href="/"
-        className="inline-block text-sm text-ink-muted hover:text-ink"
-      >
-        ← New explainer
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/"
+          className="inline-block text-sm text-ink-muted hover:text-ink"
+        >
+          ← New explainer
+        </Link>
+        <ThemeToggle />
+      </div>
 
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-2 min-w-0">
@@ -173,7 +177,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
             <button
               type="button"
               onClick={openExportAll}
-              className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+              className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
             >
               Export all
             </button>
@@ -260,7 +264,7 @@ function CopyLinkButton({ explainerId }: { explainerId: string }) {
     <button
       type="button"
       onClick={copy}
-      className="rounded-md border border-paper-line bg-white px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+      className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
     >
       {copied ? "Copied" : "Copy link"}
     </button>
