@@ -262,13 +262,12 @@ export function ExportSheet({
             />
           )}
 
-          {loading && (
-            <p className="text-sm text-ink-muted">
-              {mode === "image"
-                ? "Rendering…"
-                : "Recording the animation… this takes ~30–45s the first time."}
-            </p>
-          )}
+          {loading &&
+            (mode === "video" ? (
+              <VideoRenderProgress />
+            ) : (
+              <p className="text-sm text-ink-muted">Rendering…</p>
+            ))}
 
           {error && (
             <div className="rounded-md border border-paper-line bg-paper-soft px-3 py-2 text-sm text-ink-soft">
@@ -530,6 +529,134 @@ function ImagePreview({
         Download PNG
       </a>
     </div>
+  );
+}
+
+/**
+ * The video route is one long POST with no streamed progress, so this is a
+ * time-driven simulation: an asymptotic curve that eases toward ~97% (typical
+ * first render is 30–45s) and phase labels that flip at fixed points along it.
+ * The real response unmounts it, so it never has to "finish" on its own.
+ */
+const VIDEO_PHASES = [
+  { at: 0, label: "Laying out the panels" },
+  { at: 0.12, label: "Warming up the recorder" },
+  { at: 0.28, label: "Recording the animation" },
+  { at: 0.82, label: "Encoding the MP4" },
+];
+
+function VideoRenderProgress() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = performance.now();
+    const id = setInterval(
+      () => setElapsed((performance.now() - start) / 1000),
+      200
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  const progress = Math.min(0.97, 1 - Math.exp(-elapsed / 18));
+  const phaseIndex = VIDEO_PHASES.reduce(
+    (acc, p, i) => (progress >= p.at ? i : acc),
+    0
+  );
+
+  return (
+    <div className="space-y-3 rounded-md border border-paper-line bg-surface p-4">
+      <div className="flex items-center justify-between text-xs text-ink-muted">
+        <span className="font-medium text-ink-soft">
+          Generating your video
+        </span>
+        <span className="tabular-nums">
+          {Math.round(progress * 100)}% · {Math.floor(elapsed)}s
+        </span>
+      </div>
+
+      <div className="h-1.5 overflow-hidden rounded-full bg-paper-soft">
+        <div
+          className="relative h-full rounded-full bg-accent transition-[width] duration-300 ease-out"
+          style={{ width: `${progress * 100}%` }}
+        >
+          <div
+            className="absolute inset-0 motion-safe:animate-pulse"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
+            }}
+          />
+        </div>
+      </div>
+
+      <ul className="space-y-1.5">
+        {VIDEO_PHASES.map((p, i) => {
+          const state =
+            i < phaseIndex ? "done" : i === phaseIndex ? "active" : "pending";
+          return (
+            <li
+              key={p.label}
+              className={
+                "flex items-center gap-2 text-sm transition-colors " +
+                (state === "done"
+                  ? "text-ink-muted"
+                  : state === "active"
+                  ? "text-ink"
+                  : "text-ink-faint")
+              }
+            >
+              {state === "done" ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                  className="shrink-0 text-accent"
+                >
+                  <path
+                    d="M3.5 8.5l3 3 6-7"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : state === "active" ? (
+                <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-accent/30 motion-safe:animate-ping" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+                </span>
+              ) : (
+                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                  <span className="h-1.5 w-1.5 rounded-full bg-paper-line" />
+                </span>
+              )}
+              {p.label}
+              {state === "active" && <Ellipsis />}
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="text-xs text-ink-faint">
+        First render takes ~30–45s — it&rsquo;s cached after that, so re-downloads
+        are instant.
+      </p>
+    </div>
+  );
+}
+
+/** Animated trailing dots for the active phase label. */
+function Ellipsis() {
+  const [n, setN] = useState(1);
+  useEffect(() => {
+    const id = setInterval(() => setN((v) => (v % 3) + 1), 450);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="w-4 text-left" aria-hidden>
+      {".".repeat(n)}
+    </span>
   );
 }
 
