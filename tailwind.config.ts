@@ -94,6 +94,11 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(6px) scale(0.985)" },
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
+        drip: {
+          "0%": { top: "-12px", opacity: "0" },
+          "15%": { opacity: "1" },
+          "100%": { top: "100%", opacity: "0.6" },
+        },
       },
       animation: {
         scan: "scan 1.8s ease-in-out infinite",
@@ -103,6 +108,7 @@ const config: Config = {
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
         "rise-in": "rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
         "draw-in": "draw-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        drip: "drip 1.2s ease-in infinite",
       },
     },
   },

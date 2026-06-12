@@ -1,229 +1,294 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { AgentName } from "@/lib/events";
 import {
   AGENT_KEYS,
   AGENT_LABEL,
   type AgentNodeView,
-  type LogEntry,
   type PanelSlot,
   type SceneState,
 } from "@/lib/scene/reducer";
 
+/** What each agent is doing, in the user's language — shown on the active card. */
+const AGENT_DESC: Record<AgentName, string> = {
+  ingest: "Fetching the source and stripping it down to clean text",
+  comprehension: "Reading like an editor — claims, numbers, what actually matters",
+  structure: "Deciding what deserves a panel, and in what order",
+  planner: "Designing each panel: layout, copy, visual idea",
+  render: "Drawing every panel as crisp vector art",
+  assembly: "Stitching the panels into one shareable explainer",
+  social: "Writing the caption, hashtags, and alt text for your post",
+};
+
 interface Props {
   scene: SceneState;
-  collapsed?: boolean;
 }
 
-export function WorkingScene({ scene, collapsed }: Props) {
-  if (collapsed) return <CollapsedStrip scene={scene} />;
+/**
+ * The orchestration board. Agents cascade vertically: each one appears as a
+ * live card while it works (its own progress notes streaming in), then
+ * collapses into a permanent receipt — what it produced and how long it took.
+ * A pulse runs down the connector into the active agent so the handoff
+ * between agents is visible, not implied.
+ */
+export function WorkingScene({ scene }: Props) {
+  const doneCount = AGENT_KEYS.filter(
+    (k) => scene.agents[k].state === "done"
+  ).length;
+  const stepIndex = scene.activeAgent
+    ? AGENT_KEYS.indexOf(scene.activeAgent) + 1
+    : Math.min(doneCount + 1, AGENT_KEYS.length);
+  const firstStart = AGENT_KEYS.map((k) => scene.agents[k].startedAt)
+    .filter(Boolean)
+    .sort()[0];
 
   return (
     <section
       aria-label="Pipeline progress"
       className="overflow-hidden rounded-xl border border-paper-line bg-surface shadow-[0_1px_0_rgba(0,0,0,0.02)]"
     >
-      <StepStrip scene={scene} />
-      <Spotlight scene={scene} />
-      <Transcript log={scene.log} />
-    </section>
-  );
-}
+      <header className="flex items-baseline justify-between border-b border-paper-line bg-paper-soft/40 px-5 py-3">
+        <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+          {scene.status === "failed"
+            ? "Stopped"
+            : `Agent ${stepIndex} of ${AGENT_KEYS.length}`}
+          <span className="mx-2 text-ink-faint">·</span>
+          <span className="normal-case tracking-normal">
+            {doneCount} done
+          </span>
+        </p>
+        <Elapsed startedAt={firstStart} />
+      </header>
 
-function CollapsedStrip({ scene }: { scene: SceneState }) {
-  return (
-    <section
-      aria-label="Pipeline progress"
-      className="rounded-lg border border-paper-line bg-surface px-4 py-3"
-    >
-      <ol className="grid grid-cols-6 gap-x-2" role="list">
+      <ol role="list" className="px-5 py-4 sm:px-6">
         {AGENT_KEYS.map((key, i) => (
-          <MiniStep
-            key={key}
-            index={i + 1}
-            agent={key}
-            node={scene.agents[key]}
-          />
+          <TimelineRow key={key} agent={key} index={i} scene={scene} />
         ))}
       </ol>
     </section>
   );
 }
 
-function MiniStep({
-  index,
+function TimelineRow({
   agent,
-  node,
+  index,
+  scene,
 }: {
-  index: number;
   agent: AgentName;
-  node: AgentNodeView;
+  index: number;
+  scene: SceneState;
 }) {
-  const isActive = node.state === "active";
-  const isDone = node.state === "done";
-  const markerColor = isActive
-    ? "border-accent bg-accent text-paper"
-    : isDone
-    ? "border-accent bg-paper text-accent-deep"
-    : "border-paper-line bg-paper text-ink-faint";
+  const node = scene.agents[agent];
+  const isLast = index === AGENT_KEYS.length - 1;
+  const next = AGENT_KEYS[index + 1];
+  const handoffActive = Boolean(
+    next && node.state === "done" && scene.agents[next].state === "active"
+  );
+
   return (
-    <li className="flex min-w-0 items-center gap-2" title={node.summary}>
-      <span
-        aria-hidden
-        className={
-          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-medium " +
-          markerColor
-        }
-      >
-        {isDone ? <CheckGlyph size={9} /> : index}
-      </span>
-      <span
-        className={
-          "truncate text-xs " +
-          (node.state === "pending"
-            ? "text-ink-faint"
-            : isActive
-            ? "text-ink"
-            : "text-ink-soft")
-        }
-      >
-        {AGENT_LABEL[agent]}
-      </span>
+    <li className="flex gap-3 sm:gap-4">
+      {/* Gutter: marker + connector down to the next agent. */}
+      <div className="flex w-7 shrink-0 flex-col items-center">
+        <Marker index={index} state={node.state} />
+        {!isLast && (
+          <span className="relative my-1 w-[3px] flex-1 overflow-hidden">
+            <span
+              className={
+                "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors duration-500 " +
+                (node.state === "done" ? "bg-accent/50" : "bg-paper-line")
+              }
+            />
+            {handoffActive && (
+              <span
+                aria-hidden
+                className="absolute left-1/2 h-3 w-[3px] -translate-x-1/2 rounded-full bg-accent motion-safe:animate-drip"
+              />
+            )}
+          </span>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 pb-4">
+        {node.state === "active" ? (
+          <ActiveCard agent={agent} node={node} scene={scene} />
+        ) : node.state === "done" ? (
+          <DoneReceipt agent={agent} node={node} />
+        ) : (
+          <PendingRow agent={agent} firstPending={isFirstPending(scene, agent)} />
+        )}
+      </div>
     </li>
   );
 }
 
-function StepStrip({ scene }: { scene: SceneState }) {
-  return (
-    <ol
-      role="list"
-      className="flex items-center gap-2 border-b border-paper-line bg-paper-soft/40 px-4 py-4 sm:gap-3 sm:px-5"
-    >
-      {AGENT_KEYS.map((key, i) => {
-        const node = scene.agents[key];
-        const isLast = i === AGENT_KEYS.length - 1;
-        const isActive = node.state === "active";
-        const isDone = node.state === "done";
-
-        const next = AGENT_KEYS[i + 1];
-        const connectorFilled = Boolean(
-          next && scene.agents[next].state !== "pending"
-        );
-
-        const markerColor = isActive
-          ? "border-ink bg-ink text-paper"
-          : isDone
-          ? "border-ink bg-paper text-ink"
-          : "border-paper-line bg-paper text-ink-faint";
-
-        const labelColor =
-          node.state === "pending"
-            ? "text-ink-faint"
-            : isActive
-            ? "text-ink"
-            : "text-ink-soft";
-
-        return (
-          <li
-            key={key}
-            className="flex min-w-0 flex-1 items-center gap-2"
-            title={node.summary}
-          >
-            <span className="relative inline-flex shrink-0 items-center justify-center">
-              {isActive && (
-                <span
-                  aria-hidden
-                  className="absolute -inset-1 rounded-full border border-accent/40 motion-safe:animate-breathe"
-                />
-              )}
-              <span
-                aria-hidden
-                className={
-                  "relative inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium transition-colors " +
-                  markerColor
-                }
-              >
-                {isDone ? <CheckGlyph /> : i + 1}
-              </span>
-            </span>
-            <span
-              className={
-                "truncate text-xs sm:text-sm " + labelColor
-              }
-            >
-              {AGENT_LABEL[key]}
-            </span>
-            {!isLast && (
-              <span
-                aria-hidden
-                className={
-                  "mx-1 hidden h-px flex-1 transition-colors sm:block " +
-                  (connectorFilled ? "bg-accent/50" : "bg-paper-line")
-                }
-              />
-            )}
-          </li>
-        );
-      })}
-    </ol>
+/** True when this is the next agent up — it gets a "queued" hint. */
+function isFirstPending(scene: SceneState, agent: AgentName): boolean {
+  const firstPending = AGENT_KEYS.find(
+    (k) => scene.agents[k].state === "pending"
   );
+  return firstPending === agent && scene.status !== "failed";
 }
 
-function Spotlight({ scene }: { scene: SceneState }) {
-  const active = scene.activeAgent;
-
-  if (!active) {
+function Marker({
+  index,
+  state,
+}: {
+  index: number;
+  state: AgentNodeView["state"];
+}) {
+  if (state === "done") {
     return (
-      <div className="border-b border-paper-line px-5 py-6">
-        <p className="text-sm text-ink-muted">{statusFallback(scene)}</p>
-      </div>
+      <span
+        aria-hidden
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-accent/50 bg-paper text-accent-deep motion-safe:animate-fade-up"
+      >
+        <CheckGlyph />
+      </span>
     );
   }
+  if (state === "active") {
+    return (
+      <span className="relative inline-flex shrink-0 items-center justify-center">
+        <span
+          aria-hidden
+          className="absolute -inset-1 rounded-full border border-accent/40 motion-safe:animate-breathe"
+        />
+        <span
+          aria-hidden
+          className="relative inline-flex h-7 w-7 items-center justify-center rounded-full border border-accent bg-accent text-xs font-medium text-white"
+        >
+          {index + 1}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint"
+    >
+      {index + 1}
+    </span>
+  );
+}
 
-  const node = scene.agents[active];
-  const stepIndex = AGENT_KEYS.indexOf(active) + 1;
-  const note = node.lastNote ?? statusFallback(scene);
+function ActiveCard({
+  agent,
+  node,
+  scene,
+}: {
+  agent: AgentName;
+  node: AgentNodeView;
+  scene: SceneState;
+}) {
+  // This agent's own progress notes — the live trace of what it's doing.
+  const notes = scene.log
+    .filter((e) => e.agent === agent && e.kind === "progress")
+    .slice(-3);
 
   return (
-    <div className="relative overflow-hidden border-b border-paper-line px-5 py-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">
-          Step {stepIndex} of {AGENT_KEYS.length}
-        </p>
+    <div className="rounded-lg border border-accent/30 bg-paper px-4 py-3.5 motion-safe:animate-fade-up">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-base font-medium text-ink sm:text-lg">
+          {AGENT_LABEL[agent]}
+        </h2>
         <Elapsed startedAt={node.startedAt} />
       </div>
+      <p className="mt-0.5 text-xs text-ink-muted">{AGENT_DESC[agent]}</p>
 
-      <h2 className="mt-1 text-xl font-medium text-ink sm:text-2xl">
-        {AGENT_LABEL[active]}
-      </h2>
+      <div aria-live="polite" aria-atomic="true" className="mt-3 space-y-1">
+        {notes.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-ink-soft">
+            <BouncingDots />
+            <span>{statusFallback(scene)}</span>
+            <Caret />
+          </p>
+        ) : (
+          notes.map((e, i) => {
+            const latest = i === notes.length - 1;
+            return latest ? (
+              <p
+                key={`${e.ts}-${i}`}
+                className="flex items-center gap-2 text-sm text-ink-soft"
+              >
+                <BouncingDots />
+                <span className="min-w-0 truncate">{e.note}</span>
+                <Caret />
+              </p>
+            ) : (
+              <p
+                key={`${e.ts}-${i}`}
+                className="truncate pl-6 font-mono text-[12px] text-ink-faint"
+              >
+                {e.note}
+              </p>
+            );
+          })
+        )}
+      </div>
 
-      <p
-        aria-live="polite"
-        aria-atomic="true"
-        className="mt-3 flex items-center gap-2 text-sm text-ink-soft"
-      >
-        <BouncingDots />
-        <span>{note}</span>
-        <Caret />
-      </p>
-
-      {active === "render" && <RenderCounter slots={scene.panels} />}
-
-      <ScannerBar />
+      {agent === "render" && <RenderCounter slots={scene.panels} />}
     </div>
   );
 }
 
-function ScannerBar() {
+function DoneReceipt({
+  agent,
+  node,
+}: {
+  agent: AgentName;
+  node: AgentNodeView;
+}) {
+  const took = durationLabel(node);
   return (
     <div
-      aria-hidden
-      className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden bg-paper-soft"
+      className="flex items-baseline gap-3 py-1 motion-safe:animate-fade-up"
+      title={node.summary}
     >
-      <span className="block h-full w-1/3 bg-accent/70 motion-safe:animate-scan" />
+      <span className="shrink-0 text-sm font-medium text-ink-soft">
+        {AGENT_LABEL[agent]}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
+        {node.summary || "Done"}
+      </span>
+      {took && (
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-ink-faint">
+          {took}
+        </span>
+      )}
     </div>
   );
+}
+
+function PendingRow({
+  agent,
+  firstPending,
+}: {
+  agent: AgentName;
+  firstPending: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-3 py-1">
+      <span className="text-sm text-ink-faint">{AGENT_LABEL[agent]}</span>
+      {firstPending && (
+        <span className="font-mono text-[11px] uppercase tracking-wider text-ink-faint/80">
+          up next
+        </span>
+      )}
+    </div>
+  );
+}
+
+function durationLabel(node: AgentNodeView): string | null {
+  if (!node.startedAt || !node.completedAt) return null;
+  const ms =
+    new Date(node.completedAt).getTime() - new Date(node.startedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const s = Math.round(ms / 1000);
+  if (s < 1) return "<1s";
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${(s % 60).toString().padStart(2, "0")}s`;
 }
 
 function BouncingDots() {
@@ -240,7 +305,7 @@ function Caret() {
   return (
     <span
       aria-hidden
-      className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] bg-ink motion-safe:animate-blink"
+      className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] shrink-0 bg-ink motion-safe:animate-blink"
     />
   );
 }
@@ -269,7 +334,7 @@ function RenderCounter({ slots }: { slots: PanelSlot[] }) {
   if (total === 0) return null;
   const done = slots.filter((s) => s.panel).length;
   return (
-    <div className="mt-4 flex items-center gap-3">
+    <div className="mt-3 flex items-center gap-3">
       <div className="flex gap-1">
         {slots.map((s) => {
           const filled = Boolean(s.panel);
@@ -280,9 +345,9 @@ function RenderCounter({ slots }: { slots: PanelSlot[] }) {
               className={
                 "h-1.5 w-6 rounded-sm transition-colors " +
                 (filled
-                  ? "bg-ink"
+                  ? "bg-accent"
                   : inFlight
-                  ? "bg-ink/30 motion-safe:animate-pulse"
+                  ? "bg-accent/30 motion-safe:animate-pulse"
                   : "bg-paper-line")
               }
             />
@@ -294,76 +359,6 @@ function RenderCounter({ slots }: { slots: PanelSlot[] }) {
       </span>
     </div>
   );
-}
-
-const TRANSCRIPT_TAIL = 6;
-
-function Transcript({ log }: { log: LogEntry[] }) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const tail = log.slice(-TRANSCRIPT_TAIL);
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [tail.length]);
-
-  return (
-    <div
-      ref={scrollerRef}
-      className="max-h-44 overflow-y-auto px-5 py-3"
-      aria-label="Activity log"
-    >
-      {tail.length === 0 ? (
-        <p className="font-mono text-[12px] text-ink-faint">
-          Waiting for the first agent…
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {tail.map((e, i) => (
-            <LogRow key={`${e.ts}-${i}-${e.kind}`} entry={e} />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function LogRow({ entry }: { entry: LogEntry }) {
-  const isDone = entry.kind === "done";
-  const isStart = entry.kind === "start";
-  const noteColor = isDone
-    ? "text-ink"
-    : isStart
-    ? "text-ink-muted"
-    : "text-ink-soft";
-  const labelColor = isDone ? "text-ink" : "text-ink-muted";
-  return (
-    <li className="flex items-baseline gap-3 font-mono text-[12px] leading-snug motion-safe:animate-fade-up">
-      <span className="shrink-0 tabular-nums text-ink-faint">
-        {shortTime(entry.ts)}
-      </span>
-      <span className={"w-[5.5rem] shrink-0 truncate " + labelColor}>
-        {AGENT_LABEL[entry.agent]}
-      </span>
-      <span className={"min-w-0 truncate " + noteColor}>
-        {isDone ? "→ " : isStart ? "» " : ""}
-        {entry.note}
-      </span>
-    </li>
-  );
-}
-
-function shortTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString([], {
-      hour12: false,
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return "";
-  }
 }
 
 function CheckGlyph({ size = 11 }: { size?: number }) {
@@ -408,6 +403,6 @@ function statusFallback(scene: SceneState): string {
     case "failed":
       return "Failed.";
     default:
-      return "";
+      return "Working…";
   }
 }
