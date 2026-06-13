@@ -207,7 +207,7 @@ export function UrlInput() {
                 className={
                   "rounded-md border px-3 py-2 text-sm transition-colors " +
                   (selected
-                    ? "border-accent bg-accent text-paper"
+                    ? "border-sky bg-sky text-white"
                     : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
@@ -238,7 +238,7 @@ export function UrlInput() {
         <button
           type="submit"
           disabled={!valid || submitting || !!uploading}
-          className="w-full rounded-md bg-accent px-4 py-3 text-base font-medium text-paper shadow-[0_1px_0_rgba(13,87,134,0.3)] transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:bg-ink-faint disabled:shadow-none"
+          className="w-full rounded-md bg-sky px-4 py-3 text-base font-medium text-white shadow-[0_1px_0_rgba(13,87,134,0.3)] transition-[filter,background-color] hover:brightness-110 disabled:cursor-not-allowed disabled:bg-ink-faint disabled:shadow-none"
         >
           {submitting ? "Starting…" : "Explain"}
         </button>

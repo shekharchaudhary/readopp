@@ -58,6 +58,41 @@ const config: Config = {
           soft: "rgb(var(--c-accent-soft) / <alpha-value>)",
           deep: "rgb(var(--c-accent-deep) / <alpha-value>)",
         },
+        sky: {
+          DEFAULT: "rgb(var(--c-sky) / <alpha-value>)",
+          soft: "rgb(var(--c-sky-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-sky-deep) / <alpha-value>)",
+        },
+        coral: {
+          DEFAULT: "rgb(var(--c-coral) / <alpha-value>)",
+          soft: "rgb(var(--c-coral-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-coral-deep) / <alpha-value>)",
+        },
+        butter: {
+          DEFAULT: "rgb(var(--c-butter) / <alpha-value>)",
+          soft: "rgb(var(--c-butter-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-butter-deep) / <alpha-value>)",
+        },
+        lavender: {
+          DEFAULT: "rgb(var(--c-lavender) / <alpha-value>)",
+          soft: "rgb(var(--c-lavender-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-lavender-deep) / <alpha-value>)",
+        },
+        rose: {
+          DEFAULT: "rgb(var(--c-rose) / <alpha-value>)",
+          soft: "rgb(var(--c-rose-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-rose-deep) / <alpha-value>)",
+        },
+        sage: {
+          DEFAULT: "rgb(var(--c-sage) / <alpha-value>)",
+          soft: "rgb(var(--c-sage-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-sage-deep) / <alpha-value>)",
+        },
+        mint: {
+          DEFAULT: "rgb(var(--c-mint) / <alpha-value>)",
+          soft: "rgb(var(--c-mint-soft) / <alpha-value>)",
+          deep: "rgb(var(--c-mint-deep) / <alpha-value>)",
+        },
       },
       keyframes: {
         scan: {

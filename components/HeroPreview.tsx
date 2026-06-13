@@ -54,7 +54,7 @@ export function HeroPreview() {
   return (
     <Link
       href={`/e/${item.id}`}
-      className="group relative block overflow-hidden rounded-2xl border border-paper-line bg-surface transition-shadow hover:shadow-[0_4px_20px_rgba(232,93,42,0.08)]"
+      className="group relative block overflow-hidden rounded-2xl border border-paper-line bg-surface transition-shadow hover:shadow-[0_4px_20px_rgba(196,122,60,0.08)]"
       aria-label={`Open: ${item.panel.heading || item.title}`}
     >
       <div className="absolute left-4 top-4 z-10 flex items-center gap-2">

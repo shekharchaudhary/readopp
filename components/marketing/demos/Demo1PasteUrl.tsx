@@ -117,7 +117,7 @@ function BrowserMock({ url, selecting }: { url: string; selecting: boolean }) {
             className={
               "truncate font-mono text-[11px] sm:text-xs " +
               (selecting
-                ? "rounded-sm bg-accent/30 px-0.5 text-ink"
+                ? "rounded-sm bg-sky/30 px-0.5 text-ink"
                 : "text-ink-soft")
             }
           >
@@ -183,7 +183,7 @@ function ReadoppMock({
             className={
               "rounded-md border px-2 py-1 text-center text-[10px] sm:text-xs " +
               (i === 0
-                ? "border-accent bg-accent text-paper"
+                ? "border-sky bg-sky text-white"
                 : "border-paper-line bg-surface text-ink-muted")
             }
           >
@@ -197,9 +197,9 @@ function ReadoppMock({
         className={
           "mt-auto rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-300 " +
           (ready
-            ? "bg-accent text-paper " +
+            ? "bg-sky text-white " +
               (explainPulse
-                ? "shadow-[0_0_0_4px_rgba(232,93,42,0.25)]"
+                ? "shadow-[0_0_0_4px_rgb(var(--c-sky)/0.25)]"
                 : "")
             : "bg-ink-faint text-paper opacity-70")
         }

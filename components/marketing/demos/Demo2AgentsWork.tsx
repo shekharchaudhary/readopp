@@ -67,7 +67,7 @@ export function Demo2AgentsWork() {
 
         {/* Live transcript */}
         <div className="mt-2 flex items-start gap-2 rounded-md border border-paper-line bg-surface px-3 py-2">
-          <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+          <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-sky motion-safe:animate-pulse" />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-medium uppercase tracking-wider text-ink-faint">
               {current.name}
@@ -96,7 +96,7 @@ function AgentRow({
       className={
         "flex items-center gap-3 rounded-md border px-2.5 py-1.5 transition-colors duration-200 " +
         (state === "working"
-          ? "border-accent bg-accent-soft"
+          ? "border-sky bg-sky-soft"
           : state === "done"
           ? "border-paper-line bg-surface"
           : "border-paper-line bg-paper-soft/50")
@@ -105,7 +105,7 @@ function AgentRow({
       {/* Indicator */}
       <div className="flex h-6 w-6 shrink-0 items-center justify-center">
         {state === "done" ? (
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-paper">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky text-white">
             <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden>
               <path
                 d="M2.5 6.5 L5 9 L9.5 3.5"
@@ -118,8 +118,8 @@ function AgentRow({
             </svg>
           </div>
         ) : state === "working" ? (
-          <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-accent">
-            <div className="h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+          <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-sky">
+            <div className="h-1.5 w-1.5 rounded-full bg-sky motion-safe:animate-pulse" />
           </div>
         ) : (
           <div className="h-5 w-5 rounded-full border-2 border-paper-line" />
@@ -129,7 +129,7 @@ function AgentRow({
       <span
         className={
           "font-mono text-[10px] font-medium tabular-nums " +
-          (state === "idle" ? "text-ink-faint" : "text-accent")
+          (state === "idle" ? "text-ink-faint" : "text-sky-deep")
         }
       >
         {String(index + 1).padStart(2, "0")}
@@ -152,7 +152,7 @@ function AgentRow({
         className={
           "text-[10px] font-medium uppercase tracking-wider " +
           (state === "working"
-            ? "text-accent"
+            ? "text-sky-deep"
             : state === "done"
             ? "text-ink-muted"
             : "text-ink-faint")

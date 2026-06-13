@@ -31,10 +31,10 @@ const FAQS = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="section-amb amb-warm-tr border-b border-paper-line bg-paper">
+    <section id="faq" className="section-amb amb-rose border-b border-paper-line bg-paper">
       <div className="mx-auto max-w-4xl px-6 py-24 sm:py-32">
         <Reveal>
-          <SectionLabel title="Questions" />
+          <SectionLabel title="Questions" tone="rose" />
         </Reveal>
         <Reveal delayMs={60}>
           <h2 className="mt-6 font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
@@ -47,7 +47,7 @@ export function FAQ() {
             <Reveal key={f.q} delayMs={i * 40}>
               <details className="group py-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left">
-                  <span className="text-base font-medium text-ink transition-colors group-hover:text-accent-deep group-open:text-accent sm:text-lg">
+                  <span className="text-base font-medium text-ink transition-colors group-hover:text-rose-deep group-open:text-rose sm:text-lg">
                     {f.q}
                   </span>
                   <Chevron />

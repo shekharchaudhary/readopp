@@ -337,15 +337,15 @@ const LAYERS = [
     n: 3,
     title: "API gateway",
     sub: "Authentication and rate limiting",
-    box: "border-[#ECA77F] bg-accent-soft",
+    box: "border-[#ECA77F] bg-[#F9E5D9]",
     titleCls: "text-ink",
-    subCls: "text-accent-deep",
+    subCls: "text-[#8F3210]",
   },
   {
     n: 2,
     title: "Application logic",
     sub: "Business rules and validation",
-    box: "border-accent bg-[#ECA77F]",
+    box: "border-[#E85D2A] bg-[#ECA77F]",
     titleCls: "text-ink",
     subCls: "text-[#8F3210]",
   },
@@ -353,9 +353,9 @@ const LAYERS = [
     n: 1,
     title: "Data layer security",
     sub: "Row-level access enforced by the database",
-    box: "border-dark bg-dark",
-    titleCls: "text-paper",
-    subCls: "text-ink-faint",
+    box: "border-[#101010] bg-[#101010]",
+    titleCls: "text-[#F7F3EA]",
+    subCls: "text-[#ABA395]",
   },
 ];
 
@@ -402,7 +402,7 @@ function HeroIntroDemo({ t }: { t: number }) {
           className={
             "shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 " +
             (generating
-              ? "bg-accent text-paper shadow-[0_0_0_3px_rgba(232,93,42,0.18)]"
+              ? "bg-accent text-paper shadow-[0_0_0_3px_rgba(196,122,60,0.18)]"
               : "bg-ink text-paper") +
             (pressed ? " scale-90" : " scale-100")
           }
@@ -508,7 +508,7 @@ function HeroIntroDemo({ t }: { t: number }) {
                     className={
                       "flex animate-[introRow_400ms_ease-out_backwards] items-center gap-2.5 rounded-md border bg-surface px-3 py-2 transition-all duration-300 " +
                       (working
-                        ? "border-accent shadow-[0_0_0_3px_rgba(232,93,42,0.12)]"
+                        ? "border-accent shadow-[0_0_0_3px_rgba(196,122,60,0.12)]"
                         : done
                         ? "border-paper-line"
                         : "border-paper-line opacity-40")
@@ -552,7 +552,7 @@ function HeroIntroDemo({ t }: { t: number }) {
           <div className="flex h-full flex-col rounded-lg border border-paper-line bg-surface p-4 sm:p-5">
             <div
               className={
-                "h-1 w-7 origin-left rounded-full bg-accent " +
+                "h-1 w-7 origin-left rounded-full bg-[#E85D2A] " +
                 (t >= 5250
                   ? "animate-[introGrow_400ms_ease-out_both]"
                   : "opacity-0")

@@ -89,7 +89,7 @@ function ExplainerMock({ shareTap }: { shareTap: boolean }) {
           className={
             "shrink-0 rounded-md border bg-surface px-2.5 py-1 text-xs font-medium transition-all duration-200 " +
             (shareTap
-              ? "border-accent text-accent shadow-[0_0_0_3px_rgba(232,93,42,0.2)]"
+              ? "border-sky text-sky-deep shadow-[0_0_0_3px_rgb(var(--c-sky)/0.2)]"
               : "border-paper-line text-ink-soft")
           }
         >
@@ -150,7 +150,7 @@ function ExportSheet({
               className={
                 "flex-1 rounded-md border px-2 py-1 text-center text-[11px] font-medium transition-all duration-200 " +
                 (active
-                  ? "border-accent bg-accent-soft text-accent-deep"
+                  ? "border-sky bg-sky-soft text-sky-deep"
                   : "border-paper-line bg-surface text-ink-muted")
               }
             >
@@ -193,12 +193,12 @@ function ExportSheet({
       <div
         className={
           "relative mt-3 w-full overflow-hidden rounded-md text-center text-xs font-medium transition-all duration-200 " +
-          (fmt ? "bg-accent text-paper" : "bg-ink-faint text-paper opacity-70")
+          (fmt ? "bg-sky text-white" : "bg-ink-faint text-paper opacity-70")
         }
       >
         {/* Render progress fill */}
         <div
-          className="absolute inset-y-0 left-0 bg-accent-deep transition-[width] duration-150 ease-linear"
+          className="absolute inset-y-0 left-0 bg-sky-deep transition-[width] duration-150 ease-linear"
           style={{ width: rendering ? `${renderProgress * 100}%` : "0%" }}
         />
         <div className="relative px-3 py-2">
@@ -272,7 +272,7 @@ function MoviePreview({ progress, done }: { progress: number; done: boolean }) {
       {/* Scrubber */}
       <div className="absolute inset-x-1.5 bottom-1.5 h-0.5 overflow-hidden rounded-full bg-paper/25">
         <div
-          className="h-full rounded-full bg-accent transition-[width] duration-150 ease-linear"
+          className="h-full rounded-full bg-sky transition-[width] duration-150 ease-linear"
           style={{ width: `${progress * 100}%` }}
         />
       </div>
@@ -329,7 +329,7 @@ function FormatPreview({ fmt }: { fmt: Format }) {
           </svg>
         </div>
         <div className="flex items-center justify-between">
-          <div className="h-1 w-8 rounded-sm bg-accent/40" />
+          <div className="h-1 w-8 rounded-sm bg-sky/40" />
           <div className="h-2 w-2 rounded-[1px] border border-ink/30" />
         </div>
       </div>

@@ -170,7 +170,7 @@ export function AgentDemoReel() {
                 <span
                   className={
                     "font-mono text-[10px] tabular-nums " +
-                    (active ? "text-accent" : "text-ink-faint")
+                    (active ? "text-sky-deep" : "text-ink-faint")
                   }
                 >
                   {c.n}
@@ -186,7 +186,7 @@ export function AgentDemoReel() {
               </span>
               <span className="mt-2.5 block h-0.5 overflow-hidden rounded-full bg-paper-line">
                 <span
-                  className="block h-full rounded-full bg-accent transition-[width] duration-150 ease-linear"
+                  className="block h-full rounded-full bg-sky transition-[width] duration-150 ease-linear"
                   style={{ width: `${fill * 100}%` }}
                 />
               </span>

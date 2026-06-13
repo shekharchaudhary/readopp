@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const AUTO_MS = 5000;
 
 /**
  * Tabbed specimen gallery for the template library. One tab per
@@ -41,15 +43,56 @@ interface TemplateMeta {
   tagline: string;
 }
 
+type ToneId = "sky" | "rose" | "lavender" | "butter" | "accent" | "coral";
+
+/* Literal class strings so Tailwind's scanner picks up every variant. */
+const TONES: Record<
+  ToneId,
+  { tab: string; bar: string; index: string }
+> = {
+  sky: {
+    tab: "border-sky/60 bg-sky-soft text-sky-deep",
+    bar: "bg-sky",
+    index: "text-sky-deep",
+  },
+  rose: {
+    tab: "border-rose/60 bg-rose-soft text-rose-deep",
+    bar: "bg-rose",
+    index: "text-rose-deep",
+  },
+  lavender: {
+    tab: "border-lavender/60 bg-lavender-soft text-lavender-deep",
+    bar: "bg-lavender",
+    index: "text-lavender-deep",
+  },
+  butter: {
+    tab: "border-butter/60 bg-butter-soft text-butter-deep",
+    bar: "bg-butter",
+    index: "text-butter-deep",
+  },
+  accent: {
+    tab: "border-accent/60 bg-accent-soft text-accent-deep",
+    bar: "bg-accent",
+    index: "text-accent-deep",
+  },
+  coral: {
+    tab: "border-coral/60 bg-coral-soft text-coral-deep",
+    bar: "bg-coral",
+    index: "text-coral-deep",
+  },
+};
+
 interface Chapter {
   name: string;
   caption: string;
+  tone: ToneId;
   templates: TemplateMeta[];
 }
 
 const CHAPTERS: Chapter[] = [
   {
     name: "Modern",
+    tone: "sky",
     caption: "Launch-day looks — glass, bento, and the grid.",
     templates: [
       {
@@ -71,6 +114,7 @@ const CHAPTERS: Chapter[] = [
   },
   {
     name: "Editorial",
+    tone: "rose",
     caption: "Magazine-page seriousness for longform writers.",
     templates: [
       {
@@ -92,6 +136,7 @@ const CHAPTERS: Chapter[] = [
   },
   {
     name: "Technical",
+    tone: "lavender",
     caption: "For founders and engineers who think in monospace.",
     templates: [
       {
@@ -113,6 +158,7 @@ const CHAPTERS: Chapter[] = [
   },
   {
     name: "Document",
+    tone: "butter",
     caption: "Borrow trust from familiar paper forms.",
     templates: [
       {
@@ -134,6 +180,7 @@ const CHAPTERS: Chapter[] = [
   },
   {
     name: "Reader",
+    tone: "accent",
     caption: "For people who post what they're reading.",
     templates: [
       {
@@ -155,6 +202,7 @@ const CHAPTERS: Chapter[] = [
   },
   {
     name: "Bold",
+    tone: "coral",
     caption: "For loud opinions that earn their space on the feed.",
     templates: [
       {
@@ -183,10 +231,36 @@ const CHAPTERS: Chapter[] = [
 
 export function TemplateLibraryShowcase() {
   const [active, setActive] = useState(0);
+  const [hover, setHover] = useState(false);
+  const [reduced, setReduced] = useState(false);
   const chapter = CHAPTERS[active];
 
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Auto-advance through the categories like a slideshow. Hovering
+  // anywhere in the showcase pauses it; leaving re-arms a full cycle
+  // (the progress bar is re-keyed on both so it stays in sync).
+  useEffect(() => {
+    if (reduced || hover) return;
+    const id = setTimeout(
+      () => setActive((a) => (a + 1) % CHAPTERS.length),
+      AUTO_MS
+    );
+    return () => clearTimeout(id);
+  }, [active, hover, reduced]);
+
   return (
-    <div className="mt-12 sm:mt-16">
+    <div
+      className="mt-12 sm:mt-16"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       {/* Category tabs */}
       <div
         role="tablist"
@@ -201,9 +275,9 @@ export function TemplateLibraryShowcase() {
             aria-selected={i === active}
             onClick={() => setActive(i)}
             className={
-              "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition " +
+              "relative inline-flex items-center gap-2 overflow-hidden rounded-full border px-4 py-2 text-sm font-medium transition " +
               (i === active
-                ? "border-ink bg-ink text-paper"
+                ? TONES[c.tone].tab
                 : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted hover:text-ink")
             }
           >
@@ -211,11 +285,19 @@ export function TemplateLibraryShowcase() {
             <span
               className={
                 "font-mono text-[10px] tabular-nums " +
-                (i === active ? "text-paper/60" : "text-ink-faint")
+                (i === active ? "text-current opacity-60" : "text-ink-faint")
               }
             >
               {c.templates.length}
             </span>
+            {i === active && !reduced && (
+              <span
+                key={`${active}-${hover ? "p" : "r"}`}
+                aria-hidden
+                className={`tl-progress absolute bottom-0 left-0 h-[2px] ${TONES[c.tone].bar}`}
+                style={{ animationPlayState: hover ? "paused" : "running" }}
+              />
+            )}
           </button>
         ))}
       </div>
@@ -225,9 +307,9 @@ export function TemplateLibraryShowcase() {
       </p>
 
       {/* Specimens for the active category. Keyed by chapter name so
-          switching tabs remounts the grid and replays the stagger. */}
+          switching tabs remounts the grid and replays the deal-in. */}
       <div
-        key={chapter.name}
+        key={`grid-${chapter.name}`}
         className="mt-8 grid gap-7"
         style={{
           gridTemplateColumns:
@@ -235,14 +317,19 @@ export function TemplateLibraryShowcase() {
         }}
       >
         {chapter.templates.map((t, i) => (
-          <FormatCard key={t.id} template={t} index={i} />
+          <FormatCard
+            key={t.id}
+            template={t}
+            index={i}
+            indexClass={TONES[chapter.tone].index}
+          />
         ))}
       </div>
 
       <div className="mt-14 flex justify-center">
         <Link
           href="#try"
-          className="group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition hover:bg-ink-soft"
+          className="group inline-flex items-center gap-2 rounded-full bg-coral px-6 py-3 text-sm font-medium text-white transition hover:brightness-110"
         >
           Try a template
           <span
@@ -253,6 +340,59 @@ export function TemplateLibraryShowcase() {
           </span>
         </Link>
       </div>
+
+      <style jsx>{`
+        :global(.tl-card) {
+          opacity: 0;
+          animation: tlDeal 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes tlDeal {
+          from {
+            opacity: 0;
+            transform: translateY(28px) scale(0.96) rotate(var(--rot, 0deg));
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1) rotate(0deg);
+          }
+        }
+        :global(.tl-progress) {
+          animation: tlProgress ${AUTO_MS}ms linear forwards;
+        }
+        @keyframes tlProgress {
+          from {
+            width: 0%;
+          }
+          to {
+            width: 100%;
+          }
+        }
+        :global(.tl-sheen) {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            105deg,
+            transparent 40%,
+            rgba(255, 255, 255, 0.16) 50%,
+            transparent 60%
+          );
+          transform: translateX(-130%);
+          pointer-events: none;
+        }
+        :global(.tl-card:hover .tl-sheen) {
+          transform: translateX(130%);
+          transition: transform 0.9s ease;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          :global(.tl-card) {
+            opacity: 1;
+            animation: none;
+          }
+          :global(.tl-sheen) {
+            display: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -260,20 +400,38 @@ export function TemplateLibraryShowcase() {
 function FormatCard({
   template,
   index,
+  indexClass,
 }: {
   template: TemplateMeta;
   index: number;
+  indexClass: string;
 }) {
+  // Alternate a slight resting tilt so the row reads like specimens
+  // laid on a table; cards straighten when you pick one up (hover).
+  const rot = index % 2 === 0 ? "-1deg" : "1.2deg";
   return (
     <article
-      className="group animate-rise-in"
-      style={{ animationDelay: `${index * 90}ms` }}
+      className="tl-card group"
+      style={
+        {
+          "--rot": rot,
+          animationDelay: `${index * 110}ms`,
+        } as React.CSSProperties
+      }
     >
-      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-paper-line bg-surface shadow-[0_2px_6px_rgba(23,23,23,0.05)] transition-all duration-500 group-hover:-translate-y-1.5 group-hover:shadow-[0_30px_60px_-25px_rgba(23,23,23,0.25)]">
+      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-paper-line bg-surface shadow-[0_2px_6px_rgba(23,23,23,0.05)] transition-all duration-500 rotate-[var(--rot)] group-hover:rotate-0 group-hover:-translate-y-2 group-hover:shadow-[0_30px_60px_-25px_rgba(23,23,23,0.35)]">
         <FormatPreview templateId={template.id} />
+        <div className="tl-sheen" aria-hidden />
       </div>
       <div className="mt-4 flex items-baseline justify-between gap-3 px-1">
-        <div className="text-sm font-medium text-ink">{template.name}</div>
+        <div className="text-sm font-medium text-ink">
+          <span
+            className={`mr-2 font-mono text-[10px] tabular-nums ${indexClass}`}
+          >
+            0{index + 1}
+          </span>
+          {template.name}
+        </div>
         <div className="truncate font-mono text-[10px] uppercase tracking-wider text-ink-faint">
           {template.tagline}
         </div>

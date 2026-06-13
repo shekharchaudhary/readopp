@@ -18,7 +18,7 @@ export function FinalCTA() {
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(55% 45% at 50% 0%, rgba(232,93,42,0.14), transparent 70%)",
+            "radial-gradient(55% 45% at 50% 0%, rgb(var(--c-mint) / 0.10), transparent 70%)",
         }}
       />
       <div className="mx-auto max-w-5xl px-6 pb-28 pt-20 text-center sm:pb-36 sm:pt-28">
@@ -28,7 +28,8 @@ export function FinalCTA() {
 
         <Reveal delayMs={120}>
           <h2 className="mt-8 font-display text-4xl font-medium leading-[1.05] tracking-tight text-paper sm:text-5xl lg:text-[64px]">
-            Turn your next read into a <Squiggle>post</Squiggle>.
+            Turn your next read into a{" "}
+            <Squiggle className="[--squiggle:rgb(var(--c-mint))]">post</Squiggle>.
           </h2>
         </Reveal>
 
@@ -41,7 +42,7 @@ export function FinalCTA() {
 
         <Reveal delayMs={280}>
           <div className="mt-9 flex flex-col items-center gap-3">
-            <Link href="#try" className="btn-accent btn-lg group">
+            <Link href="#try" className="btn-mint btn-lg group">
               Generate your first carousel
               <span
                 aria-hidden
@@ -71,7 +72,7 @@ function ArrowDoodle() {
     <svg
       aria-hidden
       viewBox="0 0 120 160"
-      className="mx-auto h-32 w-24 text-accent"
+      className="mx-auto h-32 w-24 text-mint"
       fill="none"
       stroke="currentColor"
       strokeWidth="6"

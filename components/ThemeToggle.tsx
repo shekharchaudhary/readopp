@@ -5,22 +5,13 @@ import { useEffect, useState } from "react";
 /**
  * Light/dark switch. The class on <html> is set before paint by the inline
  * script in app/layout.tsx; this component just reflects and flips it.
- * Stored choice wins; with nothing stored we follow the system and keep
- * following it live until the user picks a side.
+ * Dark is the brand default — only an explicit "light" choice overrides it.
  */
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [dark, setDark] = useState<boolean | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const onSystemChange = (e: MediaQueryListEvent) => {
-      if (localStorage.getItem("theme")) return;
-      document.documentElement.classList.toggle("dark", e.matches);
-      setDark(e.matches);
-    };
-    mql.addEventListener("change", onSystemChange);
-    return () => mql.removeEventListener("change", onSystemChange);
   }, []);
 
   function toggle() {

@@ -32,8 +32,10 @@ export const metadata: Metadata = {
   },
 };
 
-// Runs before paint so a stored/system dark preference never flashes light.
-const themeInit = `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+// Runs before paint so the theme never flashes. The brand look is dark
+// (black + ivory + bronze), so dark is the default unless the visitor
+// explicitly switched to light via the toggle.
+const themeInit = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.classList.toggle("dark",t!=="light")}catch(e){}})()`;
 
 export default function RootLayout({
   children,

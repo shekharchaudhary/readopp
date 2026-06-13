@@ -50,7 +50,8 @@ export function Squiggle({ children, className }: Props) {
         aria-hidden
         viewBox="0 0 100 10"
         preserveAspectRatio="none"
-        className="absolute -bottom-[0.18em] left-0 h-[0.22em] w-full text-accent"
+        className="absolute -bottom-[0.18em] left-0 h-[0.22em] w-full"
+        style={{ color: "var(--squiggle, rgb(var(--c-accent)))" }}
         fill="none"
       >
         <path

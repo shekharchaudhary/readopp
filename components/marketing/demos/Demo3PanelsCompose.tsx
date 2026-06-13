@@ -226,7 +226,7 @@ function PipelineHint({ t }: { t: number }) {
   const active = labels.find((l) => between(t, l.from, l.to)) ?? labels[0];
   return (
     <div className="flex items-center gap-2 rounded-md border border-paper-line bg-surface px-3 py-2">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky motion-safe:animate-pulse" />
       <span className="font-mono text-[11px] text-ink-soft sm:text-xs">
         {active.text}
       </span>
