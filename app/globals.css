@@ -296,6 +296,9 @@ body {
 .hl-coral {
   --hl: rgb(var(--c-coral-soft));
 }
+.hl-mint {
+  --hl: rgb(var(--c-mint-soft));
+}
 @keyframes hl-wipe {
   to {
     background-size: 100% 100%;
