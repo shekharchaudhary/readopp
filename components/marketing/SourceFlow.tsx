@@ -17,25 +17,25 @@ const SOURCES: {
     label: "Article URL",
     icon: <LinkIcon />,
     tilt: "-rotate-2",
-    hue: "text-sky-deep bg-sky-soft border-sky/40",
+    hue: "text-ink bg-[#38BDF8] border-transparent",
   },
   {
     label: "PDF",
     icon: <PdfIcon />,
     tilt: "rotate-1",
-    hue: "text-coral-deep bg-coral-soft border-coral/40",
+    hue: "text-ink bg-[#FB923C] border-transparent",
   },
   {
     label: "Newsletter",
     icon: <MailIcon />,
     tilt: "-rotate-1",
-    hue: "text-butter-deep bg-butter-soft border-butter/40",
+    hue: "text-ink bg-[#FACC15] border-transparent",
   },
   {
     label: "Research paper",
     icon: <PaperIcon />,
     tilt: "rotate-2",
-    hue: "text-lavender-deep bg-lavender-soft border-lavender/40",
+    hue: "text-ink bg-[#A78BFA] border-transparent",
   },
 ];
 
@@ -49,7 +49,7 @@ export function SourceFlow({ children }: { children: ReactNode }) {
             className={`flex cursor-default items-center gap-2 rounded-xl border px-3.5 py-2.5 shadow-[0_1px_2px_rgba(23,23,23,0.05)] transition-transform duration-200 hover:rotate-0 hover:-translate-y-0.5 ${s.tilt} ${s.hue}`}
           >
             <span>{s.icon}</span>
-            <span className="whitespace-nowrap text-[13px] font-medium tracking-tight text-ink">
+            <span className="whitespace-nowrap text-[13px] font-medium tracking-tight">
               {s.label}
             </span>
           </div>

@@ -402,7 +402,7 @@ function HeroIntroDemo({ t }: { t: number }) {
           className={
             "shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 " +
             (generating
-              ? "bg-accent text-paper shadow-[0_0_0_3px_rgba(196,122,60,0.18)]"
+              ? "bg-accent text-paper shadow-[0_0_0_3px_rgba(27,27,27,0.22)]"
               : "bg-ink text-paper") +
             (pressed ? " scale-90" : " scale-100")
           }
@@ -508,7 +508,7 @@ function HeroIntroDemo({ t }: { t: number }) {
                     className={
                       "flex animate-[introRow_400ms_ease-out_backwards] items-center gap-2.5 rounded-md border bg-surface px-3 py-2 transition-all duration-300 " +
                       (working
-                        ? "border-accent shadow-[0_0_0_3px_rgba(196,122,60,0.12)]"
+                        ? "border-accent shadow-[0_0_0_3px_rgba(27,27,27,0.15)]"
                         : done
                         ? "border-paper-line"
                         : "border-paper-line opacity-40")

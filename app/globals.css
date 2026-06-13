@@ -16,9 +16,13 @@
   --c-paper-line: 230 227 219; /* #E6E3DB */
   --c-surface: 255 255 255; /* #FFFFFF */
   --c-dark: 17 17 17; /* #111111 */
-  --c-accent: 196 122 60; /* #C47A3C — bronze */
-  --c-accent-soft: 243 226 206; /* #F3E2CE */
-  --c-accent-deep: 143 84 36; /* #8F5424 */
+  /* Accent re-pointed from bronze to charcoal: any bg-/text-/border-accent
+     now reads as ink (#1B1B1B), with accent-soft as a neutral paper line
+     and accent-deep as ink-soft. Keeps the token semantics, drops the
+     bronze hue entirely. */
+  --c-accent: 27 27 27; /* same as ink */
+  --c-accent-soft: 230 227 219; /* same as paper-line */
+  --c-accent-deep: 78 70 60; /* same as ink-soft */
 
   /* Supporting pastel accents — soft, friendly hues that sit happily on
      the warm ivory/espresso base. Bronze stays the primary brand accent;
@@ -60,9 +64,10 @@
   --c-paper-line: 51 48 43; /* #33302B */
   --c-surface: 27 27 27; /* #1B1B1B */
   --c-dark: 10 10 10; /* keeps "dark" cards darker than the dark paper */
-  --c-accent: 196 122 60; /* #C47A3C — bronze holds in both modes */
-  --c-accent-soft: 51 32 21; /* #332015 — deep bronze tint */
-  --c-accent-deep: 224 164 104; /* #E0A468 — light enough to read as text */
+  /* Accent on dark = ivory ink; soft = the dark paper-line; deep = ink-soft. */
+  --c-accent: 245 237 225; /* same as ink (ivory) on dark */
+  --c-accent-soft: 51 48 43; /* same as paper-line on dark */
+  --c-accent-deep: 214 204 189; /* same as ink-soft on dark */
 
   /* Pastels on dark: DEFAULT lifts slightly, soft becomes a deep tint
      (usable as a background), deep becomes the readable-text version. */
@@ -104,9 +109,9 @@
   --c-paper-line: 230 227 219;
   --c-surface: 255 255 255;
   --c-dark: 17 17 17;
-  --c-accent: 196 122 60;
-  --c-accent-soft: 243 226 206;
-  --c-accent-deep: 143 84 36;
+  --c-accent: 27 27 27;
+  --c-accent-soft: 230 227 219;
+  --c-accent-deep: 78 70 60;
   --c-sky: 91 139 201;
   --c-sky-soft: 220 231 245;
   --c-sky-deep: 61 106 163;
@@ -193,19 +198,19 @@ body {
   pointer-events: none;
   background: var(--section-glow, none);
 }
-.amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(196,122,60,0.07),  transparent 70%); }
-.amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(196,122,60,0.06),  transparent 70%); }
+.amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(27,27,27,0.05),  transparent 70%); }
+.amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(27,27,27,0.04),  transparent 70%); }
 .amb-bl      { --section-glow: radial-gradient(55% 45% at 8% 100%, rgba(214,158,46,0.05), transparent 70%); }
 .amb-br      { --section-glow: radial-gradient(60% 45% at 95% 100%, rgba(143,84,36,0.05), transparent 70%); }
-.amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(196,122,60,0.05), transparent 75%); }
+.amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(27,27,27,0.03), transparent 75%); }
 .amb-warm-tr { --section-glow: radial-gradient(60% 45% at 95% 8%,  rgba(214,158,46,0.05), transparent 70%); }
 
 /* Ambient glows need a touch more alpha to register on dark paper. */
-.dark .amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(196,122,60,0.10), transparent 70%); }
-.dark .amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(196,122,60,0.08), transparent 70%); }
+.dark .amb-tr      { --section-glow: radial-gradient(60% 50% at 88% 0%,  rgba(27,27,27,0.18), transparent 70%); }
+.dark .amb-tl      { --section-glow: radial-gradient(55% 40% at 6%  0%,  rgba(27,27,27,0.14), transparent 70%); }
 .dark .amb-bl      { --section-glow: radial-gradient(55% 45% at 8% 100%, rgba(214,158,46,0.07), transparent 70%); }
 .dark .amb-br      { --section-glow: radial-gradient(60% 45% at 95% 100%, rgba(224,164,104,0.07), transparent 70%); }
-.dark .amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(196,122,60,0.07), transparent 75%); }
+.dark .amb-center  { --section-glow: radial-gradient(50% 35% at 50% 50%, rgba(27,27,27,0.05), transparent 75%); }
 .dark .amb-warm-tr { --section-glow: radial-gradient(60% 45% at 95% 8%,  rgba(214,158,46,0.07), transparent 70%); }
 
 /* Hued ambients: one per pastel accent, so each landing section can be
@@ -277,7 +282,7 @@ body {
 /* Interactive card: gentle lift + warm shadow + accent edge on hover. */
 @layer components {
   .card-int {
-    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-accent/40 hover:shadow-[0_18px_40px_-20px_rgba(196,122,60,0.3)];
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-accent/40 hover:shadow-[0_18px_40px_-20px_rgba(27,27,27,0.2)];
   }
 }
 
