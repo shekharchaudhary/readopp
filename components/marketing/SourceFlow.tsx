@@ -67,10 +67,22 @@ export function SourceFlow({ children }: { children: ReactNode }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path pathLength={1} d="M56 6 C 70 32, 128 44, 182 52" />
-        <path pathLength={1} d="M148 8 C 158 26, 176 38, 192 50" />
-        <path pathLength={1} d="M252 8 C 242 26, 224 38, 208 50" />
-        <path pathLength={1} d="M344 6 C 330 32, 272 44, 218 52" />
+        <path
+          pathLength={1}
+          d="M56 6 C 70 32, 128 44, 182 52 M176.4 54.2 L 182 52 L 177.3 48.3"
+        />
+        <path
+          pathLength={1}
+          d="M148 8 C 158 26, 176 38, 192 50 M186.0 49.3 L 192 50 L 189.6 44.5"
+        />
+        <path
+          pathLength={1}
+          d="M252 8 C 242 26, 224 38, 208 50 M210.4 44.5 L 208 50 L 214.0 49.3"
+        />
+        <path
+          pathLength={1}
+          d="M344 6 C 330 32, 272 44, 218 52 M222.7 48.3 L 218 52 L 223.6 54.2"
+        />
       </svg>
 
       {children}
