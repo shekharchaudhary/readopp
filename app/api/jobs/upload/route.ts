@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const job = createJob({
+  const job = await createJob({
     url: fakeUrl,
     audienceLevel: audience.data,
     userId,

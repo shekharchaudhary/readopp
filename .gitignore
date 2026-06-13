@@ -30,3 +30,4 @@ coverage
 .readopp-exports/
 .readopp-data/
 .env*
+supabase/.temp/

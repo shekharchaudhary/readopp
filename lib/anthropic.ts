@@ -104,12 +104,16 @@ export async function callMessages(
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const res = await client.messages.create(params);
-      // Record usage
+      // Record usage. Fire-and-forget — usage is a side log and a transient
+      // DB hiccup shouldn't break the model call. Errors are logged below.
       if (ctx.jobId && res.usage) {
-        addUsage(ctx.jobId, {
+        void addUsage(ctx.jobId, {
           inputTokens: res.usage.input_tokens ?? 0,
           outputTokens: res.usage.output_tokens ?? 0,
           calls: 1,
+        }).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn("[readopp] addUsage failed", err);
         });
       }
       return res;

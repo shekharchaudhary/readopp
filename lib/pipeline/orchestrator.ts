@@ -49,25 +49,25 @@ function toJobError(e: unknown): JobError {
   };
 }
 
-function emitStatus(jobId: string, status: JobStatus) {
-  setJobStatus(jobId, status);
-  emitEvent(jobId, { type: "job.status", data: { status } });
+async function emitStatus(jobId: string, status: JobStatus) {
+  await setJobStatus(jobId, status);
+  await emitEvent(jobId, { type: "job.status", data: { status } });
 }
 
-function emitAgentStart(jobId: string, agent: AgentName) {
-  emitEvent(jobId, {
+async function emitAgentStart(jobId: string, agent: AgentName) {
+  await emitEvent(jobId, {
     type: "agent.start",
     data: { agent, index: agentIndex(agent) },
   });
 }
 
-function emitAgentProgress(jobId: string, agent: AgentName, note: string) {
-  appendProgress(jobId, note);
-  emitEvent(jobId, { type: "agent.progress", data: { agent, note } });
+async function emitAgentProgress(jobId: string, agent: AgentName, note: string) {
+  await appendProgress(jobId, note);
+  await emitEvent(jobId, { type: "agent.progress", data: { agent, note } });
 }
 
-function emitAgentDone(jobId: string, agent: AgentName, summary: string) {
-  emitEvent(jobId, {
+async function emitAgentDone(jobId: string, agent: AgentName, summary: string) {
+  await emitEvent(jobId, {
     type: "agent.done",
     data: { agent, index: agentIndex(agent), summary },
   });
@@ -80,18 +80,18 @@ const RENDER_CONCURRENCY = 4;
  * pushes SSE events via emitEvent. Errors are caught and recorded on the job.
  */
 export async function runJob(jobId: string): Promise<void> {
-  const job = getJob(jobId);
+  const job = await getJob(jobId);
   if (!job) return;
 
   // Cache hit shortcut (per-user — RLS scoping happens inside the store)
   if (!job.userId) {
-    failJob(jobId, { reason: "unknown", message: "Job has no owner." });
+    await failJob(jobId, { reason: "unknown", message: "Job has no owner." });
     return;
   }
   const cached = await findCachedExplainer(job.userId, job.cacheKey);
   if (cached) {
     await completeJob(jobId, cached);
-    emitEvent(jobId, {
+    await emitEvent(jobId, {
       type: "job.completed",
       data: { explainer: cached },
     });
@@ -100,61 +100,61 @@ export async function runJob(jobId: string): Promise<void> {
 
   try {
     // 1. Ingest
-    emitStatus(jobId, "ingesting");
-    emitAgentStart(jobId, "ingest");
+    await emitStatus(jobId, "ingesting");
+    await emitAgentStart(jobId, "ingest");
     const preIngested = drainPreIngested(jobId);
     let article;
     if (preIngested) {
       // PDF upload path — extraction already happened in the upload route.
-      emitAgentProgress(jobId, "ingest", "Reading uploaded document…");
+      await emitAgentProgress(jobId, "ingest", "Reading uploaded document…");
       article = preIngested;
     } else {
-      emitAgentProgress(jobId, "ingest", "Fetching article…");
+      await emitAgentProgress(jobId, "ingest", "Fetching article…");
       article = await runIngest(job.url);
-      emitAgentProgress(
+      await emitAgentProgress(
         jobId,
         "ingest",
         `Stripped nav & ads, ${article.wordCount.toLocaleString()} words`
       );
     }
-    emitAgentDone(
+    await emitAgentDone(
       jobId,
       "ingest",
       `Read “${article.title}” — ${article.wordCount.toLocaleString()} words`
     );
 
     // 2. Comprehension
-    emitStatus(jobId, "comprehending");
-    emitAgentStart(jobId, "comprehension");
-    emitAgentProgress(jobId, "comprehension", "Reading for the core idea…");
+    await emitStatus(jobId, "comprehending");
+    await emitAgentStart(jobId, "comprehension");
+    await emitAgentProgress(jobId, "comprehension", "Reading for the core idea…");
     const comprehension = await runComprehension(
       article,
       job.audienceLevel,
       jobId
     );
-    emitAgentDone(
+    await emitAgentDone(
       jobId,
       "comprehension",
       summarizeComprehension(comprehension)
     );
 
     // 3. Structure
-    emitStatus(jobId, "structuring");
-    emitAgentStart(jobId, "structure");
-    emitAgentProgress(jobId, "structure", "Choosing panel types…");
+    await emitStatus(jobId, "structuring");
+    await emitAgentStart(jobId, "structure");
+    await emitAgentProgress(jobId, "structure", "Choosing panel types…");
     const outline = await runStructure(comprehension, jobId);
-    emitAgentDone(jobId, "structure", summarizeOutline(outline));
+    await emitAgentDone(jobId, "structure", summarizeOutline(outline));
 
     // 4. Planner — one call per section, sequential is fine and cheaper to debug.
     // If one section's planner fails after retries we skip it and continue, so
     // a single bad panel can't kill the whole explainer.
-    emitStatus(jobId, "planning");
-    emitAgentStart(jobId, "planner");
+    await emitStatus(jobId, "planning");
+    await emitAgentStart(jobId, "planner");
     const plans = [];
     let skipped = 0;
     for (let i = 0; i < outline.sections.length; i++) {
       const section = outline.sections[i];
-      emitAgentProgress(
+      await emitAgentProgress(
         jobId,
         "planner",
         `Designing panel ${i + 1} of ${outline.sections.length}…`
@@ -170,7 +170,7 @@ export async function runJob(jobId: string): Promise<void> {
       } catch (e) {
         skipped++;
         const msg = (e as Error).message?.slice(0, 200) ?? "unknown";
-        emitAgentProgress(
+        await emitAgentProgress(
           jobId,
           "planner",
           `Skipped panel ${i + 1} (${section.heading}) — ${msg}`
@@ -192,11 +192,11 @@ export async function runJob(jobId: string): Promise<void> {
       skipped > 0
         ? `Designed ${plans.length} panel${plans.length === 1 ? "" : "s"} (skipped ${skipped})`
         : `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`;
-    emitAgentDone(jobId, "planner", doneNote);
+    await emitAgentDone(jobId, "planner", doneNote);
 
     // 5. Render — fan out per panel; emit panel.start / panel.done
-    emitStatus(jobId, "rendering");
-    emitAgentStart(jobId, "render");
+    await emitStatus(jobId, "rendering");
+    await emitAgentStart(jobId, "render");
     const panels: RenderedPanel[] = await renderAllPanelsStreaming({
       jobId,
       plans,
@@ -205,11 +205,11 @@ export async function runJob(jobId: string): Promise<void> {
         outline.sections.map((s) => [s.id, s.heading])
       ),
     });
-    emitAgentDone(jobId, "render", `Rendered ${panels.length} panels`);
+    await emitAgentDone(jobId, "render", `Rendered ${panels.length} panels`);
 
     // 6. Assembly
-    emitStatus(jobId, "assembling");
-    emitAgentStart(jobId, "assembly");
+    await emitStatus(jobId, "assembling");
+    await emitAgentStart(jobId, "assembly");
     const baseExplainer: Explainer = runAssembly({
       jobId,
       url: job.url,
@@ -218,14 +218,14 @@ export async function runJob(jobId: string): Promise<void> {
       comprehension,
       panels,
     });
-    emitAgentDone(jobId, "assembly", "Assembled explainer");
+    await emitAgentDone(jobId, "assembly", "Assembled explainer");
 
     // 7. Social pack — caption + hashtags + alt-texts, so the explainer
     //    is ready to actually POST, not just look at. Failure here is
     //    non-fatal: we ship the explainer without a pack and the user
     //    can regenerate from the export sheet.
-    emitAgentStart(jobId, "social");
-    emitAgentProgress(jobId, "social", "Writing your post caption…");
+    await emitAgentStart(jobId, "social");
+    await emitAgentProgress(jobId, "social", "Writing your post caption…");
     let explainer: Explainer = baseExplainer;
     try {
       const socialPack = await runSocialPack(
@@ -234,26 +234,30 @@ export async function runJob(jobId: string): Promise<void> {
         jobId
       );
       explainer = { ...baseExplainer, socialPack };
-      emitAgentDone(
+      await emitAgentDone(
         jobId,
         "social",
         `Caption + ${socialPack.hashtags.length} hashtag${socialPack.hashtags.length === 1 ? "" : "s"}`
       );
     } catch (e) {
       const msg = (e as Error).message?.slice(0, 160) ?? "unknown";
-      emitAgentProgress(jobId, "social", `Skipped — ${msg}`);
-      emitAgentDone(jobId, "social", "Skipped — refresh from the export sheet");
+      await emitAgentProgress(jobId, "social", `Skipped — ${msg}`);
+      await emitAgentDone(
+        jobId,
+        "social",
+        "Skipped — refresh from the export sheet"
+      );
       // eslint-disable-next-line no-console
       console.warn("[readopp] socialPack failed", { jobId, error: e });
     }
 
     await completeJob(jobId, explainer);
-    emitEvent(jobId, { type: "job.completed", data: { explainer } });
+    await emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {
     const err = toJobError(e);
-    appendProgress(jobId, `Failed: ${err.message}`);
-    failJob(jobId, err);
-    emitEvent(jobId, { type: "job.failed", data: { error: err } });
+    await appendProgress(jobId, `Failed: ${err.message}`);
+    await failJob(jobId, err);
+    await emitEvent(jobId, { type: "job.failed", data: { error: err } });
     // eslint-disable-next-line no-console
     console.error("[readopp] job failed", { jobId, error: e });
   }
@@ -279,7 +283,7 @@ async function renderAllPanelsStreaming(input: {
       const i = cursor++;
       if (i >= total) return;
       const plan = plans[i];
-      emitEvent(jobId, {
+      await emitEvent(jobId, {
         type: "panel.start",
         data: { sectionId: plan.sectionId, index: i + 1, total },
       });
@@ -300,7 +304,7 @@ async function renderAllPanelsStreaming(input: {
         );
       }
       out[i] = panel;
-      emitEvent(jobId, {
+      await emitEvent(jobId, {
         type: "panel.done",
         data: { panel, index: i + 1, total },
       });

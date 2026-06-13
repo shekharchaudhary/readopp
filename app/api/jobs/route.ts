@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const job = createJob({ url, audienceLevel, userId });
+  const job = await createJob({ url, audienceLevel, userId });
 
   if (cached) {
     await completeJob(job.id, cached);

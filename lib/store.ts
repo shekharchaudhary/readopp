@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   ExplainerSchema,
   type AudienceLevel,
@@ -13,30 +13,11 @@ import type { StreamEvent, StreamEventInput } from "./events";
 import { getAdminSupabase, getServerSupabase } from "./supabase/server";
 
 /**
- * Hybrid store: jobs + event streams stay in process memory (transient,
- * 60-90 sec lifecycle); explainers (the durable artifact) live in Supabase
- * Postgres tagged with the owning auth.users id.
+ * Jobs + SSE event log live in Postgres so they survive serverless
+ * instance boundaries (Vercel Fluid Compute can route a job's POST and
+ * its follow-up SSE subscribe to different processes). Explainers also
+ * persist in Postgres. Nothing critical is in process memory anymore.
  */
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __readopp_store__: ReadoppStore | undefined;
-}
-
-type Subscriber = (event: StreamEvent) => void;
-
-class ReadoppStore {
-  jobs = new Map<string, Job>();
-  events = new Map<string, StreamEvent[]>(); // jobId -> ordered events
-  subscribers = new Map<string, Set<Subscriber>>();
-}
-
-function getStore(): ReadoppStore {
-  if (!globalThis.__readopp_store__) {
-    globalThis.__readopp_store__ = new ReadoppStore();
-  }
-  return globalThis.__readopp_store__;
-}
 
 export function cacheKeyFor(url: string, audienceLevel: AudienceLevel): string {
   return createHash("sha256")
@@ -45,62 +26,131 @@ export function cacheKeyFor(url: string, audienceLevel: AudienceLevel): string {
     .slice(0, 16);
 }
 
-// ---------- Jobs (in-memory) ----------
+// ---------- Jobs (Supabase) ----------
 
-export function createJob(input: {
+interface JobRow {
+  id: string;
+  user_id: string;
+  url: string;
+  audience_level: string;
+  status: string;
+  cache_key: string;
+  progress: unknown;
+  usage: unknown;
+  error: unknown;
+  explainer_id: string | null;
+  explainer: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToJob(row: JobRow): Job & { userId: string } {
+  return {
+    id: row.id,
+    url: row.url,
+    audienceLevel: row.audience_level as AudienceLevel,
+    status: row.status as JobStatus,
+    cacheKey: row.cache_key,
+    progress:
+      (row.progress as { ts: string; note: string }[] | null) ?? [],
+    usage: (row.usage as TokenUsage | null) ?? undefined,
+    error: (row.error as JobError | null) ?? undefined,
+    explainerId: row.explainer_id ?? undefined,
+    explainer: (row.explainer as Explainer | null) ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    userId: row.user_id,
+  };
+}
+
+export async function createJob(input: {
   url: string;
   audienceLevel: AudienceLevel;
   userId: string;
   /** Optional explicit cache key (e.g. file-hash for PDF uploads). Defaults to url+audience hash. */
   cacheKey?: string;
-}): Job & { userId: string } {
-  const now = new Date().toISOString();
-  const job: Job & { userId: string } = {
-    id: randomUUID(),
+}): Promise<Job & { userId: string }> {
+  const admin = getAdminSupabase();
+  const row = {
+    user_id: input.userId,
     url: input.url,
-    audienceLevel: input.audienceLevel,
+    audience_level: input.audienceLevel,
     status: "queued",
-    cacheKey: input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel),
+    cache_key: input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel),
     progress: [],
     usage: { inputTokens: 0, outputTokens: 0, calls: 0 },
-    createdAt: now,
-    updatedAt: now,
-    userId: input.userId,
-  };
-  getStore().jobs.set(job.id, job);
-  return job;
+  } as unknown as never;
+  const { data, error } = await admin
+    .from("jobs")
+    .insert(row)
+    .select("*")
+    .maybeSingle();
+  if (error || !data) {
+    throw new Error(`Failed to create job: ${error?.message ?? "no row"}`);
+  }
+  return rowToJob(data as JobRow);
 }
 
-export function getJob(id: string): (Job & { userId?: string }) | undefined {
-  return getStore().jobs.get(id) as (Job & { userId?: string }) | undefined;
+export async function getJob(
+  id: string
+): Promise<(Job & { userId?: string }) | undefined> {
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from("jobs")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return rowToJob(data as JobRow);
 }
 
-export function updateJob(id: string, patch: Partial<Job>): Job | undefined {
-  const store = getStore();
-  const existing = store.jobs.get(id);
-  if (!existing) return undefined;
-  const merged: Job = {
-    ...existing,
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  };
-  store.jobs.set(id, merged);
-  return merged;
+export async function updateJob(
+  id: string,
+  patch: Partial<Job>
+): Promise<Job | undefined> {
+  const admin = getAdminSupabase();
+  const row: Record<string, unknown> = {};
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.progress !== undefined) row.progress = patch.progress;
+  if (patch.usage !== undefined) row.usage = patch.usage;
+  if (patch.error !== undefined) row.error = patch.error;
+  if (patch.explainerId !== undefined) row.explainer_id = patch.explainerId;
+  if (patch.explainer !== undefined) row.explainer = patch.explainer;
+  // updated_at is bumped by the row-level trigger.
+  const { data, error } = await admin
+    .from("jobs")
+    .update(row as unknown as never)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return rowToJob(data as JobRow);
 }
 
-export function setJobStatus(id: string, status: JobStatus): Job | undefined {
+export async function setJobStatus(
+  id: string,
+  status: JobStatus
+): Promise<Job | undefined> {
   return updateJob(id, { status });
 }
 
-export function appendProgress(id: string, note: string): Job | undefined {
-  const existing = getJob(id);
+export async function appendProgress(
+  id: string,
+  note: string
+): Promise<Job | undefined> {
+  // Two-RTT read-modify-write. Only one writer per job (the orchestrator),
+  // so there's no append race.
+  const existing = await getJob(id);
   if (!existing) return undefined;
   const next = [...existing.progress, { ts: new Date().toISOString(), note }];
   return updateJob(id, { progress: next });
 }
 
-export function addUsage(id: string, delta: TokenUsage): Job | undefined {
-  const existing = getJob(id);
+export async function addUsage(
+  id: string,
+  delta: TokenUsage
+): Promise<Job | undefined> {
+  const existing = await getJob(id);
   if (!existing) return undefined;
   const base = existing.usage ?? { inputTokens: 0, outputTokens: 0, calls: 0 };
   const next: TokenUsage = {
@@ -111,19 +161,22 @@ export function addUsage(id: string, delta: TokenUsage): Job | undefined {
   return updateJob(id, { usage: next });
 }
 
-export function failJob(id: string, error: JobError): Job | undefined {
+export async function failJob(
+  id: string,
+  error: JobError
+): Promise<Job | undefined> {
   return updateJob(id, { status: "failed", error });
 }
 
 /**
- * Persist the finished explainer (Supabase) and mark the in-memory job
- * complete with an inline copy for the immediate /j/:id render.
+ * Persist the finished explainer and mark the job complete with an inline
+ * copy so /api/jobs/:id can be a single-RTT read.
  */
 export async function completeJob(
   id: string,
   explainer: Explainer
 ): Promise<Job | undefined> {
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) return undefined;
   const userId = job.userId;
   if (!userId) {
@@ -371,21 +424,7 @@ export async function updatePanel(
     .select("*")
     .maybeSingle();
   if (error || !updatedRow) return undefined;
-  const next = rowToExplainer(updatedRow as ExplainerRow);
-
-  // Mirror back into the in-memory job copy so /j/:id stays consistent
-  // within the dev session.
-  const store = getStore();
-  for (const [jobId, job] of store.jobs.entries()) {
-    if (job.explainerId === explainerId && job.explainer) {
-      store.jobs.set(jobId, {
-        ...job,
-        explainer: next,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  }
-  return next;
+  return rowToExplainer(updatedRow as ExplainerRow);
 }
 
 /**
@@ -404,20 +443,7 @@ export async function setExplainerTemplate(
     .select("*")
     .maybeSingle();
   if (error || !updatedRow) return undefined;
-  const next = rowToExplainer(updatedRow as ExplainerRow);
-
-  // Mirror into the in-memory job copy so /j/:id stays consistent in dev.
-  const store = getStore();
-  for (const [jobId, job] of store.jobs.entries()) {
-    if (job.explainerId === explainerId && job.explainer) {
-      store.jobs.set(jobId, {
-        ...job,
-        explainer: next,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  }
-  return next;
+  return rowToExplainer(updatedRow as ExplainerRow);
 }
 
 /**
@@ -476,47 +502,70 @@ export async function listRecentExplainers(
   return out;
 }
 
-// ---------- Event log + pub/sub (in-memory) ----------
+// ---------- Event log (Supabase) ----------
 
-export function emitEvent(jobId: string, input: StreamEventInput): StreamEvent {
-  const store = getStore();
-  const list = store.events.get(jobId) ?? [];
-  const seq = list.length + 1;
-  const event: StreamEvent = {
-    ...input,
-    jobId,
-    seq,
-    ts: new Date().toISOString(),
-  } as StreamEvent;
-  list.push(event);
-  store.events.set(jobId, list);
-  const subs = store.subscribers.get(jobId);
-  if (subs) {
-    for (const fn of subs) {
-      try {
-        fn(event);
-      } catch {
-        // ignore subscriber errors so a broken listener can't poison the loop
-      }
-    }
-  }
-  return event;
+interface JobEventRow {
+  seq: number;
+  job_id: string;
+  type: string;
+  data: unknown;
+  ts: string;
 }
 
-export function listEvents(jobId: string): StreamEvent[] {
-  return getStore().events.get(jobId) ?? [];
+function rowToEvent(row: JobEventRow): StreamEvent {
+  return {
+    type: row.type,
+    data: row.data,
+    jobId: row.job_id,
+    seq: row.seq,
+    ts: row.ts,
+  } as unknown as StreamEvent;
 }
 
-export function subscribe(jobId: string, fn: Subscriber): () => void {
-  const store = getStore();
-  let set = store.subscribers.get(jobId);
-  if (!set) {
-    set = new Set();
-    store.subscribers.set(jobId, set);
+export async function emitEvent(
+  jobId: string,
+  input: StreamEventInput
+): Promise<StreamEvent> {
+  const admin = getAdminSupabase();
+  const insertRow = {
+    job_id: jobId,
+    type: input.type,
+    data: input.data ?? {},
+  } as unknown as never;
+  const { data, error } = await admin
+    .from("job_events")
+    .insert(insertRow)
+    .select("seq, job_id, type, data, ts")
+    .maybeSingle();
+  if (error || !data) {
+    throw new Error(
+      `Failed to emit event for ${jobId}: ${error?.message ?? "no row"}`
+    );
   }
-  set.add(fn);
-  return () => {
-    set!.delete(fn);
-    if (set!.size === 0) store.subscribers.delete(jobId);
-  };
+  return rowToEvent(data as JobEventRow);
+}
+
+/** Replay every event for a job — used on (re)connect to rebuild scene state. */
+export async function listEvents(jobId: string): Promise<StreamEvent[]> {
+  return listEventsSince(jobId, 0);
+}
+
+/**
+ * Events newer than `afterSeq`, ordered by seq. The SSE route polls this
+ * to forward new events to a connected client; pass the last-seen seq so
+ * subsequent polls only return the delta.
+ */
+export async function listEventsSince(
+  jobId: string,
+  afterSeq: number
+): Promise<StreamEvent[]> {
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from("job_events")
+    .select("seq, job_id, type, data, ts")
+    .eq("job_id", jobId)
+    .gt("seq", afterSeq)
+    .order("seq", { ascending: true });
+  if (error || !data) return [];
+  return (data as JobEventRow[]).map(rowToEvent);
 }

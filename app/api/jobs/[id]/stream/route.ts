@@ -1,4 +1,4 @@
-import { getJob, listEvents, subscribe } from "@/lib/store";
+import { getJob, listEventsSince } from "@/lib/store";
 import type { StreamEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
@@ -14,11 +14,19 @@ function formatHeartbeat(): Uint8Array {
   return ENCODER.encode(`: ping\n\n`);
 }
 
+/**
+ * Polls `job_events` instead of subscribing to an in-process pub/sub.
+ * Polling is fine here — the pipeline only runs 60-90 seconds, the
+ * client-perceived latency budget is bounded by the agents themselves
+ * (slowest step >5s), and one indexed Supabase query every 500ms is
+ * cheap. Crucially, this works regardless of which Fluid Compute
+ * instance the request lands on.
+ */
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const job = getJob(params.id);
+  const job = await getJob(params.id);
   if (!job) {
     return new Response("not found", { status: 404 });
   }
@@ -26,6 +34,9 @@ export async function GET(
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
+      let lastSeq = 0;
+      let polling = false;
+
       const safeEnqueue = (chunk: Uint8Array) => {
         if (closed) return;
         try {
@@ -35,55 +46,50 @@ export async function GET(
         }
       };
 
-      // Replay any events already persisted so a fresh subscriber reconstructs state.
-      for (const ev of listEvents(params.id)) {
-        safeEnqueue(formatSse(ev));
-      }
-
-      // If the job already terminated, close the stream after replay.
-      const current = getJob(params.id);
-      if (
-        current &&
-        (current.status === "completed" || current.status === "failed")
-      ) {
-        try {
-          controller.close();
-        } catch {
-          // ignore
-        }
-        closed = true;
-        return;
-      }
-
-      // Live subscription
-      const unsubscribe = subscribe(params.id, (ev) => {
-        safeEnqueue(formatSse(ev));
-        if (ev.type === "job.completed" || ev.type === "job.failed") {
-          try {
-            controller.close();
-          } catch {
-            // ignore
-          }
-          closed = true;
-          unsubscribe();
-          clearInterval(heartbeat);
-        }
-      });
-
-      // Heartbeat keeps proxies from killing the idle connection.
-      const heartbeat = setInterval(() => safeEnqueue(formatHeartbeat()), 15_000);
-
-      req.signal.addEventListener("abort", () => {
+      const closeStream = () => {
         if (closed) return;
         closed = true;
-        unsubscribe();
+        clearInterval(poll);
         clearInterval(heartbeat);
         try {
           controller.close();
         } catch {
           // ignore
         }
-      });
+      };
+
+      async function tick() {
+        if (closed || polling) return;
+        polling = true;
+        try {
+          const events = await listEventsSince(params.id, lastSeq);
+          for (const ev of events) {
+            if (closed) break;
+            safeEnqueue(formatSse(ev));
+            lastSeq = ev.seq;
+            if (ev.type === "job.completed" || ev.type === "job.failed") {
+              closeStream();
+              return;
+            }
+          }
+        } catch {
+          // Transient errors — keep polling.
+        } finally {
+          polling = false;
+        }
+      }
+
+      // Initial replay so the client reconstructs scene state regardless
+      // of when it (re)connects relative to the orchestrator's progress.
+      void tick();
+
+      const poll = setInterval(tick, 500);
+      const heartbeat = setInterval(
+        () => safeEnqueue(formatHeartbeat()),
+        15_000
+      );
+
+      req.signal.addEventListener("abort", closeStream);
     },
   });
 
