@@ -121,28 +121,53 @@ const PERSONAS: Persona[] = [
 export function UseCases() {
   const [active, setActive] = useState(0);
   const [reduced, setReduced] = useState(false);
+  const [inView, setInView] = useState(false);
   const hovering = useRef(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
+
+  // Don't start the auto-cycle until the section actually scrolls in;
+  // otherwise the personas advance before the user is looking at them.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.15 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
 
   // One cycle per active persona; re-arms on every change so a manual
   // pick always gets a full cycle. Hover pauses the advance (not the bar
   // — close enough, and the bar restarting on resume reads fine).
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || !inView) return;
     const id = setTimeout(() => {
       if (hovering.current) return;
       setActive((a) => (a + 1) % PERSONAS.length);
     }, AUTO_MS);
     return () => clearTimeout(id);
-  }, [active, reduced]);
+  }, [active, reduced, inView]);
 
   const p = PERSONAS[active];
 
   return (
     <section
+      ref={sectionRef}
       id="use-cases"
       className="section-amb amb-lavender border-b border-paper-line bg-surface"
     >
@@ -235,7 +260,10 @@ export function UseCases() {
           {/* Stage: source file → arrow → template panel */}
           <Reveal delayMs={220}>
             <div className="relative overflow-hidden rounded-2xl border border-paper-line bg-paper p-6 sm:p-10">
-              <div key={active} className="relative mx-auto max-w-[320px] pt-10">
+              <div
+                key={`${active}-${inView ? "v" : "h"}`}
+                className="relative mx-auto max-w-[320px] pt-10"
+              >
                 {/* Source file chip */}
                 <div className="absolute -top-1 left-0 z-10 -rotate-3">
                   <div className="uc-chip flex items-center gap-2 rounded-lg border border-paper-line bg-surface px-3 py-2 shadow-[0_6px_16px_-8px_rgba(0,0,0,0.25)]">

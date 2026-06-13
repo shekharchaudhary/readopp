@@ -1,10 +1,13 @@
-import { ReactNode } from "react";
+"use client";
+
+import { ReactNode, useEffect, useRef, useState } from "react";
 
 /**
  * Napkin-style "sources flow into the input" visual. Four tile chips
  * (the kinds of things people read) sit above the real UrlInput card,
  * with hand-drawn curved arrows converging into it — so the first
  * interactive element on the page explains itself without a caption.
+ * The arrows draw in once the SVG actually enters the viewport.
  */
 
 const SOURCES: {
@@ -40,6 +43,32 @@ const SOURCES: {
 ];
 
 export function SourceFlow({ children }: { children: ReactNode }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setShown(true);
+            io.disconnect();
+            break;
+          }
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
@@ -58,9 +87,10 @@ export function SourceFlow({ children }: { children: ReactNode }) {
 
       {/* Hand-drawn arrows converging from the tiles into the card. */}
       <svg
+        ref={svgRef}
         aria-hidden
         viewBox="0 0 400 64"
-        className="flow-arrows mx-auto -mb-1 mt-1 h-14 w-full max-w-sm text-ink-soft"
+        className={`flow-arrows mx-auto -mb-1 mt-1 h-14 w-full max-w-sm text-ink-soft ${shown ? "flow-in" : ""}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="3.5"

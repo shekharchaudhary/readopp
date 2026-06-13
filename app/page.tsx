@@ -5,6 +5,7 @@ import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { Footer } from "@/components/marketing/Footer";
 import { HeroPostMockup } from "@/components/marketing/HeroPostMockup";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { InViewClass } from "@/components/marketing/InViewClass";
 import { Nav } from "@/components/marketing/Nav";
 import { PlatformsStrip } from "@/components/marketing/PlatformsStrip";
 import { Pricing } from "@/components/marketing/Pricing";
@@ -30,9 +31,12 @@ export default function HomePage() {
               <Reveal delayMs={80}>
                 <h1 className="font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
                   Turn what you read into a{" "}
-                  <em className="hl-sweep hl-mint not-italic box-decoration-clone rounded-lg px-2 text-ink">
+                  <InViewClass
+                    active="hl-in"
+                    className="hl-sweep hl-mint box-decoration-clone rounded-lg px-2 text-ink"
+                  >
                     LinkedIn-ready post
-                  </em>
+                  </InViewClass>
                   .
                 </h1>
               </Reveal>

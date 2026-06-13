@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const AUTO_MS = 5000;
 
@@ -233,6 +233,8 @@ export function TemplateLibraryShowcase() {
   const [active, setActive] = useState(0);
   const [hover, setHover] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [inView, setInView] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const chapter = CHAPTERS[active];
 
   useEffect(() => {
@@ -243,20 +245,43 @@ export function TemplateLibraryShowcase() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
+  // Hold the auto-cycle until the showcase scrolls into view. Without
+  // this, the tabs advance behind the hero before the user gets here.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.15 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   // Auto-advance through the categories like a slideshow. Hovering
   // anywhere in the showcase pauses it; leaving re-arms a full cycle
   // (the progress bar is re-keyed on both so it stays in sync).
   useEffect(() => {
-    if (reduced || hover) return;
+    if (reduced || hover || !inView) return;
     const id = setTimeout(
       () => setActive((a) => (a + 1) % CHAPTERS.length),
       AUTO_MS
     );
     return () => clearTimeout(id);
-  }, [active, hover, reduced]);
+  }, [active, hover, reduced, inView]);
 
   return (
     <div
+      ref={rootRef}
       className="mt-12 sm:mt-16"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -290,7 +315,7 @@ export function TemplateLibraryShowcase() {
             >
               {c.templates.length}
             </span>
-            {i === active && !reduced && (
+            {i === active && !reduced && inView && (
               <span
                 key={`${active}-${hover ? "p" : "r"}`}
                 aria-hidden

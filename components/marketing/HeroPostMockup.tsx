@@ -112,8 +112,33 @@ const DEMO_END_MS = 8900;
 export function HeroPostMockup() {
   const [t, setT] = useState(0);
   const [cursor, setCursor] = useState(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [armed, setArmed] = useState(false);
+
+  // Don't start the intro reel until the mockup is on screen, so users
+  // who scroll straight back here from elsewhere still see it play.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setArmed(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setArmed(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
+    if (!armed) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setT(DEMO_END_MS);
       return;
@@ -125,7 +150,7 @@ export function HeroPostMockup() {
       if (elapsed >= DEMO_END_MS) clearInterval(id);
     }, 100);
     return () => clearInterval(id);
-  }, []);
+  }, [armed]);
 
   const postVisible = t >= DEMO_MS;
   const demoMounted = t < DEMO_END_MS;
@@ -154,7 +179,10 @@ export function HeroPostMockup() {
   const captionText = `Just finished “${truncate(slide.title, 56)}”. Made a quick visual breakdown — what do you think?`;
 
   return (
-    <div className="relative rotate-[1.2deg] transition-transform duration-500 ease-out hover:rotate-0 motion-reduce:rotate-0">
+    <div
+      ref={rootRef}
+      className="relative rotate-[1.2deg] transition-transform duration-500 ease-out hover:rotate-0 motion-reduce:rotate-0"
+    >
       <div
         className={
           "transition-all duration-700 ease-out " +

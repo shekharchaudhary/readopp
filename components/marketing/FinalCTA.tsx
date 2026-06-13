@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KnotArrow } from "./KnotArrow";
 import { Reveal } from "./Reveal";
 import { Squiggle } from "./Squiggle";
 
@@ -23,7 +24,7 @@ export function FinalCTA() {
       />
       <div className="mx-auto max-w-5xl px-6 pb-28 pt-20 text-center sm:pb-36 sm:pt-28">
         <Reveal>
-          <ArrowDoodle />
+          <KnotArrow />
         </Reveal>
 
         <Reveal delayMs={120}>
@@ -61,28 +62,3 @@ export function FinalCTA() {
   );
 }
 
-/**
- * Hand-drawn-feeling downward squiggle. SVG so it stays crisp at any
- * size; built with a single Bézier path that loops once and arrows
- * down — keeps the playful "marker on napkin" feel without leaning
- * on a doodle font.
- */
-function ArrowDoodle() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 120 160"
-      className="mx-auto h-32 w-24 text-mint"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {/* Loop + descent — drawn in one stroke so it reads as hand-drawn. */}
-      <path d="M62 10 C 22 18, 22 70, 62 70 C 102 70, 102 18, 62 26 L 62 130" />
-      {/* Arrowhead */}
-      <path d="M46 116 L 62 138 L 78 116" />
-    </svg>
-  );
-}

@@ -103,6 +103,10 @@ export function Pricing() {
   // control, then it's theirs for good.
   const [engaged, setEngaged] = useState(false);
   const [inView, setInView] = useState(false);
+  // One-way "has this section ever been seen" flag. Used to gate one-shot
+  // animations (like the receipt print) so they don't replay every time
+  // the user scrolls past Pricing.
+  const [seen, setSeen] = useState(false);
   const [reduced, setReduced] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const postsRef = useRef(posts);
@@ -135,7 +139,10 @@ export function Pricing() {
     const el = sectionRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([entry]) => setInView(entry.isIntersecting),
+      ([entry]) => {
+        setInView(entry.isIntersecting);
+        if (entry.isIntersecting) setSeen(true);
+      },
       { threshold: 0.3 }
     );
     io.observe(el);
@@ -270,7 +277,7 @@ export function Pricing() {
 
           {/* Right: the receipt */}
           <Reveal delayMs={260}>
-            <Receipt plan={plan} billing={billing} posts={posts} />
+            <Receipt plan={plan} billing={billing} posts={posts} inView={seen} />
           </Reveal>
         </div>
 
@@ -396,10 +403,12 @@ function Receipt({
   plan,
   billing,
   posts,
+  inView,
 }: {
   plan: Plan;
   billing: Billing;
   posts: number;
+  inView: boolean;
 }) {
   const price = billing === "yearly" ? plan.yearly : plan.monthly;
   const discount = plan.monthly - plan.yearly;
@@ -411,10 +420,14 @@ function Receipt({
       <div className="relative z-10 mx-4 h-2.5 rounded-full bg-ink/90 dark:bg-dark" />
 
       <div className="-mt-1 overflow-hidden">
-        {/* Re-keying re-runs the print animation on every change */}
+        {/* Re-keying re-runs the print animation on every change. inView
+            is part of the key so the first run waits for viewport entry
+            instead of finishing before the user scrolls down. */}
         <div
-          key={`${plan.id}-${billing}`}
-          className="receipt-print motion-reduce:animate-none"
+          key={`${plan.id}-${billing}-${inView ? "v" : "h"}`}
+          className={
+            "motion-reduce:animate-none " + (inView ? "receipt-print" : "")
+          }
         >
           <div className="force-light bg-[#FFFDF8] px-7 pb-6 pt-7 font-mono text-[12.5px] leading-relaxed text-ink">
             <div className="text-center">
