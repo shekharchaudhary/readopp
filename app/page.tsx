@@ -25,27 +25,14 @@ export default function HomePage() {
         <section className="section-amb amb-tr bg-paper">
           <div className="mx-auto max-w-6xl px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
             <div className="mx-auto max-w-3xl text-center">
-              <Reveal>
-                <span className="inline-flex items-center gap-2 rounded-full border border-paper-line bg-surface px-3.5 py-1.5 text-xs font-medium tracking-tight text-ink-soft">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent motion-safe:animate-pulse" />
-                  Visual posts from anything you read
-                </span>
-              </Reveal>
               <Reveal delayMs={80}>
-                <h1 className="mt-6 font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
+                <h1 className="font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
                   You shouldn&rsquo;t have to design what you{" "}
                   <em className="hl-sweep hl-coral not-italic box-decoration-clone rounded-lg px-2 text-coral-deep">
                     already understand
                   </em>
                   .
                 </h1>
-              </Reveal>
-              <Reveal delayMs={160}>
-                <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">
-                  Readopp turns whatever you&rsquo;re reading into a
-                  feed-ready visual carousel — editorial polish, caption
-                  included, in under 30 seconds.
-                </p>
               </Reveal>
             </div>
 
