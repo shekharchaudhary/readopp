@@ -82,6 +82,22 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  await savePanelScene({ explainerId, sectionId, userId, scene });
+  try {
+    await savePanelScene({ explainerId, sectionId, userId, scene });
+  } catch (e) {
+    const msg = (e as Error).message ?? "unknown";
+    // The most common cause during setup is the panel_scenes migration not
+    // being applied yet. Surface a clear hint so the client pill explains
+    // exactly what to do instead of a generic 500.
+    const isMissingTable = /panel_scenes|does not exist|schema cache/i.test(msg);
+    return NextResponse.json(
+      {
+        error: isMissingTable
+          ? "panel_scenes table is missing — apply supabase/migrations/0007_panel_scenes.sql in Supabase Studio."
+          : `Failed to save: ${msg.slice(0, 200)}`,
+      },
+      { status: 500 }
+    );
+  }
   return NextResponse.json({ ok: true });
 }

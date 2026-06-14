@@ -269,6 +269,15 @@ export function PanelCard({
               initialScene={undefined}
               height="100%"
               onDone={() => setEditingCanvas(false)}
+              // Save/Done in the canvas commit the rendered SVG into the
+              // panel content so the static explainer view shows the edits.
+              onCommit={
+                onEdit
+                  ? async (svg) => {
+                      await onEdit(panel.sectionId, { content: svg });
+                    }
+                  : undefined
+              }
             />
           </div>
         ) : templatedPreview && explainerId && template ? (

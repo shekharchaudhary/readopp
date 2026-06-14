@@ -56,6 +56,14 @@ interface Props {
    * by the inline panel-card editor to switch back to the static view.
    */
   onDone?: () => void;
+  /**
+   * Called by the explicit Save button and by Done with the canvas exported
+   * to an SVG string. The parent uses this to write the edited SVG into the
+   * static panel content so the explainer view reflects the edits, not just
+   * the in-editor canvas. Auto-save does NOT call this — it only persists
+   * the Excalidraw scene to panel_scenes for crash-recovery / resume.
+   */
+  onCommit?: (svgString: string) => Promise<void>;
 }
 
 const SEED_FILE_ID = "readopp-panel-base";
@@ -69,6 +77,7 @@ export function EditorCanvas({
   initialScene,
   height,
   onDone,
+  onCommit,
 }: Props) {
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,12 +197,69 @@ export function EditorCanvas({
     }, 1500);
   }, [flushSave]);
 
+  /**
+   * Export the current canvas to an SVG string. Excalidraw natively emits
+   * an <svg> element; we serialize it for transport. Falls back to null if
+   * the api isn't ready or the export throws.
+   */
+  const exportSceneAsSvg = useCallback(async (): Promise<string | null> => {
+    if (!apiRef.current) return null;
+    const api = apiRef.current;
+    try {
+      const mod = await import("@excalidraw/excalidraw");
+      const svgEl = await mod.exportToSvg({
+        elements: api.getSceneElements() as never,
+        appState: {
+          ...(api.getAppState() as object),
+          exportBackground: true,
+          viewBackgroundColor: "#FAF9F5",
+          exportPadding: 32,
+        } as never,
+        files: api.getFiles() as never,
+      });
+      return new XMLSerializer().serializeToString(svgEl);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  /**
+   * Save scene to panel_scenes AND commit the rendered SVG back to the
+   * panel content via onCommit. Used by the explicit Save button and by
+   * Done. Reports a single combined save state so the pill stays accurate.
+   */
+  const handleSave = useCallback(async () => {
+    // Scene save (for resume) and commit (for visible edits) are independent
+    // operations. Even if the scene save fails (e.g. panel_scenes migration
+    // not applied yet), still try to commit the SVG so the user sees their
+    // edits in the static panel view. The user can always re-edit later.
+    const sceneOk = await flushSave();
+    if (!onCommit) return sceneOk;
+    const svg = await exportSceneAsSvg();
+    if (!svg) {
+      if (!sceneOk) return false;
+      setSaving({ kind: "error", message: "Could not export canvas" });
+      return false;
+    }
+    try {
+      await onCommit(svg);
+      setSaving({ kind: "saved", at: Date.now() });
+      return true;
+    } catch (e) {
+      setSaving({
+        kind: "error",
+        message: (e as Error).message?.slice(0, 80) || "commit failed",
+      });
+      return false;
+    }
+  }, [flushSave, exportSceneAsSvg, onCommit]);
+
   const handleDone = useCallback(async () => {
-    // Best-effort save before closing. Even if save fails, still close so
-    // the user isn't trapped — the Save-failed pill stays visible up top.
-    await flushSave();
+    // Best-effort: save + commit before closing. Even if either fails, still
+    // close so the user isn't trapped — the Save-failed pill stays visible.
+    await handleSave();
     onDone?.();
-  }, [flushSave, onDone]);
+  }, [handleSave, onDone]);
 
   const handleExport = useCallback(async () => {
     if (!apiRef.current) return;
@@ -253,7 +319,7 @@ export function EditorCanvas({
         </span>
         <button
           type="button"
-          onClick={() => void flushSave()}
+          onClick={() => void handleSave()}
           disabled={saving.kind === "saving"}
           className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted disabled:opacity-60"
         >
