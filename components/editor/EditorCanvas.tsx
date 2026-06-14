@@ -2,7 +2,7 @@
 
 import "@excalidraw/excalidraw/index.css";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Full-canvas panel editor — Excalidraw mounted on /edit/[id]/[section]/.
@@ -280,12 +280,10 @@ export function EditorCanvas({
 
       <div className="min-h-0 flex-1" style={height ? { height } : undefined}>
         {initialData ? (
-          <Excalidraw
-            initialData={initialData as never}
-            excalidrawAPI={(api) => {
-              apiRef.current = api as unknown as ExcalidrawAPI;
-            }}
-            onChange={() => scheduleSave()}
+          <ExcalidrawMount
+            initialData={initialData}
+            apiRef={apiRef}
+            scheduleSave={scheduleSave}
           />
         ) : (
           <CanvasLoading />
@@ -300,6 +298,55 @@ function CanvasLoading() {
     <div className="flex h-full w-full items-center justify-center bg-paper text-sm text-ink-muted">
       Loading canvas…
     </div>
+  );
+}
+
+/**
+ * Isolates the Excalidraw mount so its props are stable across the parent's
+ * re-renders. Without this, every parent re-render (every Save status flip)
+ * would hand Excalidraw a fresh `onChange` identity, its internal Zustand
+ * store would resubscribe, and the resubscribe would re-fire onChange →
+ * infinite loop. We capture the latest scheduleSave in a ref and expose a
+ * single stable `onChange` callback that reads through to the current ref.
+ * `initialData` is captured once via useMemo so a re-render can't trigger
+ * Excalidraw to re-initialise.
+ */
+function ExcalidrawMount({
+  initialData,
+  apiRef,
+  scheduleSave,
+}: {
+  initialData: unknown;
+  apiRef: React.MutableRefObject<ExcalidrawAPI | null>;
+  scheduleSave: () => void;
+}) {
+  const scheduleRef = useRef(scheduleSave);
+  useEffect(() => {
+    scheduleRef.current = scheduleSave;
+  }, [scheduleSave]);
+
+  // Capture initialData once. Re-mounting on initialData identity change
+  // would also re-trigger the seed-or-fetch effect in the parent.
+  const stableInitial = useMemo(() => initialData, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  const stableOnChange = useCallback(() => {
+    scheduleRef.current();
+  }, []);
+
+  const stableExcalidrawAPI = useCallback(
+    (api: unknown) => {
+      apiRef.current = api as ExcalidrawAPI;
+    },
+    [apiRef]
+  );
+
+  return (
+    <Excalidraw
+      initialData={stableInitial as never}
+      excalidrawAPI={stableExcalidrawAPI}
+      onChange={stableOnChange}
+    />
   );
 }
 
