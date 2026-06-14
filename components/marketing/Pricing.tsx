@@ -16,7 +16,7 @@ import { Squiggle } from "./Squiggle";
  */
 
 type Billing = "monthly" | "yearly";
-type PlanId = "reader" | "author" | "studio";
+type PlanId = "reader" | "author";
 
 interface Plan {
   id: PlanId;
@@ -48,12 +48,12 @@ const PLANS: Plan[] = [
   },
   {
     id: "author",
-    name: "Author",
-    tagline: "For people who post weekly.",
-    monthly: 12,
-    yearly: 9,
+    name: "Student / Author",
+    tagline: "For students and writers who post weekly.",
+    monthly: 9.99,
+    yearly: 7.49,
     postsPerMonth: 60,
-    cta: { text: "Get Author", href: "/signup?plan=author" },
+    cta: { text: "Get started", href: "/signup?plan=author" },
     lines: [
       ["Posts / mo", "60"],
       ["Templates", "All 19"],
@@ -63,36 +63,17 @@ const PLANS: Plan[] = [
       ["Watermark", "None"],
     ],
   },
-  {
-    id: "studio",
-    name: "Studio",
-    tagline: "For teams running content together.",
-    monthly: 29,
-    yearly: 22,
-    postsPerMonth: null,
-    cta: { text: "Start team trial", href: "/signup?plan=studio" },
-    lines: [
-      ["Posts / mo", "Unlimited"],
-      ["Templates", "19 + custom"],
-      ["Export", "PNG · MP4 · GIF"],
-      ["Seats", "3 (+$22 extra)"],
-      ["Brand kit", "Logo · fonts · palette"],
-      ["Queue", "Priority"],
-    ],
-  },
 ];
 
 // Representative slider positions when a plan is picked directly.
 const TYPICAL_POSTS: Record<PlanId, number> = {
   reader: 3,
   author: 20,
-  studio: 80,
 };
 
 function planForPosts(posts: number): PlanId {
   if (posts <= 3) return "reader";
-  if (posts <= 60) return "author";
-  return "studio";
+  return "author";
 }
 
 export function Pricing() {
@@ -153,8 +134,8 @@ export function Pricing() {
     if (engaged || !inView || reduced) return;
     const id = setInterval(() => {
       let next = postsRef.current + dirRef.current;
-      if (next >= 100) {
-        next = 100;
+      if (next >= 60) {
+        next = 60;
         dirRef.current = -1;
       } else if (next <= 1) {
         next = 1;
@@ -230,7 +211,7 @@ export function Pricing() {
                 <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-muted">
                   Or pick directly
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2.5">
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
                   {PLANS.map((p) => {
                     const active = p.id === planId;
                     const pPrice = billing === "yearly" ? p.yearly : p.monthly;
@@ -327,7 +308,7 @@ function PostsSlider({
           How much do you post?
         </label>
         <span className="font-mono text-sm text-ink">
-          {posts >= 100 ? "100+" : posts}{" "}
+          {posts}{" "}
           <span className="text-ink-muted">posts / mo</span>
         </span>
       </div>
@@ -335,7 +316,7 @@ function PostsSlider({
         id="posts-slider"
         type="range"
         min={1}
-        max={100}
+        max={60}
         value={posts}
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-4 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-lavender/30"
@@ -344,7 +325,7 @@ function PostsSlider({
       <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-wide text-ink-faint">
         <span>once in a while</span>
         <span>weekly</span>
-        <span>daily +</span>
+        <span>daily</span>
       </div>
       <p className="mt-4 text-[15px] text-ink-soft">
         That&rsquo;s <span className="font-semibold text-ink">{plan.name}</span>{" "}
@@ -444,7 +425,7 @@ function Receipt({
             <Row label="Plan" value={plan.name.toUpperCase()} strong />
             <Row
               label="You post"
-              value={`${posts >= 100 ? "100+" : posts} / MO`}
+              value={`${posts} / MO`}
             />
 
             <Dashes />
