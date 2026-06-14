@@ -152,11 +152,21 @@ export async function addUsage(
 ): Promise<Job | undefined> {
   const existing = await getJob(id);
   if (!existing) return undefined;
-  const base = existing.usage ?? { inputTokens: 0, outputTokens: 0, calls: 0 };
+  const base = existing.usage ?? {
+    inputTokens: 0,
+    outputTokens: 0,
+    calls: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+  };
   const next: TokenUsage = {
     inputTokens: base.inputTokens + (delta.inputTokens ?? 0),
     outputTokens: base.outputTokens + (delta.outputTokens ?? 0),
     calls: base.calls + (delta.calls ?? 0),
+    cacheReadTokens:
+      (base.cacheReadTokens ?? 0) + (delta.cacheReadTokens ?? 0),
+    cacheCreationTokens:
+      (base.cacheCreationTokens ?? 0) + (delta.cacheCreationTokens ?? 0),
   };
   return updateJob(id, { usage: next });
 }

@@ -1,4 +1,4 @@
-import { callMessages, MODEL_DRAW } from "../anthropic";
+import { cachedSystem, callMessages, MODEL_DRAW } from "../anthropic";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import { fixSvg } from "../render/fixer";
@@ -6,6 +6,10 @@ import { renderGenrePanel } from "../render/genrePanels";
 import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
 import { renderVsScene } from "../render/vsScene";
+import { renderAnthropicStat } from "../render/templates/anthropicStat";
+import { renderFlowchart } from "../render/templates/flowchart";
+import { renderStructural } from "../render/templates/structural";
+import { renderTimeline } from "../render/templates/timeline";
 import {
   stripFences,
   validateHtmlPanel,
@@ -148,6 +152,66 @@ export async function renderPanel(
     }
   }
 
+  // Track 1 slot-fill templates: stat callout, flowchart (linear chains),
+  // narrative timeline, and structural container diagrams. Each returns null
+  // when its plan doesn't fit the template's range, falling through to Opus.
+  if (plan.visualType === "stat_callout" && plan.stat) {
+    return renderAnthropicStat({
+      sectionId: plan.sectionId,
+      heading,
+      caption: plan.caption,
+      stat: plan.stat,
+    });
+  }
+  if (plan.visualType === "flowchart") {
+    const svg = renderFlowchart(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+  }
+  if (plan.visualType === "timeline") {
+    const svg = renderTimeline(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+  }
+  if (plan.visualType === "structural") {
+    const svg = renderStructural(plan);
+    if (svg) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format: "svg",
+        content: svg,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+  }
+
   const format = targetFormat(plan);
   const system = buildSystemPrompt(format, plan);
 
@@ -168,10 +232,13 @@ export async function renderPanel(
     try {
       const res = await callMessages(
         // No temperature: Opus 4.7 rejects the param outright.
+        // System prompt is wrapped in a cacheable block — the DESIGN_SYSTEM_PROMPT
+        // is ~3000 tokens and reused across every panel of the same format in a
+        // job, so cache reads after the first hit cost 10% of normal input.
         {
           model: MODEL_DRAW,
           max_tokens: 4096,
-          system,
+          system: cachedSystem(system),
           messages,
         },
         { jobId, label: `render[${plan.sectionId}]` }

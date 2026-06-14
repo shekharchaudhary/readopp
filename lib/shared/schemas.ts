@@ -617,6 +617,12 @@ export const TokenUsageSchema = z.object({
   inputTokens: z.number().int().nonnegative().default(0),
   outputTokens: z.number().int().nonnegative().default(0),
   calls: z.number().int().nonnegative().default(0),
+  // Prompt-cache breakdown. Cache reads cost 10% of normal input; cache
+  // creates cost 125%. Tracking both lets us measure cache effectiveness
+  // without re-querying the model logs. Default 0 keeps older persisted
+  // jobs valid after the schema bump.
+  cacheReadTokens: z.number().int().nonnegative().default(0),
+  cacheCreationTokens: z.number().int().nonnegative().default(0),
 });
 export type TokenUsage = z.infer<typeof TokenUsageSchema>;
 

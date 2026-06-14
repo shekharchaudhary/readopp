@@ -1,6 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages";
+import type {
+  MessageCreateParamsNonStreaming,
+  TextBlockParam,
+} from "@anthropic-ai/sdk/resources/messages";
 import { addUsage } from "./store";
+
+/**
+ * Build a cached system-prompt block. The Anthropic API supports prompt
+ * caching by attaching `cache_control: { type: "ephemeral" }` to any text
+ * block — subsequent calls with an identical prefix pay 10% of normal input
+ * cost on a cache hit, 125% on the initial write. SDK 0.32 predates this
+ * field in its TypeScript types, so we cast at the boundary. The wire format
+ * accepts it on all current Claude models above the cache-size threshold
+ * (1024 tokens for Sonnet/Opus, 2048 for Haiku).
+ */
+export function cachedSystem(text: string): TextBlockParam[] {
+  return [
+    { type: "text", text, cache_control: { type: "ephemeral" } } as TextBlockParam,
+  ];
+}
 
 // Strong tier: comprehension / planning / render quality.
 // Fast tier: mechanical cleanups / classification.
@@ -107,10 +125,18 @@ export async function callMessages(
       // Record usage. Fire-and-forget — usage is a side log and a transient
       // DB hiccup shouldn't break the model call. Errors are logged below.
       if (ctx.jobId && res.usage) {
+        const u = res.usage as {
+          input_tokens?: number;
+          output_tokens?: number;
+          cache_creation_input_tokens?: number;
+          cache_read_input_tokens?: number;
+        };
         void addUsage(ctx.jobId, {
-          inputTokens: res.usage.input_tokens ?? 0,
-          outputTokens: res.usage.output_tokens ?? 0,
+          inputTokens: u.input_tokens ?? 0,
+          outputTokens: u.output_tokens ?? 0,
           calls: 1,
+          cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+          cacheReadTokens: u.cache_read_input_tokens ?? 0,
         }).catch((err) => {
           // eslint-disable-next-line no-console
           console.warn("[readopp] addUsage failed", err);

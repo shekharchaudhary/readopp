@@ -1,4 +1,4 @@
-import { callMessages, MODEL_STRONG } from "../anthropic";
+import { cachedSystem, callMessages, MODEL_STRONG } from "../anthropic";
 import { ICON_CATALOG_LINE } from "../render/icons";
 import {
   PanelPlanSchema,
@@ -291,7 +291,10 @@ export async function runPlanner(
         model: MODEL_STRONG,
         max_tokens: 2048,
         temperature: 0.4,
-        system: SYSTEM_PROMPT,
+        // Cache the system prompt — the planner runs once per section
+        // (~5-7 calls per job) and the system prompt is identical across
+        // calls, so cache reads after the first hit cost 10% of normal input.
+        system: cachedSystem(SYSTEM_PROMPT),
         messages,
       },
       { jobId, label: `planner[${section.id}]` }
