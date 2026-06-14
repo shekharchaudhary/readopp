@@ -3,6 +3,7 @@ import { YourExplainersSection } from "@/components/YourExplainersSection";
 import { FAQ } from "@/components/marketing/FAQ";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { Footer } from "@/components/marketing/Footer";
+import { HeroBridge } from "@/components/marketing/HeroBridge";
 import { HeroPostMockup } from "@/components/marketing/HeroPostMockup";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { InViewClass } from "@/components/marketing/InViewClass";
@@ -118,33 +119,3 @@ export default function HomePage() {
   );
 }
 
-/** Bridge between the input card and the post mockup. Tiny accent dot +
- *  "Readopp" wordmark over a hand-drawn arrow — re-uses .flow-arrows so
- *  the curve + chevron draw in on load matching the source arrows above. */
-function HeroBridge() {
-  return (
-    <div className="flex flex-col items-center justify-center px-2">
-      <div className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-accent" />
-        <span className="font-display text-sm font-medium tracking-tight text-ink">
-          Readopp
-        </span>
-      </div>
-      <svg
-        aria-hidden
-        viewBox="0 0 120 32"
-        className="flow-arrows mt-3 h-9 w-28 text-ink-soft"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path
-          pathLength={1}
-          d="M6 20 C 30 6, 70 30, 100 16 M92 9 L 102 16 L 92 23"
-        />
-      </svg>
-    </div>
-  );
-}
