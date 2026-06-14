@@ -468,6 +468,73 @@ export async function deleteExplainer(id: string): Promise<boolean> {
   return !error && (count ?? 0) > 0;
 }
 
+// ---------- Panel scenes (Phase 9 — canvas editor) ----------
+
+/**
+ * Read the owner user_id for an explainer. Used by API routes that need to
+ * verify ownership without pulling the entire row.
+ */
+export async function getExplainerOwner(id: string): Promise<string | null> {
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from("explainers")
+    .select("user_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { user_id: string }).user_id;
+}
+
+/**
+ * Read the Excalidraw scene for a given (explainer, section). Returns null
+ * when the user has never edited this panel. RLS scopes to the owner.
+ */
+export async function getPanelScene(
+  explainerId: string,
+  sectionId: string
+): Promise<{ scene: unknown; updatedAt: string } | null> {
+  const supabase = getServerSupabase();
+  const { data, error } = await supabase
+    .from("panel_scenes")
+    .select("scene, updated_at")
+    .eq("explainer_id", explainerId)
+    .eq("section_id", sectionId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    scene: (data as { scene: unknown }).scene,
+    updatedAt: (data as { updated_at: string }).updated_at,
+  };
+}
+
+/**
+ * Upsert the Excalidraw scene for a given (explainer, section). Caller is
+ * responsible for verifying ownership before calling — we pass user_id
+ * through so the row's RLS-cached column stays consistent.
+ */
+export async function savePanelScene(input: {
+  explainerId: string;
+  sectionId: string;
+  userId: string;
+  scene: unknown;
+}): Promise<void> {
+  const admin = getAdminSupabase();
+  const row = {
+    explainer_id: input.explainerId,
+    section_id: input.sectionId,
+    user_id: input.userId,
+    scene: input.scene as never,
+  };
+  const { error } = await admin
+    .from("panel_scenes")
+    .upsert(row as unknown as never, {
+      onConflict: "explainer_id,section_id",
+    });
+  if (error) {
+    throw new Error(`Failed to save panel scene: ${error.message}`);
+  }
+}
+
 /**
  * Number of explainers a user has generated. Used by the Phase 3b free-tier
  * gate. Cache-hit reuses don't insert rows, so this naturally measures

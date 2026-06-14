@@ -1,7 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { RenderedPanel, TemplateId } from "@/lib/shared/schemas";
+
+// The Excalidraw bundle weighs in around 1 MB — keep it off the explainer
+// page until the user actually clicks "Edit on canvas" on a panel.
+const EditorCanvas = dynamic(
+  () =>
+    import("./editor/EditorCanvas").then((m) => ({ default: m.EditorCanvas })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[560px] items-center justify-center text-sm text-ink-muted">
+        Loading canvas…
+      </div>
+    ),
+  }
+);
 import { themeSvg } from "@/lib/svg/theme";
 import { EditableHtmlTablePanel } from "./EditableHtmlTablePanel";
 import { EditableSvgPanel } from "./EditableSvgPanel";
@@ -107,6 +123,7 @@ export function PanelCard({
   const [themeOpen, setThemeOpen] = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+  const [editingCanvas, setEditingCanvas] = useState(false);
 
   async function handleReset() {
     if (!onReset) return;
@@ -200,6 +217,21 @@ export function PanelCard({
               Theme
             </button>
           )}
+          {explainerId && (
+            <button
+              type="button"
+              onClick={() => setEditingCanvas((v) => !v)}
+              aria-pressed={editingCanvas}
+              className={
+                "rounded-md border px-2.5 py-1 text-xs transition-colors " +
+                (editingCanvas
+                  ? "border-accent bg-accent-soft text-accent-deep"
+                  : "border-paper-line bg-paper text-ink-soft hover:border-ink-muted")
+              }
+            >
+              {editingCanvas ? "Close canvas" : "Edit on canvas"}
+            </button>
+          )}
           {onExport && (
             <button
               type="button"
@@ -220,9 +252,26 @@ export function PanelCard({
         />
       )}
 
-      {/* Panel artwork is authored against white — pin it light in dark mode. */}
+      {/* Panel artwork is authored against white — pin it light in dark mode.
+          When the user toggles "Edit on canvas", the static body is swapped
+          for the Excalidraw editor at the same width as the panel card. */}
       <div className="force-light bg-white p-4">
-        {templatedPreview && explainerId && template ? (
+        {editingCanvas && explainerId ? (
+          <div className="relative -m-4 h-[640px] overflow-hidden border-t border-paper-line">
+            <EditorCanvas
+              explainerId={explainerId}
+              sectionId={panel.sectionId}
+              heading={panel.heading || heading}
+              panelContent={panel.content}
+              panelFormat={panel.format}
+              // undefined → EditorCanvas fetches any prior auto-saved scene
+              // before showing the seed, so re-opens preserve user work.
+              initialScene={undefined}
+              height="100%"
+              onDone={() => setEditingCanvas(false)}
+            />
+          </div>
+        ) : templatedPreview && explainerId && template ? (
           <TemplatedPanelPreview
             explainerId={explainerId}
             sectionId={panel.sectionId}
