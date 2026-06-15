@@ -3,6 +3,7 @@
 import "@excalidraw/excalidraw/index.css";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildReadoppLibrary } from "@/lib/editor/library";
 
 /**
  * Full-canvas panel editor — Excalidraw mounted on /edit/[id]/[section]/.
@@ -26,6 +27,11 @@ type ExcalidrawAPI = {
   getSceneElements: () => readonly unknown[];
   getAppState: () => unknown;
   getFiles: () => Record<string, unknown>;
+  updateLibrary: (opts: {
+    libraryItems: unknown[];
+    merge?: boolean;
+    openLibraryMenu?: boolean;
+  }) => void;
 };
 
 interface Props {
@@ -94,16 +100,27 @@ export function EditorCanvas({
   // mark the panel dirty before the user has touched anything.
   const settled = useRef(false);
 
+  // Curated Readopp asset library — built once per editor mount. Excalidraw
+  // shows libraryItems in its Library sidebar and merges library files into
+  // its file store so image-based icons resolve. See lib/editor/library.ts.
+  const library = useMemo(() => buildReadoppLibrary(), []);
+
   // Build the initial scene exactly once. Resolution order:
   //   1. If the parent SSR-passed a scene object, use it.
   //   2. If the parent SSR-passed null, build the seed from the panel SVG.
   //   3. If undefined, hit the server first (for inline-mode opens after a
   //      prior auto-save), then fall back to the seed when nothing's saved.
+  // In every case, the curated library items + files are merged in so the
+  // sidebar is populated without the user importing anything.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const apply = (scene: unknown) => {
+        if (cancelled) return;
+        setInitialData(mergeLibrary(scene, library));
+      };
       if (initialScene && typeof initialScene === "object") {
-        if (!cancelled) setInitialData(initialScene);
+        apply(initialScene);
         return;
       }
       let resolved: unknown = initialScene;
@@ -121,16 +138,24 @@ export function EditorCanvas({
         }
       }
       if (resolved && typeof resolved === "object") {
-        if (!cancelled) setInitialData(resolved);
+        apply(resolved);
         return;
       }
       const seed = await buildSeedScene(panelContent, panelFormat, heading);
-      if (!cancelled) setInitialData(seed);
+      apply(seed);
     })();
     return () => {
       cancelled = true;
     };
-  }, [initialScene, panelContent, panelFormat, heading, explainerId, sectionId]);
+  }, [
+    initialScene,
+    panelContent,
+    panelFormat,
+    heading,
+    explainerId,
+    sectionId,
+    library,
+  ]);
 
   /**
    * Fire a save POST now, return whether it succeeded. Used by both the
@@ -350,6 +375,7 @@ export function EditorCanvas({
             initialData={initialData}
             apiRef={apiRef}
             scheduleSave={scheduleSave}
+            libraryItems={library.libraryItems}
           />
         ) : (
           <CanvasLoading />
@@ -368,6 +394,29 @@ function CanvasLoading() {
 }
 
 /**
+ * Merge the curated Readopp library into any scene before handing it to
+ * Excalidraw. The scene's own libraryItems / files take precedence so
+ * user-imported libraries and saved scene files survive.
+ */
+function mergeLibrary(
+  scene: unknown,
+  library: ReturnType<typeof buildReadoppLibrary>
+): unknown {
+  if (!scene || typeof scene !== "object") return scene;
+  const s = scene as Record<string, unknown>;
+  const existingItems = Array.isArray(s.libraryItems) ? s.libraryItems : [];
+  const existingFiles =
+    s.files && typeof s.files === "object"
+      ? (s.files as Record<string, unknown>)
+      : {};
+  return {
+    ...s,
+    libraryItems: [...library.libraryItems, ...existingItems],
+    files: { ...library.files, ...existingFiles },
+  };
+}
+
+/**
  * Isolates the Excalidraw mount so its props are stable across the parent's
  * re-renders. Without this, every parent re-render (every Save status flip)
  * would hand Excalidraw a fresh `onChange` identity, its internal Zustand
@@ -381,10 +430,12 @@ function ExcalidrawMount({
   initialData,
   apiRef,
   scheduleSave,
+  libraryItems,
 }: {
   initialData: unknown;
   apiRef: React.MutableRefObject<ExcalidrawAPI | null>;
   scheduleSave: () => void;
+  libraryItems: unknown[];
 }) {
   const scheduleRef = useRef(scheduleSave);
   useEffect(() => {
@@ -400,9 +451,37 @@ function ExcalidrawMount({
     scheduleRef.current();
   }, []);
 
+  const libraryRef = useRef(libraryItems);
+  useEffect(() => {
+    libraryRef.current = libraryItems;
+  }, [libraryItems]);
+
+  // Track whether we've already pushed the curated library so StrictMode's
+  // double-mount in dev doesn't queue two updateLibrary calls that race and
+  // produce React duplicate-key warnings.
+  const libraryPushed = useRef(false);
+
   const stableExcalidrawAPI = useCallback(
     (api: unknown) => {
-      apiRef.current = api as ExcalidrawAPI;
+      const typed = api as ExcalidrawAPI;
+      apiRef.current = typed;
+      if (libraryPushed.current) return;
+      libraryPushed.current = true;
+      const items = libraryRef.current;
+      // Defer one tick so Excalidraw's own library atom finishes init
+      // before our push lands.
+      setTimeout(() => {
+        try {
+          typed.updateLibrary({
+            libraryItems: items,
+            merge: true,
+            openLibraryMenu: false,
+          });
+        } catch {
+          // older Excalidraw releases may not expose updateLibrary; the
+          // initialData.libraryItems path is the fallback.
+        }
+      }, 0);
     },
     [apiRef]
   );
