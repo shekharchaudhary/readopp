@@ -22,6 +22,20 @@ interface Slide {
   svg: string;
 }
 
+// Template colors mirror lib/render/templates/* so the hero mockup matches
+// the actual slot-fill output users will produce.
+const PAPER = "#FAF9F5";
+const INK = "#1A1A1A";
+const INK_SOFT = "#4E463C";
+const INK_MUTED = "#7A6F62";
+const RULE = "#D6CFC2";
+const CLAY = "#C7613D";
+// Design-system palettes (lib/render/genrePanels.ts).
+const BLUE = { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" };
+const TEAL = { fill: "#E1F5EE", stroke: "#0F6E56", text: "#085041" };
+const AMBER = { fill: "#FAEEDA", stroke: "#854F0B", text: "#633806" };
+const GRAY = { fill: "#F1EFE8", stroke: "#5F5E5A", text: "#2C2C2A" };
+
 const SLIDES: Slide[] = [
   {
     id: "layers",
@@ -29,26 +43,28 @@ const SLIDES: Slide[] = [
     heading: "Layered defense: data access control",
     source: "hackernoon.com",
     page: "2 / 5",
+    // Structural-template look: outer container + palette-coded sub-region
+    // chips. Cool surface → warm foundation gradient encodes the metaphor.
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" font-family="${SANS}"><title>Layered defense</title>
-<rect width="600" height="600" fill="#FFFDF8"/>
-<rect x="64" y="70" width="30" height="5" rx="2.5" fill="#E85D2A"/>
-<text x="64" y="118" font-size="34" font-weight="600" fill="#171717" font-family="${SERIF}">Layered defense</text>
-<text x="64" y="146" font-size="15" fill="#857E72">Four checks between a prompt and your data</text>
-<text x="76" y="234" font-size="14" fill="#ABA395" font-family="${MONO}">4</text>
-<rect x="100" y="188" width="436" height="80" rx="12" fill="#FFFDF8" stroke="#D8CEC0" stroke-width="1.5"/>
-<text x="128" y="223" font-size="17" font-weight="600" fill="#171717">Client interface</text>
-<text x="128" y="246" font-size="13" fill="#857E72">User-facing controls</text>
-<text x="76" y="328" font-size="14" fill="#ABA395" font-family="${MONO}">3</text>
-<rect x="100" y="282" width="436" height="80" rx="12" fill="#F9E5D9" stroke="#ECA77F" stroke-width="1.5"/>
-<text x="128" y="317" font-size="17" font-weight="600" fill="#171717">API gateway</text>
-<text x="128" y="340" font-size="13" fill="#8F3210">Authentication and rate limiting</text>
-<text x="76" y="422" font-size="14" fill="#ABA395" font-family="${MONO}">2</text>
-<rect x="100" y="376" width="436" height="80" rx="12" fill="#ECA77F" stroke="#E85D2A" stroke-width="1.5"/>
-<text x="128" y="411" font-size="17" font-weight="600" fill="#171717">Application logic</text>
-<text x="128" y="434" font-size="13" fill="#8F3210">Business rules and validation</text>
-<text x="76" y="516" font-size="14" fill="#ABA395" font-family="${MONO}">1</text>
-<rect x="100" y="470" width="436" height="80" rx="12" fill="#101010"/>
-<text x="128" y="505" font-size="17" font-weight="600" fill="#F7F3EA">Data layer security</text>
+<rect width="600" height="600" fill="${PAPER}"/>
+<rect x="64" y="70" width="30" height="5" rx="2.5" fill="${CLAY}"/>
+<text x="64" y="118" font-size="34" font-weight="600" fill="${INK}" font-family="${SERIF}">Layered defense</text>
+<text x="64" y="146" font-size="15" fill="${INK_SOFT}">Four checks between a prompt and your data</text>
+<text x="76" y="234" font-size="14" fill="${INK_MUTED}" font-family="${MONO}">4</text>
+<rect x="100" y="188" width="436" height="80" rx="12" fill="${PAPER}" stroke="${RULE}" stroke-width="1.5"/>
+<text x="128" y="223" font-size="17" font-weight="600" fill="${INK}">Client interface</text>
+<text x="128" y="246" font-size="13" fill="${INK_SOFT}">User-facing controls</text>
+<text x="76" y="328" font-size="14" fill="${INK_MUTED}" font-family="${MONO}">3</text>
+<rect x="100" y="282" width="436" height="80" rx="12" fill="${BLUE.fill}" stroke="${BLUE.stroke}" stroke-width="1.5"/>
+<text x="128" y="317" font-size="17" font-weight="600" fill="${INK}">API gateway</text>
+<text x="128" y="340" font-size="13" fill="${BLUE.text}">Authentication and rate limiting</text>
+<text x="76" y="422" font-size="14" fill="${INK_MUTED}" font-family="${MONO}">2</text>
+<rect x="100" y="376" width="436" height="80" rx="12" fill="${AMBER.fill}" stroke="${AMBER.stroke}" stroke-width="1.5"/>
+<text x="128" y="411" font-size="17" font-weight="600" fill="${INK}">Application logic</text>
+<text x="128" y="434" font-size="13" fill="${AMBER.text}">Business rules and validation</text>
+<text x="76" y="516" font-size="14" fill="${INK_MUTED}" font-family="${MONO}">1</text>
+<rect x="100" y="470" width="436" height="80" rx="12" fill="${INK}"/>
+<text x="128" y="505" font-size="17" font-weight="600" fill="${PAPER}">Data layer security</text>
 <text x="128" y="528" font-size="13" fill="#ABA395">Row-level access enforced by the database</text>
 </svg>`,
   },
@@ -58,27 +74,29 @@ const SLIDES: Slide[] = [
     heading: "Most readers never finish",
     source: "every.to",
     page: "3 / 6",
+    // Chart-template look: 3-segment donut, palette-coded legend, hero stat
+    // in the centre serif.
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" font-family="${SANS}"><title>Audience split</title>
-<rect width="600" height="600" fill="#FFFDF8"/>
-<rect x="64" y="70" width="30" height="5" rx="2.5" fill="#E85D2A"/>
-<text x="64" y="118" font-size="34" font-weight="600" fill="#171717" font-family="${SERIF}">Most readers never finish</text>
-<text x="64" y="146" font-size="15" fill="#857E72">What happens after the click</text>
+<rect width="600" height="600" fill="${PAPER}"/>
+<rect x="64" y="70" width="30" height="5" rx="2.5" fill="${CLAY}"/>
+<text x="64" y="118" font-size="34" font-weight="600" fill="${INK}" font-family="${SERIF}">Most readers never finish</text>
+<text x="64" y="146" font-size="15" fill="${INK_SOFT}">What happens after the click</text>
 <g transform="rotate(-90 210 380)">
-<circle cx="210" cy="380" r="110" fill="none" stroke="#F9E5D9" stroke-width="52"/>
-<circle cx="210" cy="380" r="110" fill="none" stroke="#ECA77F" stroke-width="52" stroke-dasharray="165.9 691.2" stroke-dashoffset="-428.5"/>
-<circle cx="210" cy="380" r="110" fill="none" stroke="#E85D2A" stroke-width="52" stroke-dasharray="428.5 691.2"/>
+<circle cx="210" cy="380" r="110" fill="none" stroke="${GRAY.fill}" stroke-width="52"/>
+<circle cx="210" cy="380" r="110" fill="none" stroke="${AMBER.stroke}" stroke-width="52" stroke-dasharray="165.9 691.2" stroke-dashoffset="-428.5"/>
+<circle cx="210" cy="380" r="110" fill="none" stroke="${BLUE.stroke}" stroke-width="52" stroke-dasharray="428.5 691.2"/>
 </g>
-<text x="210" y="392" font-size="52" font-weight="600" fill="#171717" text-anchor="middle" font-family="${SERIF}">62%</text>
-<text x="210" y="422" font-size="14" fill="#857E72" text-anchor="middle">read to the end</text>
-<rect x="396" y="306" width="18" height="18" rx="4" fill="#E85D2A"/>
-<text x="426" y="320" font-size="17" font-weight="600" fill="#171717">Read it all</text>
-<text x="426" y="340" font-size="13" fill="#857E72">62 percent</text>
-<rect x="396" y="372" width="18" height="18" rx="4" fill="#ECA77F"/>
-<text x="426" y="386" font-size="17" font-weight="600" fill="#171717">Skimmed</text>
-<text x="426" y="406" font-size="13" fill="#857E72">24 percent</text>
-<rect x="396" y="438" width="18" height="18" rx="4" fill="#F9E5D9" stroke="#D8CEC0"/>
-<text x="426" y="452" font-size="17" font-weight="600" fill="#171717">Bounced</text>
-<text x="426" y="472" font-size="13" fill="#857E72">14 percent</text>
+<text x="210" y="392" font-size="52" font-weight="600" fill="${INK}" text-anchor="middle" font-family="${SERIF}">62%</text>
+<text x="210" y="422" font-size="14" fill="${INK_SOFT}" text-anchor="middle">read to the end</text>
+<rect x="396" y="306" width="18" height="18" rx="4" fill="${BLUE.stroke}"/>
+<text x="426" y="320" font-size="17" font-weight="600" fill="${INK}">Read it all</text>
+<text x="426" y="340" font-size="13" fill="${INK_SOFT}">62 percent</text>
+<rect x="396" y="372" width="18" height="18" rx="4" fill="${AMBER.stroke}"/>
+<text x="426" y="386" font-size="17" font-weight="600" fill="${INK}">Skimmed</text>
+<text x="426" y="406" font-size="13" fill="${INK_SOFT}">24 percent</text>
+<rect x="396" y="438" width="18" height="18" rx="4" fill="${GRAY.fill}" stroke="${GRAY.stroke}"/>
+<text x="426" y="452" font-size="17" font-weight="600" fill="${INK}">Bounced</text>
+<text x="426" y="472" font-size="13" fill="${INK_SOFT}">14 percent</text>
 </svg>`,
   },
   {
@@ -87,15 +105,19 @@ const SLIDES: Slide[] = [
     heading: "3.2× faster than writing it by hand",
     source: "stripe.com",
     page: "1 / 5",
+    // Anthropic stat_callout look (lib/render/templates/anthropicStat.ts):
+    // ivory paper, lowercase tracked clay kicker, serif hero number, brush
+    // squiggle accent, small-caps source line.
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" font-family="${SANS}"><title>Stat callout</title>
-<rect width="600" height="600" fill="#101010"/>
-<circle cx="520" cy="60" r="180" fill="#E85D2A" opacity="0.15"/>
-<circle cx="40" cy="560" r="120" fill="#B23F14" opacity="0.1"/>
-<rect x="64" y="150" width="34" height="6" rx="3" fill="#E85D2A"/>
-<text x="60" y="340" font-size="150" font-weight="500" fill="#F7F3EA" font-family="${SERIF}">3.2&#215;</text>
-<text x="64" y="392" font-size="20" fill="#ABA395">faster than writing the post by hand</text>
-<line x1="64" y1="476" x2="536" y2="476" stroke="#2E2E2E" stroke-width="1.5"/>
-<text x="64" y="512" font-size="14" fill="#857E72" font-family="${MONO}">from a 14-minute read &#183; 5 panels</text>
+<rect width="600" height="600" fill="${PAPER}"/>
+<text x="64" y="100" font-size="12" font-weight="500" fill="${CLAY}" letter-spacing="3">the figure</text>
+<text x="64" y="138" font-size="22" font-weight="500" fill="${INK}">3.2× faster than writing the post by hand</text>
+<line x1="276" y1="190" x2="324" y2="190" stroke="${CLAY}" stroke-width="1.2"/>
+<text x="300" y="370" font-size="150" font-weight="500" fill="${INK}" text-anchor="middle" font-family="${SERIF}">3.2&#215;</text>
+<text x="300" y="408" font-size="15" fill="${INK_SOFT}" text-anchor="middle">faster than the manual version</text>
+<path d="M 64 460 q 22 -8 44 0 t 44 0 t 44 0 t 44 0 t 44 0" fill="none" stroke="${CLAY}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+<line x1="64" y1="510" x2="208" y2="510" stroke="${RULE}" stroke-width="1"/>
+<text x="64" y="542" font-size="12" font-weight="500" fill="${INK_MUTED}" letter-spacing="2" font-family="${MONO}">readopp · anthropic stat</text>
 </svg>`,
   },
 ];
