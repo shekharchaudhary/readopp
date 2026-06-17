@@ -373,6 +373,33 @@ body {
   }
 }
 
+/* Hero background "reading artifacts" drift — slow oscillation in Y +
+   a tiny rotation wobble centred on the item's resting angle. Each
+   instance sets --rot to its base rotation; the calc keeps the wobble
+   visually balanced. Looped indefinitely with per-item duration/delay. */
+@keyframes hero-drift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translate3d(6px, -16px, 0)
+      rotate(calc(var(--rot, 0deg) + 1.2deg));
+  }
+}
+.animate-hero-drift {
+  animation: hero-drift 20s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Editorial column grid — parallax follows page scroll via the
+   --hero-scroll variable (pixels) set by HeroBackground's rAF listener.
+   Negative multiplier so the grid sinks as you scroll, suggesting depth. */
+.hero-grid-parallax {
+  transform: translate3d(0, calc(var(--hero-scroll, 0) * -0.18px), 0);
+  will-change: transform;
+}
+
+
 @media (prefers-reduced-motion: reduce) {
   .hl-sweep {
     animation: none;
@@ -388,6 +415,12 @@ body {
   .knot path {
     animation: none;
     stroke-dashoffset: 0;
+  }
+  .animate-hero-drift {
+    animation: none;
+  }
+  .hero-grid-parallax {
+    transform: none;
   }
 }
 

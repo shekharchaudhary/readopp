@@ -3,6 +3,7 @@ import { YourExplainersSection } from "@/components/YourExplainersSection";
 import { FAQ } from "@/components/marketing/FAQ";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { Footer } from "@/components/marketing/Footer";
+import { HeroBackground } from "@/components/marketing/HeroBackground";
 import { HeroBridge } from "@/components/marketing/HeroBridge";
 import { HeroPostMockup } from "@/components/marketing/HeroPostMockup";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
@@ -26,8 +27,9 @@ export default function HomePage() {
             LinkedIn-style HeroPostMockup on the right, hand-drawn
             bridge between them. Reads at a glance, no step-by-step
             tutorial in the hero (HowItWorks below explains the how). */}
-        <section className="section-amb amb-tr bg-paper">
-          <div className="mx-auto max-w-7xl px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
+        <section className="section-amb amb-tr relative overflow-hidden bg-paper">
+          <HeroBackground />
+          <div className="relative mx-auto max-w-7xl px-6 pb-20 pt-16 sm:pb-28 sm:pt-24">
             <div className="mx-auto max-w-3xl text-center">
               <Reveal delayMs={80}>
                 <h1 className="font-display text-[44px] font-medium leading-[1.04] tracking-tight text-ink sm:text-6xl lg:text-[64px]">
