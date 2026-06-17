@@ -30,7 +30,15 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
-async function fetchHtml(url: string): Promise<string> {
+interface FetchResult {
+  html: string;
+  /** Set on 401/403. Caller may retry via Playwright before surfacing this
+      to the user — bot-detection layers (Cloudflare, etc.) often gate the
+      raw HTTP fetcher but serve a full page to a real browser. */
+  authBlocked?: boolean;
+}
+
+async function fetchHtml(url: string): Promise<FetchResult> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -45,11 +53,9 @@ async function fetchHtml(url: string): Promise<string> {
       },
     });
     if (res.status === 401 || res.status === 403) {
-      throw new IngestError({
-        reason: "login_required",
-        message:
-          "This page requires a login and can't be read anonymously.",
-      });
+      // Return a sentinel so ingestUrl can attempt the Playwright fallback
+      // before surfacing login_required to the user.
+      return { html: "", authBlocked: true };
     }
     if (res.status === 404) {
       throw new IngestError({
@@ -63,7 +69,7 @@ async function fetchHtml(url: string): Promise<string> {
         message: `The page returned HTTP ${res.status}.`,
       });
     }
-    return await res.text();
+    return { html: await res.text() };
   } catch (err) {
     if (err instanceof IngestError) throw err;
     const aborted =
@@ -183,15 +189,25 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
   }
 
   // Fast path — plain HTTP fetch + Readability.
-  let html = await fetchHtml(url);
-  let parsed = parseArticleFromHtml(html, url);
+  const fetchResult = await fetchHtml(url);
+  let html = fetchResult.html;
+  let parsed = fetchResult.authBlocked ? null : parseArticleFromHtml(html, url);
 
-  // Fallback path — if extraction was too thin (JS-rendered SPA, hydrated
-  // content, etc.) re-render the page with a real browser and try again.
-  if (!parsed || parsed.words < MIN_WORDS_BEFORE_FALLBACK) {
+  // Fallback path — fire whenever extraction was thin OR the raw fetch was
+  // auth-blocked. Bot-detection layers like Cloudflare commonly 403 a plain
+  // fetch but serve full content to a real browser, so we only surface
+  // login_required after Playwright can't read it either.
+  const needsRender =
+    fetchResult.authBlocked ||
+    !parsed ||
+    parsed.words < MIN_WORDS_BEFORE_FALLBACK;
+  if (needsRender) {
     try {
       // eslint-disable-next-line no-console
-      console.log("[readopp] ingest falling back to JS render", { url });
+      console.log("[readopp] ingest falling back to JS render", {
+        url,
+        authBlocked: fetchResult.authBlocked ?? false,
+      });
       html = await fetchHtmlRendered(url);
       const rendered = parseArticleFromHtml(html, url);
       if (rendered && rendered.words >= MIN_WORDS_BEFORE_FALLBACK) {
@@ -208,11 +224,21 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
         url,
         error: (e as Error).message,
       });
-      // Keep going — we'll surface the original empty/paywall error below.
+      // Fall through — we'll surface the auth-block or empty-content error
+      // depending on what state we ended up in.
     }
   }
 
   if (!parsed) {
+    // Raw fetch was auth-blocked AND Playwright also couldn't extract a
+    // readable article — surface login_required so the user knows why.
+    if (fetchResult.authBlocked) {
+      throw new IngestError({
+        reason: "login_required",
+        message:
+          "This page requires a login and can't be read anonymously.",
+      });
+    }
     throw new IngestError({
       reason: "empty_content",
       message: "Couldn't extract readable content from this page.",
