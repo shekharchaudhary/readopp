@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isApiKeyConfigured } from "@/lib/anthropic";
-import { extractPdfArticle } from "@/lib/pdf/extract";
 import { runJob } from "@/lib/pipeline/orchestrator";
-import { stashPreIngested } from "@/lib/pipeline/preIngested";
+import { stashPendingPdf } from "@/lib/pipeline/preIngested";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
 import { AudienceLevelSchema } from "@/lib/shared/schemas";
 import {
@@ -126,23 +125,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ jobId: job.id, cached: true }, { status: 201 });
   }
 
-  // Extract before kicking off the pipeline so failures surface immediately
-  // (rather than in the orchestrator's background job).
-  let article;
-  try {
-    article = await extractPdfArticle({
-      buffer: buf,
-      filename,
-      jobId: job.id,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message || "Failed to read PDF." },
-      { status: 422 }
-    );
-  }
-
-  stashPreIngested(job.id, article);
+  // Stash the raw PDF buffer and kick off the pipeline. The orchestrator's
+  // ingest stage runs extractPdfArticle (a long Claude call) so the upload
+  // returns immediately and the client sees the job-stream progress UI
+  // instead of a 30–60s "Uploading…" spinner. Errors from extraction now
+  // flow through the normal job failure path.
+  stashPendingPdf(job.id, { buffer: buf, filename });
   void runJob(job.id);
 
   return NextResponse.json({ jobId: job.id, cached: false }, { status: 201 });

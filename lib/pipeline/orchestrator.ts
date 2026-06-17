@@ -16,7 +16,8 @@ import {
   getJob,
   setJobStatus,
 } from "../store";
-import { drainPreIngested } from "./preIngested";
+import { drainPendingPdf, drainPreIngested } from "./preIngested";
+import { extractPdfArticle } from "../pdf/extract";
 import type {
   Explainer,
   JobError,
@@ -103,11 +104,31 @@ export async function runJob(jobId: string): Promise<void> {
     await emitStatus(jobId, "ingesting");
     await emitAgentStart(jobId, "ingest");
     const preIngested = drainPreIngested(jobId);
+    const pendingPdf = preIngested ? null : drainPendingPdf(jobId);
     let article;
     if (preIngested) {
-      // PDF upload path — extraction already happened in the upload route.
-      await emitAgentProgress(jobId, "ingest", "Reading uploaded document…");
+      // Article was already extracted before the orchestrator started.
+      await emitAgentProgress(jobId, "ingest", "Reading prepared document…");
       article = preIngested;
+    } else if (pendingPdf) {
+      // PDF upload path — extraction runs HERE, not in the upload route,
+      // so the user sees the job stream + progress UI instead of waiting
+      // 30–60s on an "Uploading…" spinner.
+      await emitAgentProgress(
+        jobId,
+        "ingest",
+        `Reading PDF "${pendingPdf.filename}"…`
+      );
+      article = await extractPdfArticle({
+        buffer: pendingPdf.buffer,
+        filename: pendingPdf.filename,
+        jobId,
+      });
+      await emitAgentProgress(
+        jobId,
+        "ingest",
+        `Extracted ${article.wordCount.toLocaleString()} words from PDF`
+      );
     } else {
       await emitAgentProgress(jobId, "ingest", "Fetching article…");
       article = await runIngest(job.url);
