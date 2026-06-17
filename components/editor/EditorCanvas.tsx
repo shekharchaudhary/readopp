@@ -1,9 +1,8 @@
 "use client";
 
-import "@excalidraw/excalidraw/index.css";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildReadoppLibrary } from "@/lib/editor/library";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { svgToExcalidrawElements } from "@/lib/editor/svgToExcalidraw";
 
 /**
  * Full-canvas panel editor — Excalidraw mounted on /edit/[id]/[section]/.
@@ -17,22 +16,35 @@ import { buildReadoppLibrary } from "@/lib/editor/library";
  * with ssr:false. That also keeps its ~1 MB bundle off every other route.
  */
 
-// Excalidraw's main component — client only.
-const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-  { ssr: false, loading: () => <CanvasLoading /> }
-);
+// Excalidraw + library hook + CSS all live in ExcalidrawInner so the
+// `@excalidraw/excalidraw` module never evaluates server-side.
+const ExcalidrawInner = dynamic(() => import("./ExcalidrawInner"), {
+  ssr: false,
+  loading: () => <CanvasLoading />,
+});
+
+type LibraryItemLike = { id: string; [k: string]: unknown };
+type LibraryItemsSource =
+  | LibraryItemLike[]
+  | ((current: LibraryItemLike[]) => Promise<LibraryItemLike[]> | LibraryItemLike[]);
 
 type ExcalidrawAPI = {
   getSceneElements: () => readonly unknown[];
   getAppState: () => unknown;
   getFiles: () => Record<string, unknown>;
+  // The library now ships only native primitives (lines, rects, ellipses,
+  // arrows, text) so no addFiles() call is needed — every element renders
+  // without a file map. We pass a function form to merge while replacing
+  // our prior `readopp-*` items, so library updates always propagate.
   updateLibrary: (opts: {
-    libraryItems: unknown[];
-    merge?: boolean;
+    libraryItems: LibraryItemsSource;
     openLibraryMenu?: boolean;
-  }) => void;
+    merge?: boolean;
+    defaultStatus?: "published" | "unpublished";
+  }) => Promise<unknown>;
 };
+
+const READOPP_ITEM_PREFIX = "readopp-";
 
 interface Props {
   explainerId: string;
@@ -99,25 +111,25 @@ export function EditorCanvas({
   // Skip the first onChange Excalidraw fires after hydration so we don't
   // mark the panel dirty before the user has touched anything.
   const settled = useRef(false);
-
-  // Curated Readopp asset library — built once per editor mount. Excalidraw
-  // shows libraryItems in its Library sidebar and merges library files into
-  // its file store so image-based icons resolve. See lib/editor/library.ts.
-  const library = useMemo(() => buildReadoppLibrary(), []);
+  // Library import runs silently on every mount — the merge-replace path
+  // inside handleLoadLibrary strips prior `readopp-*` items and prepends
+  // the fresh set, so updates to lib/editor/library.ts always propagate
+  // without the user clearing localStorage. libraryLoaded is kept only
+  // to avoid retriggering while a load is in-flight.
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const libraryStarted = useRef(false);
 
   // Build the initial scene exactly once. Resolution order:
   //   1. If the parent SSR-passed a scene object, use it.
   //   2. If the parent SSR-passed null, build the seed from the panel SVG.
   //   3. If undefined, hit the server first (for inline-mode opens after a
   //      prior auto-save), then fall back to the seed when nothing's saved.
-  // In every case, the curated library items + files are merged in so the
-  // sidebar is populated without the user importing anything.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const apply = (scene: unknown) => {
         if (cancelled) return;
-        setInitialData(mergeLibrary(scene, library));
+        setInitialData(scene);
       };
       if (initialScene && typeof initialScene === "object") {
         apply(initialScene);
@@ -154,8 +166,75 @@ export function EditorCanvas({
     heading,
     explainerId,
     sectionId,
-    library,
   ]);
+
+  /**
+   * Import of the curated Readopp library. Fetches the .excalidrawlib JSON
+   * from /api/library/readopp and pipes it into the Excalidraw instance
+   * through updateLibrary — Excalidraw's own supported import path.
+   *
+   * Runs on every editor mount (silently, no menu pop). The function form
+   * of `libraryItems` lets us read the user's current library, strip any
+   * prior `readopp-*` items, and prepend the freshly-fetched set. User-
+   * added items (anything not prefixed with `readopp-`) survive untouched.
+   * merge: false → our returned set IS the new library, so updates to
+   * lib/editor/library.ts propagate on the next mount automatically —
+   * no localStorage clearing required.
+   */
+  const handleLoadLibrary = useCallback(async () => {
+    if (!apiRef.current || libraryLoading) return;
+    setLibraryLoading(true);
+    try {
+      const r = await fetch("/api/library/readopp", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const lib = (await r.json()) as { libraryItems: LibraryItemLike[] };
+      // Diagnostic: see how many of our items survive Excalidraw's own
+      // restoreLibraryItems validation. Silent drops show up here.
+      try {
+        const mod = await import("@excalidraw/excalidraw");
+        const restored = mod.restoreLibraryItems(
+          lib.libraryItems as never,
+          "unpublished"
+        );
+        console.info(
+          `[readopp] library: sent ${lib.libraryItems.length}, restored ${restored.length}`
+        );
+      } catch {
+        // diagnostic only — don't block the import
+      }
+      await apiRef.current.updateLibrary({
+        libraryItems: (current: LibraryItemLike[]) => {
+          const userOnly = (current ?? []).filter(
+            (it) => typeof it?.id === "string" && !it.id.startsWith(READOPP_ITEM_PREFIX)
+          );
+          return [...lib.libraryItems, ...userOnly];
+        },
+        merge: false,
+        defaultStatus: "unpublished",
+      });
+    } catch {
+      // No user-facing toast for library failures yet; they show in console.
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, [libraryLoading]);
+
+  /**
+   * Excalidraw's API callback. Captures the imperative handle into our
+   * ref AND triggers a library refresh on every mount. The libraryStarted
+   * ref gates against React's strict-mode double-mount re-firing the
+   * import twice in dev.
+   */
+  const handleAPI = useCallback(
+    (api: unknown) => {
+      apiRef.current = api as ExcalidrawAPI;
+      if (!libraryStarted.current) {
+        libraryStarted.current = true;
+        void handleLoadLibrary();
+      }
+    },
+    [handleLoadLibrary]
+  );
 
   /**
    * Fire a save POST now, return whether it succeeded. Used by both the
@@ -371,11 +450,10 @@ export function EditorCanvas({
 
       <div className="min-h-0 flex-1" style={height ? { height } : undefined}>
         {initialData ? (
-          <ExcalidrawMount
+          <ExcalidrawInner
             initialData={initialData}
-            apiRef={apiRef}
-            scheduleSave={scheduleSave}
-            libraryItems={library.libraryItems}
+            onAPI={handleAPI}
+            onChange={scheduleSave}
           />
         ) : (
           <CanvasLoading />
@@ -393,123 +471,26 @@ function CanvasLoading() {
   );
 }
 
-/**
- * Merge the curated Readopp library into any scene before handing it to
- * Excalidraw. The scene's own libraryItems / files take precedence so
- * user-imported libraries and saved scene files survive.
- */
-function mergeLibrary(
-  scene: unknown,
-  library: ReturnType<typeof buildReadoppLibrary>
-): unknown {
-  if (!scene || typeof scene !== "object") return scene;
-  const s = scene as Record<string, unknown>;
-  const existingItems = Array.isArray(s.libraryItems) ? s.libraryItems : [];
-  const existingFiles =
-    s.files && typeof s.files === "object"
-      ? (s.files as Record<string, unknown>)
-      : {};
-  return {
-    ...s,
-    libraryItems: [...library.libraryItems, ...existingItems],
-    files: { ...library.files, ...existingFiles },
-  };
-}
-
-/**
- * Isolates the Excalidraw mount so its props are stable across the parent's
- * re-renders. Without this, every parent re-render (every Save status flip)
- * would hand Excalidraw a fresh `onChange` identity, its internal Zustand
- * store would resubscribe, and the resubscribe would re-fire onChange →
- * infinite loop. We capture the latest scheduleSave in a ref and expose a
- * single stable `onChange` callback that reads through to the current ref.
- * `initialData` is captured once via useMemo so a re-render can't trigger
- * Excalidraw to re-initialise.
- */
-function ExcalidrawMount({
-  initialData,
-  apiRef,
-  scheduleSave,
-  libraryItems,
-}: {
-  initialData: unknown;
-  apiRef: React.MutableRefObject<ExcalidrawAPI | null>;
-  scheduleSave: () => void;
-  libraryItems: unknown[];
-}) {
-  const scheduleRef = useRef(scheduleSave);
-  useEffect(() => {
-    scheduleRef.current = scheduleSave;
-  }, [scheduleSave]);
-
-  // Capture initialData once. Re-mounting on initialData identity change
-  // would also re-trigger the seed-or-fetch effect in the parent.
-  const stableInitial = useMemo(() => initialData, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-
-  const stableOnChange = useCallback(() => {
-    scheduleRef.current();
-  }, []);
-
-  const libraryRef = useRef(libraryItems);
-  useEffect(() => {
-    libraryRef.current = libraryItems;
-  }, [libraryItems]);
-
-  // Track whether we've already pushed the curated library so StrictMode's
-  // double-mount in dev doesn't queue two updateLibrary calls that race and
-  // produce React duplicate-key warnings.
-  const libraryPushed = useRef(false);
-
-  const stableExcalidrawAPI = useCallback(
-    (api: unknown) => {
-      const typed = api as ExcalidrawAPI;
-      apiRef.current = typed;
-      if (libraryPushed.current) return;
-      libraryPushed.current = true;
-      const items = libraryRef.current;
-      // Defer one tick so Excalidraw's own library atom finishes init
-      // before our push lands.
-      setTimeout(() => {
-        try {
-          typed.updateLibrary({
-            libraryItems: items,
-            merge: true,
-            openLibraryMenu: false,
-          });
-        } catch {
-          // older Excalidraw releases may not expose updateLibrary; the
-          // initialData.libraryItems path is the fallback.
-        }
-      }, 0);
-    },
-    [apiRef]
-  );
-
-  return (
-    <Excalidraw
-      initialData={stableInitial as never}
-      excalidrawAPI={stableExcalidrawAPI}
-      onChange={stableOnChange}
-    />
-  );
-}
-
 // ---------- Seeding ----------
 
 /**
- * Build the initial scene for a panel that hasn't been edited before. The
- * generated SVG is embedded as a locked image element so the user starts
- * with their panel on the canvas and decorates around / over it.
+ * Build the initial scene for a panel that hasn't been edited before.
+ *
+ * For SVG panels we first try to parse the SVG into native Excalidraw
+ * elements (text, rect, line, ellipse, polyline) — that's what makes
+ * individual headings, captions, shapes, and squiggles editable. If the
+ * parser fails (malformed SVG, unsupported features) we fall back to
+ * the legacy path: embed the whole SVG as a locked image so the user
+ * at least sees their panel.
  */
 async function buildSeedScene(
   panelContent: string,
   panelFormat: "svg" | "html",
   heading: string
 ): Promise<unknown> {
-  // HTML panels (the comparison/timeline ones) can't be embedded as a single
-  // image. Open a blank canvas with a title placeholder instead — full HTML
-  // → PNG rasterization is a future-session feature.
+  // HTML panels can't be embedded as a single image. Open a blank canvas
+  // with a title placeholder — HTML rasterization is a future-session
+  // feature.
   if (panelFormat !== "svg") {
     return {
       type: "excalidraw",
@@ -529,6 +510,31 @@ async function buildSeedScene(
     };
   }
 
+  // Preferred path: parse the SVG into editable Excalidraw elements.
+  // svgToExcalidrawElements runs in the browser only — server-side
+  // calls return null, in which case the page-side useEffect re-resolves
+  // the scene after mount.
+  const SEED_OFFSET_X = 120;
+  const SEED_OFFSET_Y = 80;
+  const SEED_GROUP_ID = "readopp-seed-panel";
+  const converted = svgToExcalidrawElements(panelContent, {
+    offsetX: SEED_OFFSET_X,
+    offsetY: SEED_OFFSET_Y,
+    groupId: SEED_GROUP_ID,
+  });
+  if (converted && converted.elements.length > 0) {
+    return {
+      type: "excalidraw",
+      version: 2,
+      source: "readopp",
+      elements: converted.elements,
+      appState: { viewBackgroundColor: "#FAF9F5" },
+      files: {},
+    };
+  }
+
+  // Fallback path: embed the SVG as a locked image element so the user
+  // still sees their panel even when parsing fails.
   const { width, height } = extractSvgDims(panelContent, 680, 480);
   const dataUrl =
     "data:image/svg+xml;base64," +
@@ -545,8 +551,8 @@ async function buildSeedScene(
       imageElement({
         id: "seed-base",
         fileId,
-        x: 120,
-        y: 80,
+        x: SEED_OFFSET_X,
+        y: SEED_OFFSET_Y,
         width,
         height,
       }),
