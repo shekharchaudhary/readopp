@@ -149,7 +149,20 @@ export function EditorCanvas({
           // fall through to seed
         }
       }
-      if (resolved && typeof resolved === "object") {
+      // Auto-unpack legacy "just-the-seed-image" scenes. Panels that were
+      // opened in the canvas BEFORE the svgToExcalidraw converter shipped
+      // saved their initial state as a single locked image element. Those
+      // users now find the canvas opens with one un-editable image instead
+      // of editable text/shapes. If the saved scene matches that exact
+      // pattern (one locked seed-image, nothing else) we discard it and
+      // re-seed from the current panel SVG — which now runs the converter
+      // and yields editable native elements. Real edits (any scene with
+      // more than the seed image or anything moved/unlocked) are preserved.
+      if (
+        resolved &&
+        typeof resolved === "object" &&
+        !isLegacySeedImageScene(resolved)
+      ) {
         apply(resolved);
         return;
       }
@@ -568,6 +581,32 @@ async function buildSeedScene(
       },
     },
   };
+}
+
+/**
+ * True when a saved scene is exactly the legacy single-image seed and
+ * nothing else — meaning the user opened the canvas before the SVG
+ * converter shipped, the canvas auto-saved the seed state, and they
+ * never actually edited anything. We can safely discard such a scene
+ * and re-seed from the panel SVG so the canvas now opens with editable
+ * native elements. Heuristic: one element, type=image, locked, with the
+ * "seed-base" id we stamp in buildSeedScene's fallback path.
+ */
+function isLegacySeedImageScene(scene: unknown): boolean {
+  if (!scene || typeof scene !== "object") return false;
+  const els = (scene as { elements?: unknown[] }).elements;
+  if (!Array.isArray(els) || els.length !== 1) return false;
+  const el = els[0] as {
+    type?: string;
+    id?: string;
+    locked?: boolean;
+  };
+  return (
+    el?.type === "image" &&
+    typeof el.id === "string" &&
+    el.id.startsWith("seed-") &&
+    el.locked === true
+  );
 }
 
 function extractSvgDims(svg: string, fallbackW: number, fallbackH: number) {
