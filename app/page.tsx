@@ -36,7 +36,7 @@ export default function HomePage() {
                   Turn what you read into a{" "}
                   <InViewClass
                     active="hl-in"
-                    className="hl-sweep hl-mint box-decoration-clone rounded-lg px-2 text-ink"
+                    className="hl-sweep hl-mint hl-text box-decoration-clone rounded-lg px-2"
                   >
                     LinkedIn-ready post
                   </InViewClass>

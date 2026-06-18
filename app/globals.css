@@ -308,6 +308,13 @@ body {
 .hl-mint {
   --hl: rgb(var(--c-mint-soft));
 }
+/* The hl-* highlight backgrounds (mint, coral, accent-soft) are pale in
+   BOTH themes — the dark-theme palette doesn't flip them. So text sitting
+   on a highlight must stay dark in both themes, or it vanishes into the
+   pale wash in dark mode. Apply alongside an `hl-*` class. */
+.hl-text {
+  color: #1A1A1A;
+}
 @keyframes hl-wipe {
   to {
     background-size: 100% 100%;
