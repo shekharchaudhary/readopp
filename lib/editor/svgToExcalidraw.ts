@@ -219,14 +219,19 @@ function inheritStyle(parent: StyleContext, el: Element): StyleContext {
  *  1 = Virgil (hand-drawn)
  *  2 = Helvetica (sans-serif)
  *  3 = Cascadia (mono)
- *  5 = Assistant (sans-serif)
- * Closest visual match for the panel templates is Helvetica.
+ *  4 = Lilita (serif display) — closest to Georgia / Times serif headers.
+ *
+ * The Anthropic stat template renders its big stat number in Georgia.
+ * Coercing that to Helvetica killed the editorial serif aesthetic in
+ * the canvas; mapping serif fonts to family 4 preserves it.
  */
 function mapFontFamily(value: string | null, fallback: number): number {
   if (!value) return fallback;
   const v = value.toLowerCase();
   if (/(mono|consolas|menlo|courier|cascadia)/.test(v)) return 3;
   if (/(virgil|cursive|caveat|hand)/.test(v)) return 1;
+  if (/(serif|georgia|times|tiempos|caslon|bookerly|playfair|fraunces)/.test(v))
+    return 4;
   return 2;
 }
 
@@ -553,7 +558,11 @@ function emitPath(el: Element, ctx: WalkContext, out: unknown[]) {
   out.push(linePolylineElement(local, ox, oy, ctx, "line"));
 }
 
-const SAMPLES_PER_CURVE = 12;
+const SAMPLES_PER_CURVE = 24;
+// Sampling density for SVG arc (A) commands — each arc is sliced into N
+// segments along its angular span. 1° per sample at the limit; ~28
+// per quarter-turn handles the donut-chart slices cleanly.
+const SAMPLES_PER_ARC = 28;
 
 function samplePath(d: string): [number, number][] {
   // Tokenise SVG path: commands and numbers.
@@ -657,16 +666,18 @@ function samplePath(d: string): [number, number][] {
         break;
       }
       case "A": {
-        // Skip the 5 arc-spec numbers and emit a straight segment to the
-        // endpoint. None of our templates use arcs.
-        readNum(); // rx
-        readNum(); // ry
-        readNum(); // x-axis-rotation
-        readNum(); // large-arc
-        readNum(); // sweep
-        x = readNum() + (rel ? x : 0);
-        y = readNum() + (rel ? y : 0);
-        out.push([x, y]);
+        const rx = readNum();
+        const ry = readNum();
+        const xRot = readNum();
+        const largeArc = readNum();
+        const sweep = readNum();
+        const x2 = readNum() + (rel ? x : 0);
+        const y2 = readNum() + (rel ? y : 0);
+        // Used to flatten arcs to a straight line — completely broke
+        // the donut-chart slices in genrePanels.ts. Now we sample.
+        sampleArc(x, y, rx, ry, xRot, largeArc, sweep, x2, y2, out);
+        x = x2;
+        y = y2;
         break;
       }
       case "Z": {
@@ -726,6 +737,110 @@ function sampleQuad(
     const by = mt * mt * y0 + 2 * mt * t * y1 + t * t * y2;
     out.push([bx, by]);
   }
+}
+
+/**
+ * Sample an SVG elliptical arc (A command) into a polyline.
+ *
+ * Implements the endpoint-to-center conversion from the SVG spec
+ * (https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes):
+ * given the two endpoints, the rx/ry radii, the x-axis rotation, and
+ * the large-arc + sweep flags, compute the centre point and the start
+ * + sweep angles in the ellipse's local frame, then walk the angle
+ * range emitting points back in world space.
+ *
+ * Degenerate cases (zero radius, identical endpoints) fall back to a
+ * single straight segment so a malformed arc never breaks the import.
+ */
+function sampleArc(
+  x1: number,
+  y1: number,
+  rxRaw: number,
+  ryRaw: number,
+  xAxisRotationDeg: number,
+  largeArcFlag: number,
+  sweepFlag: number,
+  x2: number,
+  y2: number,
+  out: [number, number][]
+) {
+  if (
+    (x1 === x2 && y1 === y2) ||
+    rxRaw === 0 ||
+    ryRaw === 0
+  ) {
+    out.push([x2, y2]);
+    return;
+  }
+  let rx = Math.abs(rxRaw);
+  let ry = Math.abs(ryRaw);
+  const phi = (xAxisRotationDeg * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  // Step 1: compute (x1', y1') — endpoints in the ellipse's frame.
+  const dx = (x1 - x2) / 2;
+  const dy = (y1 - y2) / 2;
+  const x1p = cosPhi * dx + sinPhi * dy;
+  const y1p = -sinPhi * dx + cosPhi * dy;
+
+  // Step 2: scale radii up if the endpoints don't fit (per spec).
+  const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lambda > 1) {
+    const s = Math.sqrt(lambda);
+    rx *= s;
+    ry *= s;
+  }
+
+  // Step 3: compute (cx', cy') — centre in the ellipse's frame.
+  const rxSq = rx * rx;
+  const rySq = ry * ry;
+  const x1pSq = x1p * x1p;
+  const y1pSq = y1p * y1p;
+  const num = rxSq * rySq - rxSq * y1pSq - rySq * x1pSq;
+  const den = rxSq * y1pSq + rySq * x1pSq;
+  const sign = largeArcFlag === sweepFlag ? -1 : 1;
+  const factor = sign * Math.sqrt(Math.max(0, num / den));
+  const cxp = factor * ((rx * y1p) / ry);
+  const cyp = factor * (-(ry * x1p) / rx);
+
+  // Step 4: rotate centre back into world frame.
+  const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+
+  // Step 5: compute start angle + sweep delta in the ellipse's frame.
+  const angleStart = vectorAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+  let angleDelta = vectorAngle(
+    (x1p - cxp) / rx,
+    (y1p - cyp) / ry,
+    (-x1p - cxp) / rx,
+    (-y1p - cyp) / ry
+  );
+  if (sweepFlag === 0 && angleDelta > 0) angleDelta -= 2 * Math.PI;
+  if (sweepFlag === 1 && angleDelta < 0) angleDelta += 2 * Math.PI;
+
+  for (let k = 1; k <= SAMPLES_PER_ARC; k++) {
+    const t = k / SAMPLES_PER_ARC;
+    const theta = angleStart + t * angleDelta;
+    const ex = rx * Math.cos(theta);
+    const ey = ry * Math.sin(theta);
+    const px = cosPhi * ex - sinPhi * ey + cx;
+    const py = sinPhi * ex + cosPhi * ey + cy;
+    out.push([px, py]);
+  }
+}
+
+function vectorAngle(
+  ux: number,
+  uy: number,
+  vx: number,
+  vy: number
+): number {
+  const sign = ux * vy - uy * vx < 0 ? -1 : 1;
+  const dot = ux * vx + uy * vy;
+  const mag = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+  const cosTheta = Math.min(1, Math.max(-1, dot / mag));
+  return sign * Math.acos(cosTheta);
 }
 
 function linePolylineElement(
