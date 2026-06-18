@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { validateHtmlPanel, validateUserSvg } from "@/lib/render/validate";
-import { getExplainer, updatePanel } from "@/lib/store";
+import { deletePanel, getExplainer, updatePanel } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +81,27 @@ export async function PATCH(
     return NextResponse.json(
       { error: "Explainer or panel not found." },
       { status: 404 }
+    );
+  }
+  return NextResponse.json({ explainer: updated });
+}
+
+/**
+ * Remove a panel from the explainer. The store refuses to remove the
+ * last remaining panel (an explainer must have at least one).
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string; sectionId: string } }
+) {
+  const updated = await deletePanel(params.id, params.sectionId);
+  if (!updated) {
+    return NextResponse.json(
+      {
+        error:
+          "Could not delete — explainer not found, panel not found, or it's the last panel.",
+      },
+      { status: 400 }
     );
   }
   return NextResponse.json({ explainer: updated });

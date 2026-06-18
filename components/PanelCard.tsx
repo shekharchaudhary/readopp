@@ -44,6 +44,16 @@ interface Props {
    */
   onReset?: (sectionId: string) => Promise<void>;
   /**
+   * Called when the user clicks the "Delete" button. Parent confirms +
+   * persists. Omit to hide the button.
+   */
+  onDelete?: (sectionId: string) => Promise<void>;
+  /**
+   * When false (e.g. the explainer has only one panel left) the delete
+   * button is hidden even if onDelete is provided.
+   */
+  canDelete?: boolean;
+  /**
    * When set to a template other than "tachyon", the body switches from
    * the original SVG view to an iframe rendering the export HTML — so
    * the in-page preview matches the downloaded PNG. In that mode heading
@@ -103,6 +113,8 @@ export function PanelCard({
   onExport,
   onEdit,
   onReset,
+  onDelete,
+  canDelete,
   explainerId,
   template,
 }: Props) {
@@ -239,6 +251,17 @@ export function PanelCard({
               className="rounded-md border border-paper-line bg-paper px-2.5 py-1 text-xs text-ink-soft hover:border-ink-muted"
             >
               Export
+            </button>
+          )}
+          {onDelete && canDelete && (
+            <button
+              type="button"
+              onClick={() => void onDelete(panel.sectionId)}
+              aria-label="Delete panel"
+              title="Delete panel"
+              className="rounded-md border border-paper-line bg-paper px-2 py-1 text-xs text-ink-muted hover:border-rose hover:text-rose-deep"
+            >
+              ✕
             </button>
           )}
         </div>

@@ -438,6 +438,132 @@ export async function updatePanel(
 }
 
 /**
+ * Reorder the panels of an explainer. `order` is the full list of
+ * sectionIds in the desired order; it must be a permutation of the
+ * existing panel ids (no adds, no drops). Returns the updated explainer
+ * or undefined when the explainer doesn't exist / the user isn't the
+ * owner / the order doesn't match the current panel set.
+ */
+export async function reorderPanels(
+  explainerId: string,
+  order: string[]
+): Promise<Explainer | undefined> {
+  const supabase = getServerSupabase();
+  const { data: existingRow } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("id", explainerId)
+    .maybeSingle();
+  if (!existingRow) return undefined;
+  const existing = rowToExplainer(existingRow as ExplainerRow);
+
+  const byId = new Map(existing.panels.map((p) => [p.sectionId, p]));
+  if (order.length !== existing.panels.length) return undefined;
+  if (!order.every((id) => byId.has(id))) return undefined;
+  // Permutation check — order has same count + ids exist in byId, so any
+  // duplicate id in `order` means a missing id is implicit. Reject.
+  if (new Set(order).size !== order.length) return undefined;
+
+  const nextPanels = order.map((id) => byId.get(id)!);
+
+  const { data: updatedRow, error } = await supabase
+    .from("explainers")
+    .update({ panels: nextPanels })
+    .eq("id", explainerId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updatedRow) return undefined;
+  return rowToExplainer(updatedRow as ExplainerRow);
+}
+
+/**
+ * Remove a single panel. Refuses to remove the last panel (an explainer
+ * must have at least one). Returns the updated explainer.
+ */
+export async function deletePanel(
+  explainerId: string,
+  sectionId: string
+): Promise<Explainer | undefined> {
+  const supabase = getServerSupabase();
+  const { data: existingRow } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("id", explainerId)
+    .maybeSingle();
+  if (!existingRow) return undefined;
+  const existing = rowToExplainer(existingRow as ExplainerRow);
+  const nextPanels = existing.panels.filter((p) => p.sectionId !== sectionId);
+  if (nextPanels.length === existing.panels.length) return undefined;
+  if (nextPanels.length < 1) return undefined;
+
+  const { data: updatedRow, error } = await supabase
+    .from("explainers")
+    .update({ panels: nextPanels })
+    .eq("id", explainerId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updatedRow) return undefined;
+  return rowToExplainer(updatedRow as ExplainerRow);
+}
+
+/**
+ * Insert a blank panel after `afterSectionId` (or at the end when that
+ * id is missing / not found). The blank ships with a minimal placeholder
+ * SVG and is marked `edited: true` so future template re-runs don't
+ * overwrite it.
+ */
+export async function insertBlankPanel(
+  explainerId: string,
+  afterSectionId?: string
+): Promise<{ explainer: Explainer; sectionId: string } | undefined> {
+  const supabase = getServerSupabase();
+  const { data: existingRow } = await supabase
+    .from("explainers")
+    .select("*")
+    .eq("id", explainerId)
+    .maybeSingle();
+  if (!existingRow) return undefined;
+  const existing = rowToExplainer(existingRow as ExplainerRow);
+
+  const newPanel = buildBlankPanel();
+  const nextPanels = existing.panels.slice();
+  const insertAt = afterSectionId
+    ? nextPanels.findIndex((p) => p.sectionId === afterSectionId)
+    : -1;
+  if (insertAt >= 0) nextPanels.splice(insertAt + 1, 0, newPanel);
+  else nextPanels.push(newPanel);
+
+  const { data: updatedRow, error } = await supabase
+    .from("explainers")
+    .update({ panels: nextPanels })
+    .eq("id", explainerId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updatedRow) return undefined;
+  return {
+    explainer: rowToExplainer(updatedRow as ExplainerRow),
+    sectionId: newPanel.sectionId,
+  };
+}
+
+function buildBlankPanel() {
+  const sectionId = `blank-${Math.random().toString(36).slice(2, 10)}`;
+  // 680×480 matches the SVG canvas used by all four templates so the new
+  // panel sits at the same aspect ratio as its neighbours.
+  const content = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 480"><rect x="0" y="0" width="680" height="480" fill="#FAF9F5"/><text x="340" y="240" font-size="16" fill="#7A6F62" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">Click “Edit on canvas” to draw, or edit the heading and caption below.</text></svg>`;
+  return {
+    sectionId,
+    heading: "Untitled panel",
+    caption: "",
+    format: "svg" as const,
+    content,
+    validated: false,
+    fallback: false,
+    edited: true,
+  };
+}
+
+/**
  * Persist a template choice on an explainer. RLS enforces ownership.
  * Returns the updated row, or undefined if not found / not owned.
  */
