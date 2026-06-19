@@ -170,7 +170,11 @@ interface StyleContext {
 }
 
 const DEFAULT_STYLE: StyleContext = {
-  stroke: EXCALIDRAW_INK,
+  // SVG spec defaults stroke to "none". A non-transparent default here
+  // would paint a phantom outline on every fill-only shape (e.g. the
+  // lighthouse roof, which has fill="#1a1a1a" but no stroke). Text
+  // colour falls back to INK separately via resolveTextColor.
+  stroke: "transparent",
   fill: "transparent",
   strokeWidth: 1,
   fontSize: 14,
@@ -583,6 +587,14 @@ function samplePath(d: string): [number, number][] {
     if (/[a-zA-Z]/.test(t)) {
       cmd = t;
       i++;
+      // Z/z takes no arguments — execute the close immediately. Without
+      // this, the letter-switch branch swallows the Z and the `case "Z"`
+      // below never runs, leaving polygons open by their closing edge.
+      if (t === "Z" || t === "z") {
+        x = startX;
+        y = startY;
+        out.push([startX, startY]);
+      }
       continue;
     }
     const rel = cmd === cmd.toLowerCase();
@@ -861,11 +873,19 @@ function linePolylineElement(
     y: oy,
     width,
     height,
+    // SVG paths and polygons commonly have NO stroke but a coloured
+    // fill. When stroke is missing, drop to transparent so we don't
+    // hallucinate a black outline on a filled body shape.
     strokeColor:
       ctx.style.stroke && ctx.style.stroke !== "transparent"
         ? ctx.style.stroke
-        : EXCALIDRAW_INK,
-    backgroundColor: "transparent",
+        : "transparent",
+    // Preserve fill — polygons (cones, polygon icons) and closed paths
+    // (trapezoid tower body) need their interior color or they vanish.
+    backgroundColor:
+      ctx.style.fill && ctx.style.fill !== "transparent"
+        ? ctx.style.fill
+        : "transparent",
     strokeWidth: ctx.style.strokeWidth || 1,
     groupIds: ctx.groupIds,
   });
