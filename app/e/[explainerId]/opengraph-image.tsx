@@ -5,14 +5,18 @@ import { getExplainer } from "@/lib/store";
 /**
  * Dynamic Open Graph image for explainer permalinks.
  *
- * Renders a 1200×630 PNG with the explainer's title, source, panel
- * count, and Readopp wordmark on the brand's ivory paper background.
+ * Renders a 1200×630 PNG: two-column layout with the explainer's title
+ * + source on the left, the first panel rendered as a thumbnail on the
+ * right (when the panel is SVG — Satori parses SVG well enough that we
+ * can hand it the panel data URL directly). HTML panels and missing
+ * explainers fall through to a title-only brand card.
+ *
  * Picked up automatically by Next.js's `opengraph-image` file
  * convention — no manual metadata wiring needed; the route co-exists
  * with page.tsx so each permalink gets its own preview.
  *
- * Runs on nodejs so the supabase store call works (the same getExplainer
- * already used by the page component).
+ * Runs on nodejs so the supabase store call works (same getExplainer
+ * the page component uses).
  */
 export const runtime = "nodejs";
 export const alt = "Readopp explainer";
@@ -33,17 +37,19 @@ export default async function Image({
 }) {
   const explainer = await getExplainer(params.explainerId);
 
-  // Fall back to a generic brand card when the explainer is missing /
-  // private — better than 404'ing the OG endpoint, which would leave
-  // the share preview blank.
   const title = explainer?.title ?? "Readopp";
   const source = explainer ? sourceLabel(explainer.url) : "readopp.app";
   const panelCount = explainer?.panels.length ?? 0;
+  const firstPanel = explainer?.panels[0];
+  const thumbnailDataUrl =
+    firstPanel?.format === "svg" && firstPanel.content
+      ? svgToDataUrl(firstPanel.content)
+      : null;
 
   // Cap title length so the layout doesn't overflow on freakishly
   // long article titles. Satori's text wrap handles the rest.
   const displayTitle =
-    title.length > 140 ? title.slice(0, 137).trimEnd() + "…" : title;
+    title.length > 120 ? title.slice(0, 117).trimEnd() + "…" : title;
 
   return new ImageResponse(
     (
@@ -55,16 +61,16 @@ export default async function Image({
           flexDirection: "column",
           justifyContent: "space-between",
           background: PAPER,
-          padding: "72px 80px",
+          padding: "56px 64px",
           // Subtle ambient glow in the top-right — same idea as the
-          // .amb-tr utility on the site, but baked as a radial gradient
-          // since Satori can't drive CSS classes.
+          // .amb-tr utility on the site, baked as a radial gradient
+          // because Satori can't drive CSS classes.
           backgroundImage: `radial-gradient(60% 50% at 88% 0%, rgba(27,27,27,0.05), transparent 70%)`,
           color: INK,
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
         }}
       >
-        {/* Header — wordmark + tagline */}
+        {/* Header — wordmark + tag */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span
             style={{
@@ -76,7 +82,7 @@ export default async function Image({
           />
           <span
             style={{
-              fontSize: 30,
+              fontSize: 28,
               fontWeight: 600,
               letterSpacing: "-0.02em",
               color: INK,
@@ -86,8 +92,8 @@ export default async function Image({
           </span>
           <span
             style={{
-              marginLeft: 16,
-              fontSize: 16,
+              marginLeft: 14,
+              fontSize: 14,
               color: INK_MUTED,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
@@ -97,47 +103,108 @@ export default async function Image({
           </span>
         </div>
 
-        {/* Title — display serif feel via large + tight tracking + Lilita
-            fallback. Inter Bold at this size still reads as "publication"
-            because of the scale. */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 24,
-            maxWidth: 1040,
-          }}
-        >
-          <span
+        {/* Middle — two-column when we have a thumbnail; full-width title
+            block when we don't. */}
+        {thumbnailDataUrl ? (
+          <div
             style={{
-              fontSize: 72,
-              fontWeight: 600,
-              lineHeight: 1.08,
-              letterSpacing: "-0.022em",
-              color: INK,
               display: "flex",
+              gap: 48,
+              alignItems: "center",
+              flex: 1,
+              marginTop: 24,
+              marginBottom: 24,
             }}
           >
-            {displayTitle}
-          </span>
-        </div>
+            {/* Title column */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 18,
+                flex: 1.1,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 52,
+                  fontWeight: 600,
+                  lineHeight: 1.08,
+                  letterSpacing: "-0.022em",
+                  color: INK,
+                  display: "flex",
+                }}
+              >
+                {displayTitle}
+              </span>
+            </div>
+            {/* Thumbnail column */}
+            <div
+              style={{
+                display: "flex",
+                width: 440,
+                height: 360,
+                borderRadius: 12,
+                border: `1px solid ${PAPER_LINE}`,
+                background: "#FFFFFF",
+                overflow: "hidden",
+                boxShadow: "0 8px 32px -16px rgba(23,23,23,0.18)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={thumbnailDataUrl}
+                alt=""
+                width={440}
+                height={360}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 24,
+              maxWidth: 1040,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 72,
+                fontWeight: 600,
+                lineHeight: 1.08,
+                letterSpacing: "-0.022em",
+                color: INK,
+                display: "flex",
+              }}
+            >
+              {displayTitle}
+            </span>
+          </div>
+        )}
 
-        {/* Footer — source + panel count + accent rule */}
+        {/* Footer — source + panel count + accent tag */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             borderTop: `1px solid ${PAPER_LINE}`,
-            paddingTop: 24,
+            paddingTop: 22,
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 18,
-              fontSize: 22,
+              gap: 16,
+              fontSize: 20,
               color: INK_SOFT,
             }}
           >
@@ -149,7 +216,7 @@ export default async function Image({
           </div>
           <span
             style={{
-              fontSize: 18,
+              fontSize: 16,
               color: CLAY,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
@@ -165,4 +232,14 @@ export default async function Image({
       ...size,
     }
   );
+}
+
+/**
+ * Inline the panel SVG as a base64 data URL so Satori can rasterise it
+ * inside the OG image. Satori's SVG renderer handles our templates'
+ * text/rect/line/circle/ellipse/path cleanly; complex filters and
+ * gradients would fall back to white, but none of the templates use them.
+ */
+function svgToDataUrl(svg: string): string {
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
