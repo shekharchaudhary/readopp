@@ -48,6 +48,11 @@ const panelPlan = {
 
 const svg = renderMetaphor(panelPlan);
 
+if (svg == null) {
+  console.error("renderMetaphor returned null — check the plan shape.");
+  process.exit(1);
+}
+
 console.log("== source SVG ==");
 console.log(svg);
 console.log();

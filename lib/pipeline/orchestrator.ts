@@ -130,8 +130,16 @@ export async function runJob(jobId: string): Promise<void> {
         `Extracted ${article.wordCount.toLocaleString()} words from PDF`
       );
     } else {
-      await emitAgentProgress(jobId, "ingest", "Fetching article…");
-      article = await runIngest(job.url);
+      // Pipe ingest's internal stage messages straight into the agent's
+      // progress channel. Without this the UI shows "Fetching article…"
+      // for 60–90s whenever a site falls into the Playwright fallback
+      // (cold Chromium launch + networkidle wait), leaving the user
+      // thinking the pipeline froze.
+      article = await runIngest(job.url, {
+        onProgress: (msg) => {
+          void emitAgentProgress(jobId, "ingest", msg);
+        },
+      });
       await emitAgentProgress(
         jobId,
         "ingest",

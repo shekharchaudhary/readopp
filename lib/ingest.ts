@@ -8,7 +8,11 @@ const USER_AGENT =
   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 Readopp/0.1";
 
 const FETCH_TIMEOUT_MS = 15_000;
-const RENDER_TIMEOUT_MS = 25_000;
+// Cap Playwright at 15s instead of 25s — on tracker-heavy sites
+// networkidle often never fires, so the extra 10s just wastes the user's
+// time. 15s is enough for the JS-rendered SPAs we actually want to
+// rescue (Substack hydration, Cloudflare interstitial).
+const RENDER_TIMEOUT_MS = 15_000;
 // Word threshold under which we consider raw-HTML extraction "too thin" and
 // retry by rendering the page in Chromium (handles JS-heavy SPAs).
 const MIN_WORDS_BEFORE_FALLBACK = 80;
@@ -122,6 +126,12 @@ const PAYWALL_HINTS = [
   "to continue reading",
   "create a free account",
   "metered paywall",
+  "sign in to continue reading",
+  "sign in to read",
+  "start your free trial",
+  "log in to access",
+  "this content requires a subscription",
+  "members-only",
 ];
 
 function detectPaywall(text: string): boolean {
@@ -180,7 +190,21 @@ function parseArticleFromHtml(html: string, url: string): Parsed | null {
   };
 }
 
-export async function ingestUrl(url: string): Promise<CleanArticle> {
+export interface IngestProgress {
+  /** Called with short status messages as ingest moves through its
+   *  internal stages. The orchestrator pipes these straight into the
+   *  agent's "progress" SSE channel so the user sees "Fetching…" →
+   *  "Page blocked — trying with a browser…" → "Reading rendered
+   *  page…" instead of staring at one message for 90s. */
+  onProgress?: (message: string) => void;
+}
+
+export async function ingestUrl(
+  url: string,
+  opts: IngestProgress = {}
+): Promise<CleanArticle> {
+  const tick = (m: string) => opts.onProgress?.(m);
+
   if (!isValidHttpUrl(url)) {
     throw new IngestError({
       reason: "invalid_url",
@@ -189,9 +213,23 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
   }
 
   // Fast path — plain HTTP fetch + Readability.
+  tick("Fetching article…");
   const fetchResult = await fetchHtml(url);
   let html = fetchResult.html;
   let parsed = fetchResult.authBlocked ? null : parseArticleFromHtml(html, url);
+
+  // Fast-fail paywall detection: if raw fetch already returned obvious
+  // paywall copy, skip the slow Playwright fallback — a headless browser
+  // can't sign in either, so all we'd do is burn 15s of the user's time.
+  // We still let Playwright run when the raw page is just THIN without
+  // paywall markers (real SPAs that need JS hydration).
+  if (parsed && detectPaywall(parsed.text)) {
+    throw new IngestError({
+      reason: "paywalled",
+      message:
+        "This article seems to be behind a paywall — only the preview was readable.",
+    });
+  }
 
   // Fallback path — fire whenever extraction was thin OR the raw fetch was
   // auth-blocked. Bot-detection layers like Cloudflare commonly 403 a plain
@@ -203,12 +241,18 @@ export async function ingestUrl(url: string): Promise<CleanArticle> {
     parsed.words < MIN_WORDS_BEFORE_FALLBACK;
   if (needsRender) {
     try {
+      tick(
+        fetchResult.authBlocked
+          ? "Page gated by bot check — loading in a real browser (up to 25s)…"
+          : "Raw page was thin — rendering JavaScript in a browser…"
+      );
       // eslint-disable-next-line no-console
       console.log("[readopp] ingest falling back to JS render", {
         url,
         authBlocked: fetchResult.authBlocked ?? false,
       });
       html = await fetchHtmlRendered(url);
+      tick("Reading rendered page…");
       const rendered = parseArticleFromHtml(html, url);
       if (rendered && rendered.words >= MIN_WORDS_BEFORE_FALLBACK) {
         parsed = rendered;
