@@ -662,6 +662,27 @@ export async function savePanelScene(input: {
 }
 
 /**
+ * Remove the saved Excalidraw scene for a panel. Used by the canvas's
+ * "Restore from panel" button when the user wants to discard their
+ * canvas state and re-seed from the underlying panel SVG. No-op when
+ * no row exists yet — the user gets the seed regardless.
+ */
+export async function deletePanelScene(input: {
+  explainerId: string;
+  sectionId: string;
+}): Promise<void> {
+  const admin = getAdminSupabase();
+  const { error } = await admin
+    .from("panel_scenes")
+    .delete()
+    .eq("explainer_id", input.explainerId)
+    .eq("section_id", input.sectionId);
+  if (error) {
+    throw new Error(`Failed to delete panel scene: ${error.message}`);
+  }
+}
+
+/**
  * Number of explainers a user has generated. Used by the Phase 3b free-tier
  * gate. Cache-hit reuses don't insert rows, so this naturally measures
  * unique generations (not page reloads or re-shares).

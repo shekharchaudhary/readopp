@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  deletePanelScene,
   getExplainer,
   getExplainerOwner,
   getPanelScene,
@@ -96,6 +97,32 @@ export async function POST(req: Request, { params }: RouteParams) {
           ? "panel_scenes table is missing — apply supabase/migrations/0007_panel_scenes.sql in Supabase Studio."
           : `Failed to save: ${msg.slice(0, 200)}`,
       },
+      { status: 500 }
+    );
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/**
+ * Remove the saved scene for this panel. Used by the canvas's "Restore
+ * from panel" button so the next mount falls through to a fresh seed
+ * via the SVG converter. Ownership check matches the POST path.
+ */
+export async function DELETE(_req: Request, { params }: RouteParams) {
+  const { explainerId, sectionId } = params;
+  const userId = await getOrCreateUserId();
+  const ownerId = await getExplainerOwner(explainerId);
+  if (!ownerId || ownerId !== userId) {
+    return NextResponse.json(
+      { error: "Not allowed to edit this panel." },
+      { status: 403 }
+    );
+  }
+  try {
+    await deletePanelScene({ explainerId, sectionId });
+  } catch (e) {
+    return NextResponse.json(
+      { error: (e as Error).message?.slice(0, 200) ?? "delete failed" },
       { status: 500 }
     );
   }

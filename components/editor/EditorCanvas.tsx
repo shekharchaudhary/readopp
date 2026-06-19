@@ -149,24 +149,31 @@ export function EditorCanvas({
           // fall through to seed
         }
       }
-      // Auto-unpack legacy "just-the-seed-image" scenes. Panels that were
-      // opened in the canvas BEFORE the svgToExcalidraw converter shipped
-      // saved their initial state as a single locked image element. Those
-      // users now find the canvas opens with one un-editable image instead
-      // of editable text/shapes. If the saved scene matches that exact
-      // pattern (one locked seed-image, nothing else) we discard it and
-      // re-seed from the current panel SVG — which now runs the converter
-      // and yields editable native elements. Real edits (any scene with
-      // more than the seed image or anything moved/unlocked) are preserved.
+      // Auto-reseed when the saved scene has nothing worth preserving —
+      // empty elements (auto-save fired without real edits) or the
+      // pre-converter single-locked-image legacy state. Real edits load
+      // untouched. See shouldReseed() for the exact patterns.
       if (
         resolved &&
         typeof resolved === "object" &&
-        !isLegacySeedImageScene(resolved)
+        !shouldReseed(resolved)
       ) {
+        // eslint-disable-next-line no-console
+        console.info(
+          "[readopp] canvas: loaded saved scene with",
+          (resolved as { elements?: unknown[] }).elements?.length ?? 0,
+          "elements"
+        );
         apply(resolved);
         return;
       }
       const seed = await buildSeedScene(panelContent, panelFormat, heading);
+      // eslint-disable-next-line no-console
+      console.info(
+        "[readopp] canvas: re-seeded from panel SVG with",
+        (seed as { elements?: unknown[] }).elements?.length ?? 0,
+        "elements"
+      );
       apply(seed);
     })();
     return () => {
@@ -378,6 +385,49 @@ export function EditorCanvas({
     onDone?.();
   }, [handleSave, onDone]);
 
+  /**
+   * Escape hatch when the canvas opens blank or stuck. Wipes the saved
+   * scene server-side, rebuilds the seed from the current panel SVG,
+   * and swaps it in as the new initial data. Excalidraw remounts via
+   * the `key` we change downstream so the new scene takes effect.
+   */
+  const [seedKey, setSeedKey] = useState(0);
+  const handleRestoreFromPanel = useCallback(async () => {
+    if (
+      !window.confirm(
+        "Restore this canvas to the original panel content? Your unsaved canvas edits will be lost."
+      )
+    ) {
+      return;
+    }
+    // Cancel any pending auto-save so we don't immediately re-persist
+    // whatever Excalidraw had on screen.
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    try {
+      await fetch(`/api/scenes/${explainerId}/${sectionId}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    } catch {
+      // Even if the server delete fails, fall through and reseed locally.
+    }
+    const seed = await buildSeedScene(panelContent, panelFormat, heading);
+    // eslint-disable-next-line no-console
+    console.info(
+      "[readopp] canvas: restored from panel, seeded",
+      (seed as { elements?: unknown[] }).elements?.length ?? 0,
+      "elements"
+    );
+    // Reset the dirty/settled tracking so the reseeded scene doesn't
+    // immediately count as an edit.
+    settled.current = false;
+    setSaving({ kind: "idle" });
+    setInitialData(seed);
+    setSeedKey((k) => k + 1);
+  }, [explainerId, sectionId, panelContent, panelFormat, heading]);
+
   const handleExport = useCallback(async () => {
     if (!apiRef.current) return;
     setExporting(true);
@@ -436,6 +486,14 @@ export function EditorCanvas({
         </span>
         <button
           type="button"
+          onClick={() => void handleRestoreFromPanel()}
+          title="Discard canvas edits and restore the original panel"
+          className="rounded-full border border-paper-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink"
+        >
+          Restore from panel
+        </button>
+        <button
+          type="button"
           onClick={() => void handleSave()}
           disabled={saving.kind === "saving"}
           className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted disabled:opacity-60"
@@ -464,6 +522,9 @@ export function EditorCanvas({
       <div className="min-h-0 flex-1" style={height ? { height } : undefined}>
         {initialData ? (
           <ExcalidrawInner
+            // Bump on Restore so Excalidraw fully unmounts + remounts
+            // with the fresh seed — initialData is only read at mount.
+            key={seedKey}
             initialData={initialData}
             onAPI={handleAPI}
             onChange={scheduleSave}
@@ -584,29 +645,45 @@ async function buildSeedScene(
 }
 
 /**
- * True when a saved scene is exactly the legacy single-image seed and
- * nothing else — meaning the user opened the canvas before the SVG
- * converter shipped, the canvas auto-saved the seed state, and they
- * never actually edited anything. We can safely discard such a scene
- * and re-seed from the panel SVG so the canvas now opens with editable
- * native elements. Heuristic: one element, type=image, locked, with the
- * "seed-base" id we stamp in buildSeedScene's fallback path.
+ * True when a saved scene contains nothing worth preserving — meaning
+ * we should discard it and re-seed from the panel SVG so the canvas
+ * doesn't open blank or stuck on a locked image.
+ *
+ * Three patterns count as "no edits":
+ *  - Empty elements array (auto-save fired without real edits or
+ *    persisted state was somehow zeroed).
+ *  - Exactly one locked seed image (the pre-converter legacy state).
+ *  - Exactly one non-deleted element AND every non-deleted element has
+ *    isDeleted=true... actually rare; covered by the empty case after
+ *    Excalidraw's restore pass.
+ *
+ * Any scene with real edits (multiple elements, moved seed, unlocked,
+ * or user-added shapes) bypasses the reseed and loads untouched.
  */
-function isLegacySeedImageScene(scene: unknown): boolean {
+function shouldReseed(scene: unknown): boolean {
   if (!scene || typeof scene !== "object") return false;
   const els = (scene as { elements?: unknown[] }).elements;
-  if (!Array.isArray(els) || els.length !== 1) return false;
-  const el = els[0] as {
-    type?: string;
-    id?: string;
-    locked?: boolean;
-  };
-  return (
-    el?.type === "image" &&
-    typeof el.id === "string" &&
-    el.id.startsWith("seed-") &&
-    el.locked === true
+  if (!Array.isArray(els)) return false;
+  const live = els.filter(
+    (e) => !(e as { isDeleted?: boolean })?.isDeleted
   );
+  if (live.length === 0) return true;
+  if (live.length === 1) {
+    const el = live[0] as {
+      type?: string;
+      id?: string;
+      locked?: boolean;
+    };
+    if (
+      el?.type === "image" &&
+      typeof el.id === "string" &&
+      el.id.startsWith("seed-") &&
+      el.locked === true
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function extractSvgDims(svg: string, fallbackW: number, fallbackH: number) {

@@ -336,7 +336,7 @@ function PanelDraggable({
       onDragLeave={draggable ? handleDragLeave : undefined}
       onDrop={draggable ? handleDrop : undefined}
       className={
-        "relative " +
+        "group relative " +
         (over === "top"
           ? "before:absolute before:-top-1.5 before:left-0 before:right-0 before:h-1 before:rounded-full before:bg-accent"
           : over === "bottom"
@@ -344,15 +344,23 @@ function PanelDraggable({
             : "")
       }
     >
-      {/* Mouse drag wrapper. Keyboard users reorder via the ↑/↓ buttons
-          in the panel action strip — those are the accessible path. */}
-      <div
-        draggable={draggable}
-        onDragStart={draggable ? handleDragStart : undefined}
-        className={draggable ? "cursor-grab active:cursor-grabbing" : undefined}
-      >
-        {children}
-      </div>
+      {children}
+      {/* Drag source is a small handle overlay at the top-left, NOT the
+          whole card. Otherwise any mousedown inside the card — including
+          dragging an element inside the inline Excalidraw editor —
+          triggers the HTML5 panel-reorder drag and ghosts the whole
+          card. Keyboard users have the ↑/↓ buttons in the action strip. */}
+      {draggable && (
+        <div
+          draggable
+          onDragStart={handleDragStart}
+          aria-label="Drag to reorder panel"
+          title="Drag to reorder"
+          className="absolute left-2 top-2 z-10 flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-paper-line bg-surface/90 text-ink-muted opacity-0 transition-opacity hover:text-ink active:cursor-grabbing focus-visible:opacity-100 group-hover:opacity-100 hover:opacity-100"
+        >
+          <span aria-hidden className="text-base leading-none">⠿</span>
+        </div>
+      )}
     </div>
   );
 }
