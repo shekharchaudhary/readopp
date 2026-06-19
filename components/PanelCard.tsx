@@ -54,6 +54,14 @@ interface Props {
    */
   canDelete?: boolean;
   /**
+   * Move-up / move-down handlers — the keyboard parallel to mouse drag.
+   * Each renders as a small arrow button in the panel header (only when
+   * a move in that direction is actually possible). Omit either to hide
+   * the corresponding button. Used by ExplainerView; no-op elsewhere.
+   */
+  onMoveUp?: (sectionId: string) => void;
+  onMoveDown?: (sectionId: string) => void;
+  /**
    * When set to a template other than "tachyon", the body switches from
    * the original SVG view to an iframe rendering the export HTML — so
    * the in-page preview matches the downloaded PNG. In that mode heading
@@ -115,6 +123,8 @@ export function PanelCard({
   onReset,
   onDelete,
   canDelete,
+  onMoveUp,
+  onMoveDown,
   explainerId,
   template,
 }: Props) {
@@ -251,6 +261,28 @@ export function PanelCard({
               className="rounded-md border border-paper-line bg-paper px-2.5 py-1 text-xs text-ink-soft hover:border-ink-muted"
             >
               Export
+            </button>
+          )}
+          {onMoveUp && (
+            <button
+              type="button"
+              onClick={() => onMoveUp(panel.sectionId)}
+              aria-label="Move panel up"
+              title="Move panel up"
+              className="rounded-md border border-paper-line bg-paper px-2 py-1 text-xs text-ink-muted hover:border-ink-muted hover:text-ink"
+            >
+              ↑
+            </button>
+          )}
+          {onMoveDown && (
+            <button
+              type="button"
+              onClick={() => onMoveDown(panel.sectionId)}
+              aria-label="Move panel down"
+              title="Move panel down"
+              className="rounded-md border border-paper-line bg-paper px-2 py-1 text-xs text-ink-muted hover:border-ink-muted hover:text-ink"
+            >
+              ↓
             </button>
           )}
           {onDelete && canDelete && (

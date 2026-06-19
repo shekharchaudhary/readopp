@@ -109,6 +109,19 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
     }
   }
 
+  /** Move a panel by one step in the given direction — keyboard parallel
+   *  to the mouse drag. Reuses the reorderPanels round-trip. */
+  function movePanel(sectionId: string, direction: "up" | "down") {
+    const ids = explainer.panels.map((p) => p.sectionId);
+    const i = ids.indexOf(sectionId);
+    if (i < 0) return;
+    const j = direction === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= ids.length) return;
+    const next = ids.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    void reorderPanels(next);
+  }
+
   async function insertBlankPanel(afterSectionId?: string) {
     try {
       const res = await fetch(
@@ -214,7 +227,6 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
           <div key={panel.sectionId}>
             <PanelDraggable
               panelId={panel.sectionId}
-              index={i}
               draggable={canExport && explainer.panels.length > 1}
               onReorder={reorderPanels}
               order={explainer.panels.map((p) => p.sectionId)}
@@ -227,6 +239,16 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
                 onReset={canExport ? resetPanel : undefined}
                 onDelete={canExport ? deletePanel : undefined}
                 canDelete={canExport && explainer.panels.length > 1}
+                onMoveUp={
+                  canExport && i > 0
+                    ? (id) => movePanel(id, "up")
+                    : undefined
+                }
+                onMoveDown={
+                  canExport && i < explainer.panels.length - 1
+                    ? (id) => movePanel(id, "down")
+                    : undefined
+                }
                 explainerId={explainer.id}
                 template={explainer.template}
               />
@@ -263,14 +285,12 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
 function PanelDraggable({
   children,
   panelId,
-  index,
   draggable,
   order,
   onReorder,
 }: {
   children: React.ReactNode;
   panelId: string;
-  index: number;
   draggable: boolean;
   order: string[];
   onReorder: (next: string[]) => void;
@@ -324,13 +344,12 @@ function PanelDraggable({
             : "")
       }
     >
+      {/* Mouse drag wrapper. Keyboard users reorder via the ↑/↓ buttons
+          in the panel action strip — those are the accessible path. */}
       <div
         draggable={draggable}
         onDragStart={draggable ? handleDragStart : undefined}
         className={draggable ? "cursor-grab active:cursor-grabbing" : undefined}
-        aria-label={
-          draggable ? `Panel ${index + 1}, draggable to reorder` : undefined
-        }
       >
         {children}
       </div>
