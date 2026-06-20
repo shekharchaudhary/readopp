@@ -162,6 +162,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
 
   return (
     <div className="space-y-8">
+      {!canExport && <PermalinkVisitorBanner />}
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-2 min-w-0">
           <h1 className="text-2xl font-medium tracking-tight text-ink sm:text-3xl">
@@ -267,6 +268,8 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
           </div>
         ))}
       </section>
+
+      {!canExport && <PermalinkVisitorFooter />}
 
       <ExportSheet
         open={exportOpen}
@@ -410,6 +413,57 @@ function InsertSlot({
  * Window.location is read at click-time inside each callback (not at
  * render) so the bar is safe to render during SSR.
  */
+/**
+ * Soft brand banner that surfaces above the explainer header when a
+ * visitor (not the owner) lands on a shared permalink. Every shared
+ * /e/<id> link is a free funnel entry for new users — this is the CTA
+ * that pulls them in. Subtle: the explainer content has to remain the
+ * star of the page; this is a kicker line + link, not a marketing wall.
+ */
+function PermalinkVisitorBanner() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-paper-line bg-paper-soft px-4 py-3">
+      <p className="text-sm text-ink-soft">
+        <span className="inline-block h-2 w-2 -translate-y-px rounded-full bg-accent align-middle" />
+        <span className="ml-2 font-medium text-ink">Made with Readopp</span>
+        <span className="ml-2 text-ink-muted">
+          — paste any article, get a LinkedIn-ready visual carousel.
+        </span>
+      </p>
+      <a
+        href="/"
+        className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper transition-opacity hover:opacity-90"
+      >
+        Make your own →
+      </a>
+    </div>
+  );
+}
+
+/**
+ * Stronger CTA below the panel list — commitment is highest after the
+ * visitor has scrolled all the way through. Bigger headline, full-width.
+ */
+function PermalinkVisitorFooter() {
+  return (
+    <section className="rounded-lg border border-paper-line bg-paper px-6 py-10 text-center">
+      <h2 className="font-display text-2xl font-medium tracking-tight text-ink sm:text-3xl">
+        Turn what you read into a post like this.
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
+        Readopp made this carousel from a single URL. Paste any article,
+        paper, or PDF — it&rsquo;s 3 free tries, no sign-up needed.
+      </p>
+      <a
+        href="/"
+        className="mt-6 inline-block rounded-md bg-sky px-5 py-2.5 text-sm font-medium text-white shadow-[0_1px_0_rgba(13,87,134,0.3)] transition-[filter,background-color] hover:brightness-110"
+      >
+        Try Readopp
+      </a>
+    </section>
+  );
+}
+
 function ShareBar({
   explainerId,
   title,

@@ -6,13 +6,17 @@ import { Reveal } from "./marketing/Reveal";
 import { SectionLabel } from "./marketing/SectionLabel";
 
 /**
- * Personalised "Your explainers" section. Hides itself entirely when the
- * current user has zero explainers — a brand-new visitor sees no empty
- * shell. Once they generate one, the section appears below the hero.
+ * Personalised "Your explainers" / "What others have made" section.
  *
- * Polls /api/explainers once to decide visibility, then renders the shared
- * ExampleGallery (which does its own fetch — the duplicate is cheap and
- * keeps the two concerns decoupled).
+ * Polls /api/explainers once to decide which mode to render:
+ *   - hasItems  : show the user's own recent runs ("Your explainers")
+ *   - !hasItems : show the curated sample gallery instead
+ *                ("What others have made"), pulling from the
+ *                /api/explainers/samples endpoint. First-time visitors
+ *                used to see no section at all here — empty silence
+ *                isn't as compelling as 2-3 polished demo explainers.
+ *   - loading   : render nothing (the brief flash of "What others have
+ *                made" would otherwise show even for return users).
  */
 export function YourExplainersSection() {
   const [hasItems, setHasItems] = useState<boolean | null>(null);
@@ -33,7 +37,9 @@ export function YourExplainersSection() {
     };
   }, []);
 
-  if (hasItems !== true) return null;
+  if (hasItems === null) return null;
+
+  const isSamples = !hasItems;
 
   // Sage is a deliberate one-off: the user asked for this section to break
   // from the site palette entirely, so the island is pinned light and green
@@ -43,21 +49,32 @@ export function YourExplainersSection() {
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
         <div className="force-light rounded-3xl bg-sage-soft px-6 py-16 sm:px-12 sm:py-20">
           <Reveal>
-            <SectionLabel title="Your explainers" tone="sage" />
+            <SectionLabel
+              title={isSamples ? "What others have made" : "Your explainers"}
+              tone="sage"
+            />
           </Reveal>
           <Reveal delayMs={60}>
             <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-              Everything you&rsquo;ve made with Readopp.
+              {isSamples
+                ? "Real explainers, real articles. Click any to flip through."
+                : "Everything you’ve made with Readopp."}
             </h2>
           </Reveal>
           <Reveal delayMs={120}>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-soft">
-              Sign in with Google to keep them attached across devices. Click
-              any to revisit, edit, or re-export.
+              {isSamples
+                ? "Each card below was generated from a single URL by the same pipeline that will design your post."
+                : "Sign in with Google to keep them attached across devices. Click any to revisit, edit, or re-export."}
             </p>
           </Reveal>
           <div className="mt-12">
-            <ExampleGallery />
+            <ExampleGallery
+              source={
+                isSamples ? "/api/explainers/samples" : "/api/explainers"
+              }
+              showDelete={!isSamples}
+            />
           </div>
         </div>
       </div>

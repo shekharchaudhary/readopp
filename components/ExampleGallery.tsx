@@ -30,7 +30,25 @@ function previewOf(it: Item): PanelPeek | null {
   return null;
 }
 
-export function ExampleGallery() {
+interface Props {
+  /**
+   * Where to fetch the gallery items from. Defaults to /api/explainers
+   * (the current user's recent). Pass /api/explainers/samples to
+   * surface the curated showcase list instead.
+   */
+  source?: string;
+  /**
+   * When false, the inline ✕ delete button is hidden — used for the
+   * curated samples gallery where visitors don't own the items.
+   * Defaults to true.
+   */
+  showDelete?: boolean;
+}
+
+export function ExampleGallery({
+  source = "/api/explainers",
+  showDelete = true,
+}: Props = {}) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -38,7 +56,7 @@ export function ExampleGallery() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/explainers", { cache: "no-store" });
+        const res = await fetch(source, { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setItems(data.explainers || []);
@@ -49,7 +67,7 @@ export function ExampleGallery() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [source]);
 
   async function handleDelete(item: Item) {
     if (deletingId) return;
@@ -124,16 +142,18 @@ export function ExampleGallery() {
                   </div>
                 </div>
               </Link>
-              <button
-                type="button"
-                aria-label={`Delete ${it.title}`}
-                title="Delete"
-                disabled={isDeleting}
-                onClick={() => handleDelete(it)}
-                className="absolute bottom-3 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-ink-faint opacity-0 transition-opacity hover:border-paper-line hover:bg-paper-soft hover:text-ink-soft focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <CloseGlyph />
-              </button>
+              {showDelete && (
+                <button
+                  type="button"
+                  aria-label={`Delete ${it.title}`}
+                  title="Delete"
+                  disabled={isDeleting}
+                  onClick={() => handleDelete(it)}
+                  className="absolute bottom-3 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-ink-faint opacity-0 transition-opacity hover:border-paper-line hover:bg-paper-soft hover:text-ink-soft focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <CloseGlyph />
+                </button>
+              )}
             </li>
           );
         })}

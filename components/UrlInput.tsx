@@ -234,6 +234,10 @@ export function UrlInput() {
 
       {blocked && quota && <BlockedPanel quota={quota} />}
 
+      {!blocked && quota?.isAnonymous && approachingLimit(quota) && (
+        <ApproachingLimitNudge quota={quota} />
+      )}
+
       {!blocked && (
         <button
           type="submit"
@@ -244,12 +248,23 @@ export function UrlInput() {
         </button>
       )}
 
-      {!blocked && quota?.isAnonymous && quota.used > 0 && quota.max !== null && (
+      {!blocked && quota?.isAnonymous && quota.max !== null && (
         <p className="text-center text-xs text-ink-muted">
-          <span className="font-mono tabular-nums text-ink-soft">
-            {quota.used} of {quota.max}
-          </span>{" "}
-          free generations used
+          {quota.used === 0 ? (
+            <>
+              <span className="font-mono tabular-nums text-ink-soft">
+                {quota.max} free generations
+              </span>{" "}
+              available — no sign-in needed
+            </>
+          ) : (
+            <>
+              <span className="font-mono tabular-nums text-ink-soft">
+                {quota.used} of {quota.max}
+              </span>{" "}
+              free generations used
+            </>
+          )}
         </p>
       )}
     </form>
@@ -296,6 +311,51 @@ function BlockedPanel({ quota }: { quota: Quota }) {
           {signInError}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * True when the user is one generation away from hitting their free
+ * limit — surfaces the sign-in nudge before they hit the hard wall, so
+ * their already-generated explainers don't feel orphaned.
+ */
+function approachingLimit(q: Quota): boolean {
+  if (q.max == null) return false;
+  return q.used >= q.max - 1 && q.used < q.max;
+}
+
+function ApproachingLimitNudge({ quota }: { quota: Quota }) {
+  const [busy, setBusy] = useState(false);
+  const remaining = (quota.max ?? 0) - quota.used;
+  async function start() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await signInWithGoogle("/");
+    } catch {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-accent/30 bg-accent-soft px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-accent-deep">
+          {remaining === 1 ? "1 free generation left" : `${remaining} free generations left`}
+        </p>
+        <p className="mt-0.5 text-xs text-ink-soft">
+          Sign in with Google to save what you&rsquo;ve made — they&rsquo;ll stay
+          attached to your account across devices.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={start}
+        disabled={busy}
+        className="shrink-0 self-center rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "…" : "Sign in"}
+      </button>
     </div>
   );
 }
