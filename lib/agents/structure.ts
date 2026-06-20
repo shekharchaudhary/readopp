@@ -22,7 +22,25 @@ GENERAL RULES (apply to every genre)
 - Produce 3 to 6 panels. Fewer is better when the document is simple.
 - Panels form a narrative the reader can follow in order.
 - First panel usually frames the subject/problem; last summarises.
-- Don't use the same visualType more than twice unless absolutely necessary.
+
+VOICE ROTATION (the carousel must FEEL varied):
+- Don't use the same visualType more than twice across the explainer.
+- NEVER use the same visualType for two consecutive sections.
+- Don't use the same metaphor "kind" twice in one explainer (two
+  different iceberg panels back-to-back is a tell that you've defaulted).
+- Pick visualTypes from DIFFERENT FAMILIES across consecutive
+  sections. Families:
+    • EDITORIAL    : insight, quote_card, definition_card, framework,
+                     before_after, key_findings
+    • DATA         : stat_callout, chart
+    • VISUAL       : metaphor, annotated_hero
+    • STRUCTURAL   : timeline, comparison, flowchart, structural
+  A 5-section explainer should hit at LEAST 3 families. If two
+  consecutive sections want to be in the same family, swap the second
+  to a different family even if it's slightly less ideal — variety
+  beats local-optimum every time on a LinkedIn carousel.
+- If you find yourself reaching for "comparison" twice, replace one
+  with "before_after" (narrative pair) or "key_findings" (numbered).
 
 ═══════════════════════════════════════════════════════════════════════════
 GENRE PLAYBOOKS — start from the genre-specific ladder, then fall back
@@ -243,8 +261,81 @@ export async function runStructure(
       seen.add(id);
       return { ...s, id };
     });
+    // Soft voice-rotation log. Reports same-family consecutive picks
+    // and same-visualType repeats so we can spot prompt drift in the
+    // smoke test without blocking the pipeline (the rule is editorial,
+    // not structural — sometimes the right pick really is twice).
+    const issues = scoreRotation(unique.map((s) => s.visualType));
+    if (issues.length > 0) {
+      // eslint-disable-next-line no-console
+      console.info(
+        `[readopp] structure rotation hints (jobId=${jobId ?? "—"}): ${issues.join("; ")}`
+      );
+    }
     return { title: outline.title, sections: unique };
   });
+}
+
+/**
+ * Map of visualType → family for voice-rotation analysis. Mirrors the
+ * VOICE ROTATION rule in the SYSTEM_PROMPT so the prompt and the log
+ * agree on what counts as a "same family" repeat.
+ */
+const FAMILY_OF: Record<string, string> = {
+  insight: "editorial",
+  quote_card: "editorial",
+  definition_card: "editorial",
+  framework: "editorial",
+  before_after: "editorial",
+  key_findings: "editorial",
+  stat_callout: "data",
+  chart: "data",
+  metaphor: "visual",
+  annotated_hero: "visual",
+  timeline: "structural",
+  comparison: "structural",
+  flowchart: "structural",
+  structural: "structural",
+};
+
+function scoreRotation(types: string[]): string[] {
+  const issues: string[] = [];
+  // Same visualType twice in a row.
+  for (let i = 1; i < types.length; i++) {
+    if (types[i] && types[i] === types[i - 1]) {
+      issues.push(
+        `consecutive same visualType "${types[i]}" at sections ${i}-${i + 1}`
+      );
+    }
+  }
+  // Same family twice in a row.
+  for (let i = 1; i < types.length; i++) {
+    const a = FAMILY_OF[types[i - 1]];
+    const b = FAMILY_OF[types[i]];
+    if (a && b && a === b && types[i] !== types[i - 1]) {
+      issues.push(
+        `consecutive same family "${a}" (${types[i - 1]} → ${types[i]}) at sections ${i}-${i + 1}`
+      );
+    }
+  }
+  // Same visualType more than twice anywhere.
+  const counts = new Map<string, number>();
+  for (const t of types) counts.set(t, (counts.get(t) ?? 0) + 1);
+  for (const [t, n] of counts) {
+    if (n > 2) issues.push(`visualType "${t}" used ${n} times (cap is 2)`);
+  }
+  // Family coverage — should hit at least 3 distinct families for ≥4 panels.
+  if (types.length >= 4) {
+    const families = new Set(
+      types.map((t) => FAMILY_OF[t]).filter(Boolean)
+    );
+    if (families.size < 3) {
+      issues.push(
+        `low family coverage: only ${families.size} family(ies) across ${types.length} sections`
+      );
+    }
+  }
+  return issues;
 }
 
 export function summarizeOutline(outline: ExplainerOutline): string {
