@@ -6,7 +6,7 @@ import {
   type SocialPack,
 } from "../shared/schemas";
 import { sourceLabel } from "../shared/source";
-import { extractJson, withRetry } from "./util";
+import { extractJson, parseWithFeedback, withRetry } from "./util";
 
 /**
  * Phase 8 week 1 — the agent that turns a finished explainer into something
@@ -105,7 +105,7 @@ export async function runSocialPack(
             role: "user",
             content:
               (retryHint
-                ? `Your previous output failed validation: ${retryHint}\nReturn ONLY corrected JSON.\n\n`
+                ? `${retryHint}\n\nReturn the COMPLETE corrected SocialPack JSON. No fences, no commentary.\n\n---\n\n`
                 : "") + userMessage({ explainer, comprehension }),
           },
         ],
@@ -144,6 +144,6 @@ export async function runSocialPack(
       parsedRaw.altTexts = [];
     }
 
-    return SocialPackSchema.parse(parsedRaw);
+    return parseWithFeedback(SocialPackSchema, parsedRaw);
   });
 }

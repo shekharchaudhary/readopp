@@ -4,7 +4,7 @@ import {
   type Comprehension,
   type ExplainerOutline,
 } from "../shared/schemas";
-import { extractJson, withRetry } from "./util";
+import { extractJson, parseWithFeedback, withRetry } from "./util";
 
 const SYSTEM_PROMPT = `
 You are the structure stage. You break an understood document into a short
@@ -212,7 +212,7 @@ export async function runStructure(
         role: "user" as const,
         content:
           (retryHint
-            ? `Your previous output failed validation: ${retryHint}\nReturn ONLY corrected JSON.\n\n`
+            ? `${retryHint}\n\nReturn the COMPLETE corrected ExplainerOutline JSON. No fences, no commentary.\n\n---\n\n`
             : "") + userMessage(comprehension),
       },
     ];
@@ -230,7 +230,7 @@ export async function runStructure(
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("");
     const parsed = JSON.parse(extractJson(text));
-    const outline = ExplainerOutlineSchema.parse(parsed);
+    const outline = parseWithFeedback(ExplainerOutlineSchema, parsed);
     // Clamp to [3, 6]; rewrite duplicate ids defensively.
     const sections = outline.sections.slice(0, 6).map((s, i) => ({
       ...s,

@@ -5,7 +5,7 @@ import {
   type CleanArticle,
   type Comprehension,
 } from "../shared/schemas";
-import { extractJson, withRetry } from "./util";
+import { extractJson, parseWithFeedback, withRetry } from "./util";
 
 const SYSTEM_PROMPT = `
 You are the comprehension stage of a pipeline that turns documents into visual
@@ -266,7 +266,7 @@ export async function runComprehension(
         role: "user" as const,
         content:
           (retryHint
-            ? `Your previous output failed validation. The issue was:\n${retryHint}\n\nReturn ONLY corrected JSON matching the exact shape from the system prompt — every jargon item MUST have both "term" and "plainDefinition".\n\n`
+            ? `${retryHint}\n\nReturn the COMPLETE corrected Comprehension JSON (every jargon item MUST have both "term" and "plainDefinition"). No fences, no commentary.\n\n---\n\n`
             : "") + userMessage(article, audience),
       },
     ];
@@ -285,7 +285,7 @@ export async function runComprehension(
       .join("");
     const raw = JSON.parse(extractJson(text)) as Record<string, unknown>;
     const cleaned = cleanComprehensionJson(raw, audience);
-    return ComprehensionSchema.parse(cleaned);
+    return parseWithFeedback(ComprehensionSchema, cleaned);
   });
 }
 
