@@ -85,3 +85,23 @@ export async function getOrCreateUser(): Promise<ResolvedUser> {
 export async function getOrCreateUserId(): Promise<string> {
   return (await getOrCreateUser()).userId;
 }
+
+/**
+ * Read-only variant: return the current user's id when they already have
+ * a session, otherwise null. Does NOT create an anonymous session as a
+ * side effect — use this from public read paths (permalinks, OG images,
+ * gallery previews) where minting an anon user just to check ownership
+ * would pollute auth.users with one row per visit.
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const supabase = getServerSupabase();
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    // Outside a request scope (tsx scripts, static-build prerender) the
+    // cookies() call throws — treat that as "no session" rather than
+    // 500ing the caller.
+    return null;
+  }
+}

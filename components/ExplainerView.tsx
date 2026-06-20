@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExportSheet } from "./ExportSheet";
 import { PanelCard } from "./PanelCard";
 import { TemplatePicker } from "./TemplatePicker";
@@ -189,31 +189,36 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             </p>
           )}
         </div>
-        {canExport && (
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <button
-              type="button"
-              onClick={copyLink}
-              className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
-            >
-              {copied ? "Copied" : "Copy link"}
-            </button>
-            <TemplatePicker
-              explainerId={explainer.id}
-              current={explainer.template}
-              onChange={(next: TemplateId) =>
-                setExplainer({ ...explainer, template: next })
-              }
-            />
-            <button
-              type="button"
-              onClick={openExportAll}
-              className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
-            >
-              Export all
-            </button>
-          </div>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {/* Share controls always render — viewers (not just the owner)
+              are the audience for sharing. */}
+          <ShareBar
+            explainerId={explainer.id}
+            title={explainer.title}
+            copied={copied}
+            onCopy={copyLink}
+          />
+          {/* Edit + export controls only render for the owner. canExport
+              is set server-side from the ownership check in page.tsx. */}
+          {canExport && (
+            <>
+              <TemplatePicker
+                explainerId={explainer.id}
+                current={explainer.template}
+                onChange={(next: TemplateId) =>
+                  setExplainer({ ...explainer, template: next })
+                }
+              />
+              <button
+                type="button"
+                onClick={openExportAll}
+                className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+              >
+                Export all
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <section className="space-y-3">
@@ -393,6 +398,121 @@ function InsertSlot({
           <span className="h-px flex-1 bg-paper-line" />
         </span>
       </button>
+    </div>
+  );
+}
+
+/**
+ * Share controls: copy-link + LinkedIn + X. Always visible on the
+ * permalink (even for non-owners) since the audience for sharing IS
+ * the viewer, not the creator.
+ *
+ * Window.location is read at click-time inside each callback (not at
+ * render) so the bar is safe to render during SSR.
+ */
+function ShareBar({
+  explainerId,
+  title,
+  copied,
+  onCopy,
+}: {
+  explainerId: string;
+  title: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  // navigator.share is only set after client hydration — server render
+  // would never see it, so the button's presence has to flip on via
+  // useEffect to avoid a hydration mismatch warning.
+  const [hasWebShare, setHasWebShare] = useState(false);
+  useEffect(() => {
+    setHasWebShare(
+      typeof navigator !== "undefined" && typeof navigator.share === "function"
+    );
+  }, []);
+
+  function permalink(): string {
+    return `${window.location.origin}/e/${explainerId}`;
+  }
+
+  function shareText(): string {
+    return `${title} — a visual carousel from Readopp`;
+  }
+
+  function openShare(targetUrl: string) {
+    // 600×640 popup is the conventional size for social share dialogs;
+    // platforms ignore it on mobile and route to the native app instead.
+    const w = 600;
+    const h = 640;
+    const left = Math.max(0, (window.screen.width - w) / 2);
+    const top = Math.max(0, (window.screen.height - h) / 2);
+    window.open(
+      targetUrl,
+      "_blank",
+      `width=${w},height=${h},left=${left},top=${top},noopener,noreferrer`
+    );
+  }
+
+  function shareLinkedIn() {
+    openShare(
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(permalink())}`
+    );
+  }
+
+  function shareX() {
+    const url = permalink();
+    openShare(
+      `https://x.com/intent/post?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareText())}`
+    );
+  }
+
+  function nativeShare() {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      void navigator
+        .share({ url: permalink(), title, text: shareText() })
+        .catch(() => {
+          // User cancelled — silent, same as not sharing.
+        });
+    }
+  }
+
+  const btn =
+    "rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted transition-colors";
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button type="button" onClick={onCopy} className={btn} title="Copy permalink">
+        {copied ? "Copied" : "Copy link"}
+      </button>
+      <button
+        type="button"
+        onClick={shareLinkedIn}
+        className={btn}
+        aria-label="Share on LinkedIn"
+        title="Share on LinkedIn"
+      >
+        in
+      </button>
+      <button
+        type="button"
+        onClick={shareX}
+        className={btn}
+        aria-label="Share on X"
+        title="Share on X"
+      >
+        X
+      </button>
+      {hasWebShare && (
+        <button
+          type="button"
+          onClick={nativeShare}
+          className={btn}
+          aria-label="Share via system share sheet"
+          title="Share…"
+        >
+          Share
+        </button>
+      )}
     </div>
   );
 }

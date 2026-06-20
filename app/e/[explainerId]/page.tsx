@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ExplainerView } from "@/components/ExplainerView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { sourceLabel } from "@/lib/shared/source";
-import { getExplainer } from "@/lib/store";
+import { getExplainer, getExplainerOwner } from "@/lib/store";
+import { getCurrentUserId } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,16 @@ export default async function ExplainerPermalink({
   const explainer = await getExplainer(params.explainerId);
   if (!explainer) notFound();
 
+  // Ownership-aware controls: the explainer view's edit / reorder /
+  // delete / template-picker UI only makes sense for the owner. Use the
+  // read-only getCurrentUserId so a visitor doesn't get an anon user
+  // minted just for opening a public link.
+  const [viewerId, ownerId] = await Promise.all([
+    getCurrentUserId(),
+    getExplainerOwner(params.explainerId),
+  ]);
+  const canEdit = Boolean(viewerId && ownerId && viewerId === ownerId);
+
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
       <div className="flex items-center justify-between">
@@ -67,7 +78,7 @@ export default async function ExplainerPermalink({
         </Link>
         <ThemeToggle />
       </div>
-      <ExplainerView explainer={explainer} canExport />
+      <ExplainerView explainer={explainer} canExport={canEdit} />
     </main>
   );
 }
