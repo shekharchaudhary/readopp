@@ -11,6 +11,18 @@
  */
 import { iconSvg, isIconName } from "./icons";
 import type { MetaphorKind, MetaphorPlan, PanelPlan } from "../shared/schemas";
+import {
+  GRID,
+  footerBlock,
+  headingBlock,
+  svgWrap as chromeWrap,
+} from "./system/panelChrome";
+
+export interface MetaphorChrome {
+  heading?: string;
+  source?: string;
+  slide?: { index: number; total: number };
+}
 
 type TemplateFn = (plan: MetaphorPlan) => string;
 
@@ -21,6 +33,7 @@ const REGISTRY: Partial<Record<MetaphorKind, TemplateFn>> = {
   scale: renderScale,
   tug_of_war: renderTugOfWar,
   spectrum: renderSpectrum,
+  paradox: renderParadox,
   // Sequence
   mountain: renderMountain,
   staircase: renderStaircase,
@@ -30,6 +43,7 @@ const REGISTRY: Partial<Record<MetaphorKind, TemplateFn>> = {
   // Many-to-one
   confluence: renderConfluence,
   funnel: renderFunnel,
+  tipping_point: renderTippingPoint,
   // One-to-many
   branching: renderBranching,
   ripple: renderRipple,
@@ -46,15 +60,82 @@ const REGISTRY: Partial<Record<MetaphorKind, TemplateFn>> = {
   // Stack
   layers: renderLayers,
   pyramid: renderPyramid,
+  onion: renderOnion,
   // Spatial
   compass: renderCompass,
   maze: renderMaze,
+  // Classification
+  quadrant: renderQuadrant,
 };
 
-export function renderMetaphor(plan: PanelPlan): string | null {
+export function renderMetaphor(
+  plan: PanelPlan,
+  chrome?: MetaphorChrome
+): string | null {
   if (plan.visualType !== "metaphor" || !plan.metaphor) return null;
   const fn = REGISTRY[plan.metaphor.kind];
-  return fn ? fn(plan.metaphor) : null;
+  if (!fn) return null;
+  const innerSvg = fn(plan.metaphor);
+  if (!chrome || (!chrome.heading && !chrome.source && !chrome.slide)) {
+    return innerSvg;
+  }
+  return wrapMetaphorWithChrome(innerSvg, plan.metaphor.kind, chrome);
+}
+
+/**
+ * Wrap a rendered metaphor SVG with the system chrome envelope (kicker
+ * + heading + source/slide footer + paper background) without touching
+ * any of the 26 individual renderers. The inner SVG is shifted down
+ * inside a translated <g> so its native coordinates still work; the
+ * heading sits above it and the footer below.
+ *
+ * The kicker is derived from the metaphor kind ("LIGHTHOUSE", "TUG OF
+ * WAR") so each panel announces its visual idea explicitly.
+ */
+function wrapMetaphorWithChrome(
+  innerSvg: string,
+  kind: MetaphorKind,
+  chrome: MetaphorChrome
+): string {
+  const vbMatch = innerSvg.match(/viewBox="0 0 680 ([\d.]+)"/);
+  if (!vbMatch) return innerSvg; // Defensive: malformed inner SVG → bail.
+  const innerH = parseFloat(vbMatch[1]);
+
+  // Pull just the body — drop the outer <svg>, <title>, <desc>. The
+  // body keeps its native coordinates and gets translated below the
+  // heading block.
+  const bodyMatch = innerSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
+  const rawBody = bodyMatch ? bodyMatch[1] : "";
+  const body = rawBody
+    .replace(/<title>[\s\S]*?<\/title>/g, "")
+    .replace(/<desc>[\s\S]*?<\/desc>/g, "");
+
+  const kickerLabel = kind.replace(/_/g, " ").toUpperCase();
+  const templateLabel = `metaphor · ${kind.replace(/_/g, " ")}`;
+
+  const head = chrome.heading
+    ? headingBlock({ heading: chrome.heading, kicker: kickerLabel })
+    : null;
+  const HEADING_BOTTOM = head ? head.bottomY + 28 : GRID.PAD_TOP;
+
+  const translatedBody = `<g transform="translate(0, ${HEADING_BOTTOM})">${body}</g>`;
+
+  const FOOTER_GAP = 32;
+  const footerY = HEADING_BOTTOM + innerH + FOOTER_GAP;
+  const foot = footerBlock({
+    topY: footerY,
+    source: chrome.source,
+    slide: chrome.slide,
+    templateLabel,
+  });
+  const totalH = Math.ceil((foot.bottomY + GRID.PAD_BOTTOM) / 4) * 4;
+
+  const inner = (head?.svg ?? "") + translatedBody + foot.svg;
+  return chromeWrap(inner, {
+    height: totalH,
+    title: chrome.heading ?? kind,
+    desc: kind,
+  });
 }
 
 export function hasMetaphorTemplate(kind: MetaphorKind): boolean {
@@ -169,6 +250,10 @@ function renderIceberg(m: MetaphorPlan): string {
   const visible = m.poles[0] ?? { label: "Visible", sub: null };
   const hidden = m.poles[1] ?? { label: "Hidden", sub: null };
   const ratio = (m.hint || "").trim();
+  // Phase 2E.2b: items[] now renders as labeled bullets inside the
+  // hidden mass — these are the specific examples of "what's hidden"
+  // the planner attached. Previously they were silently dropped.
+  const items = m.items.slice(0, 5);
   const H = 480;
 
   const visLines = [
@@ -180,6 +265,37 @@ function renderIceberg(m: MetaphorPlan): string {
     ...(hidden.sub ? wrap(hidden.sub, 32, 2) : []),
   ];
 
+  // Distribute items as bullets stacked in the lower-mass area
+  // (between roughly y=250 and y=410, x=480 column with leader lines
+  // pointing into the mass). Right side so they don't collide with
+  // the left "hidden" pole label.
+  const ITEMS_X = 488;
+  const ITEMS_TOP = 244;
+  const ITEMS_BOTTOM = 412;
+  const itemStep =
+    items.length > 1
+      ? (ITEMS_BOTTOM - ITEMS_TOP) / (items.length - 1)
+      : 0;
+  const itemEls = items.map((it, i) => {
+    const y = items.length > 1 ? ITEMS_TOP + i * itemStep : (ITEMS_TOP + ITEMS_BOTTOM) / 2;
+    const nameLines = wrap(it.name, 22, 2);
+    const nameEls = nameLines
+      .map(
+        (l, k) =>
+          `<text x="${ITEMS_X}" y="${y + 4 + k * 16}" font-size="13" font-weight="500" fill="${C.blue.text}">${esc(l)}</text>`
+      )
+      .join("");
+    const subEl = it.sub
+      ? `<text x="${ITEMS_X}" y="${y + 4 + nameLines.length * 16 + 14}" font-size="11" fill="${C.inkSoft}">${esc(it.sub)}</text>`
+      : "";
+    return `
+      <line x1="438" y1="${y}" x2="${ITEMS_X - 8}" y2="${y}" stroke="${C.inkMuted}" stroke-width="1" opacity="0.55"/>
+      <circle cx="438" cy="${y}" r="2.5" fill="${C.blue.stroke}"/>
+      ${nameEls}
+      ${subEl}
+    `;
+  });
+
   // Iceberg geometry: peak above water (~y=110), surface at y=200, mass below.
   const body = `
     <rect x="0" y="200" width="680" height="280" fill="${C.blue.fill}" opacity="0.55"/>
@@ -187,7 +303,9 @@ function renderIceberg(m: MetaphorPlan): string {
     <line x1="0" y1="208" x2="680" y2="208" stroke="${C.blue.stroke}" stroke-width="1" opacity="0.18"/>
     <path d="M 300 200 L 330 108 L 366 156 L 396 200 Z" fill="#ffffff" stroke="${C.blue.stroke}" stroke-width="1.5"/>
     <path d="M 272 200 L 232 252 L 218 322 L 240 400 L 312 432 L 396 422 L 444 380 L 458 290 L 430 220 L 410 200 Z" fill="#ffffff" stroke="${C.blue.stroke}" stroke-width="1.5" opacity="0.92"/>
-    ${ratio ? `<text x="338" y="316" font-size="56" font-weight="500" fill="${C.blue.stroke}" text-anchor="middle" opacity="0.18">${esc(ratio)}</text>` : ""}
+    ${ratio && items.length === 0
+      ? `<text x="338" y="316" font-size="56" font-weight="500" fill="${C.blue.stroke}" text-anchor="middle" opacity="0.18">${esc(ratio)}</text>`
+      : ""}
     <line x1="384" y1="135" x2="490" y2="105" stroke="${C.inkMuted}" stroke-width="1"/>
     <circle cx="384" cy="135" r="2.5" fill="${C.inkMuted}"/>
     ${slotIcon(visible.icon, 500, 64, 22, C.blue.stroke)}
@@ -196,12 +314,15 @@ function renderIceberg(m: MetaphorPlan): string {
     <circle cx="290" cy="340" r="2.5" fill="${C.inkMuted}"/>
     ${slotIcon(hidden.icon, 40, 340, 22, C.blue.stroke)}
     ${textBlock(40, 376, hidLines, { fontSize: 14, fontWeight: 500, fill: C.blue.text, lineHeight: 18 })}
+    ${itemEls.join("")}
   `;
   return svgWrap(H, visible.label, hidden.label, body);
 }
 
 function renderMountain(m: MetaphorPlan): string {
-  const stages = m.items.slice(0, 4);
+  // Cap raised from 4 → 5 (Phase 2E.2c). Mountain stages naturally suit
+  // 4–5 camps along the trail; the 5th camp sits near the summit.
+  const stages = m.items.slice(0, 5);
   if (stages.length === 0) return svgWrap(200, "Mountain", "", "");
   const summit = m.outcome;
   const H = 500;
@@ -213,10 +334,11 @@ function renderMountain(m: MetaphorPlan): string {
     cy: number;
     labelSide: "left" | "right";
   }> = [
-    { cx: 480, cy: 420, labelSide: "right" },
-    { cx: 380, cy: 380, labelSide: "left" },
-    { cx: 396, cy: 290, labelSide: "right" },
-    { cx: 360, cy: 232, labelSide: "left" },
+    { cx: 510, cy: 432, labelSide: "right" },
+    { cx: 410, cy: 386, labelSide: "left" },
+    { cx: 432, cy: 320, labelSide: "right" },
+    { cx: 388, cy: 270, labelSide: "left" },
+    { cx: 408, cy: 224, labelSide: "right" },
   ];
 
   const camps = stages.map((s, i) => {
@@ -272,16 +394,27 @@ function renderMountain(m: MetaphorPlan): string {
 }
 
 function renderConfluence(m: MetaphorPlan): string {
-  const sources = m.items.slice(0, 3);
+  // Cap raised from 3 → 5 (Phase 2E.2c). SOURCE_Y is computed from the
+  // stream count so 3/4/5 streams all distribute evenly.
+  const sources = m.items.slice(0, 5);
   if (sources.length === 0) return svgWrap(200, "Confluence", "", "");
   const output = m.outcome ?? m.hub ?? { name: "Output", sub: null };
   const H = 440;
-  const PALETTES = [C.blue, C.amber, C.purple];
-  // Source endpoints distributed vertically on left.
-  const SOURCE_Y = [110, 240, 360];
+  const PALETTES = [C.blue, C.amber, C.purple, C.teal, C.gray];
   // Confluence point on the right edge of streams.
   const CX = 396;
   const CY = 240;
+  // Distribute source endpoints evenly across a vertical band so 3, 4,
+  // and 5 streams all space out without overlapping.
+  const TOP = 110;
+  const BOTTOM = 370;
+  const n = sources.length;
+  const SOURCE_Y =
+    n === 1
+      ? [CY]
+      : Array.from({ length: n }, (_, i) =>
+          Math.round(TOP + ((BOTTOM - TOP) * i) / (n - 1))
+        );
 
   const streams = sources.map((s, i) => {
     const pal = PALETTES[i % PALETTES.length];
@@ -312,6 +445,10 @@ function renderBridge(m: MetaphorPlan): string {
   const before = m.poles[0] ?? { label: "Before", sub: null };
   const after = m.poles[1] ?? { label: "After", sub: null };
   const via = m.outcome?.name || m.hint || "";
+  // Phase 2E.2b: items[] now renders as labeled waypoints along the
+  // bridge — the actual steps of the crossing ("Refactor", "Tests",
+  // "Migration"). Previously items were dropped.
+  const items = m.items.slice(0, 5);
   const H = 380;
 
   // Two cliffs, a bridge between them, labels above each side.
@@ -344,15 +481,53 @@ function renderBridge(m: MetaphorPlan): string {
     <text x="580" y="100" font-size="12" font-weight="500" fill="${C.amber.stroke}" text-anchor="middle">AFTER</text>
     <text x="580" y="124" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(after.label)}</text>
     ${after.sub ? `<text x="580" y="142" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(after.sub)}</text>` : ""}
+    ${renderBridgeWaypoints(items)}
   `;
   return svgWrap(H, `${before.label} → ${after.label}`, via, body);
+}
+
+/**
+ * Labeled waypoints along the bridge deck. Items distribute evenly
+ * across the deck span (x=200 → x=480), each with a small marker on
+ * the deck and a label tucked just above the suspension cables.
+ */
+function renderBridgeWaypoints(
+  items: ReadonlyArray<{ name: string; sub?: string | null }>
+): string {
+  if (items.length === 0) return "";
+  const SPAN_START = 220;
+  const SPAN_END = 460;
+  const baseY = 280; // top of bridge deck
+  return items
+    .map((it, i) => {
+      const n = items.length;
+      const x = SPAN_START + ((SPAN_END - SPAN_START) * (i + 0.5)) / n;
+      const labelLines = wrap(it.name, 16, 2);
+      const labelEls = labelLines
+        .map(
+          (l, k) =>
+            `<text x="${x}" y="${320 + k * 14}" font-size="11" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(l)}</text>`
+        )
+        .join("");
+      return `
+        <line x1="${x}" y1="${baseY + 2}" x2="${x}" y2="${baseY + 16}" stroke="${C.amber.stroke}" stroke-width="1"/>
+        <circle cx="${x}" cy="${baseY + 16}" r="3" fill="${C.amber.stroke}"/>
+        ${labelEls}
+      `;
+    })
+    .join("");
 }
 
 function renderScale(m: MetaphorPlan): string {
   const left = m.poles[0] ?? { label: "Side A", sub: null };
   const right = m.poles[1] ?? { label: "Side B", sub: null };
   const question = m.hint || "";
-  const H = 420;
+  // Phase 2E.2b: items[] renders as a "WEIGHED" row at the top of the
+  // canvas — the factors being judged, surfaced as small pills above
+  // the scale visualization. Without a planner signal for which side
+  // an item belongs to, listing them inline avoids guessing.
+  const items = m.items.slice(0, 6);
+  const H = items.length > 0 ? 460 : 420;
   const leftIcon = slotIcon(left.icon, 186, 168, 28, C.blue.stroke);
   const rightIcon = slotIcon(right.icon, 466, 168, 28, C.amber.stroke);
   // With an icon resting on the pan, the label pair moves up to clear it.
@@ -389,8 +564,65 @@ function renderScale(m: MetaphorPlan): string {
     ${left.sub ? `<text x="200" y="${lLabelY + 18}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
     <text x="480" y="${rLabelY}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
     ${right.sub ? `<text x="480" y="${rLabelY + 18}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
+    ${renderScaleFactors(items)}
   `;
   return svgWrap(H, `${left.label} vs ${right.label}`, question, body);
+}
+
+/**
+ * Bottom "WEIGHED" strip — items as small pills below the fulcrum
+ * showing the factors being judged on the scale. Single row when items
+ * fit; wraps to a second row past 4 items at typical widths.
+ */
+function renderScaleFactors(
+  items: ReadonlyArray<{ name: string; sub?: string | null }>
+): string {
+  if (items.length === 0) return "";
+  const FACTORS_Y = 408;
+  const PILL_H = 24;
+  const PILL_GAP = 10;
+  // Greedy fit into rows up to ~600px wide.
+  const ROW_W = 600;
+  const charW = 6.6;
+
+  const pills = items.map((it) => {
+    const name = it.name.length > 28 ? it.name.slice(0, 27) + "…" : it.name;
+    const w = Math.round(name.length * charW + 28);
+    return { name, w };
+  });
+
+  const rows: Array<typeof pills> = [[]];
+  let used = 0;
+  for (const p of pills) {
+    const need = (rows[rows.length - 1].length > 0 ? PILL_GAP : 0) + p.w;
+    if (used + need > ROW_W && rows[rows.length - 1].length > 0) {
+      rows.push([p]);
+      used = p.w;
+    } else {
+      rows[rows.length - 1].push(p);
+      used += need;
+    }
+  }
+
+  return rows
+    .map((row, rIdx) => {
+      const totalW =
+        row.reduce((a, b) => a + b.w, 0) + PILL_GAP * (row.length - 1);
+      let x = (680 - totalW) / 2;
+      const y = FACTORS_Y + rIdx * (PILL_H + 6);
+      return row
+        .map((p) => {
+          const cx = x + p.w / 2;
+          const seg = `
+            <rect x="${x}" y="${y}" width="${p.w}" height="${PILL_H}" rx="${PILL_H / 2}" ry="${PILL_H / 2}" fill="${C.paper}" stroke="${C.inkMuted}" stroke-width="1"/>
+            <text x="${cx}" y="${y + PILL_H / 2 + 4}" font-size="11" font-weight="500" fill="${C.inkSoft}" text-anchor="middle">${esc(p.name)}</text>
+          `;
+          x += p.w + PILL_GAP;
+          return seg;
+        })
+        .join("");
+    })
+    .join("");
 }
 
 function renderBranching(m: MetaphorPlan): string {
@@ -468,7 +700,12 @@ function renderTugOfWar(m: MetaphorPlan): string {
   const left = m.poles[0] ?? { label: "Side A", sub: null };
   const right = m.poles[1] ?? { label: "Side B", sub: null };
   const prize = m.outcome?.name || "";
-  const H = 380;
+  // Phase 2E.2b: items[] now renders as team members on each side —
+  // odd-index items go left, even-index right. Previously dropped.
+  const items = m.items.slice(0, 6);
+  const leftItems = items.filter((_, i) => i % 2 === 0);
+  const rightItems = items.filter((_, i) => i % 2 === 1);
+  const H = items.length > 0 ? 440 : 380;
   const body = `
     ${prize ? `<text x="340" y="60" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle">${esc(prize)}</text>` : ""}
     <rect x="80" y="200" width="60" height="60" rx="6" ry="6" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
@@ -485,31 +722,91 @@ function renderTugOfWar(m: MetaphorPlan): string {
     ${left.sub ? `<text x="110" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
     <text x="570" y="180" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
     ${right.sub ? `<text x="570" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
+    ${renderTugTeam(leftItems, 110, "left")}
+    ${renderTugTeam(rightItems, 570, "right")}
   `;
   return svgWrap(H, `${left.label} vs ${right.label}`, prize, body);
+}
+
+/**
+ * Tug-of-war team members: items stacked vertically below each side's
+ * label, in the canvas footer band. Up to 3 per side at typical font.
+ */
+function renderTugTeam(
+  items: ReadonlyArray<{ name: string; sub?: string | null }>,
+  cx: number,
+  side: "left" | "right"
+): string {
+  if (items.length === 0) return "";
+  const pal = side === "left" ? C.blue : C.amber;
+  const TOP_Y = 340;
+  const ROW_GAP = 22;
+  return items
+    .slice(0, 3)
+    .map((it, i) => {
+      const y = TOP_Y + i * ROW_GAP;
+      const trimmed = it.name.length > 20 ? it.name.slice(0, 19) + "…" : it.name;
+      return `
+        <circle cx="${cx - 60}" cy="${y - 4}" r="2.5" fill="${pal.stroke}"/>
+        <text x="${cx - 50}" y="${y}" font-size="11" font-weight="500" fill="${pal.text}">${esc(trimmed)}</text>
+      `;
+    })
+    .join("");
 }
 
 function renderSpectrum(m: MetaphorPlan): string {
   const left = m.poles[0] ?? { label: "Pole A", sub: null };
   const right = m.poles[1] ?? { label: "Pole B", sub: null };
   const marker = (m.hint || "").trim();
-  const H = 320;
+  // Items array (capped at 6) renders as labeled markers distributed
+  // evenly along the spectrum. Previously items were silently dropped.
+  const items = m.items.slice(0, 6);
+  const H = items.length > 0 ? 380 : 320;
   const pctMatch = marker.match(/(\d+)\s*%/);
   const pct = pctMatch ? Math.min(100, Math.max(0, parseInt(pctMatch[1], 10))) : 50;
   const markerX = 80 + (pct / 100) * 520;
+
+  // Distribute items evenly across the spectrum band. With N items,
+  // first item at 80 + step/2 and stepping by 520/N keeps every item
+  // visually centred in its lane (avoids labels landing on the pole
+  // endpoints).
+  const itemEls = items.map((it, i) => {
+    const n = items.length;
+    const x = 80 + (520 * (i + 0.5)) / n;
+    const labelLines = wrap(it.name, 16, 2);
+    const labelEls = labelLines
+      .map(
+        (l, k) =>
+          `<text x="${x}" y="${290 + k * 16}" font-size="12" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(l)}</text>`
+      )
+      .join("");
+    const subEl = it.sub
+      ? `<text x="${x}" y="${290 + labelLines.length * 16 + 14}" font-size="11" fill="${C.inkSoft}" text-anchor="middle">${esc(it.sub)}</text>`
+      : "";
+    return `
+      <circle cx="${x}" cy="${262}" r="4" fill="${C.ink}"/>
+      <line x1="${x}" y1="${258}" x2="${x}" y2="${178}" stroke="${C.inkMuted}" stroke-width="1" stroke-dasharray="2 3" opacity="0.55"/>
+      ${labelEls}
+      ${subEl}
+    `;
+  });
+
   const body = `
     <rect x="80" y="170" width="173" height="6" rx="3" ry="3" fill="${C.blue.stroke}" opacity="0.75"/>
     <rect x="253" y="170" width="174" height="6" fill="${C.gray.stroke}" opacity="0.4"/>
     <rect x="427" y="170" width="173" height="6" rx="3" ry="3" fill="${C.amber.stroke}" opacity="0.75"/>
     <line x1="80" y1="160" x2="80" y2="186" stroke="${C.blue.stroke}" stroke-width="1.5"/>
     <line x1="600" y1="160" x2="600" y2="186" stroke="${C.amber.stroke}" stroke-width="1.5"/>
-    <line x1="${markerX}" y1="150" x2="${markerX}" y2="196" stroke="${C.ink}" stroke-width="2"/>
-    <circle cx="${markerX}" cy="173" r="8" fill="${C.paper}" stroke="${C.ink}" stroke-width="2"/>
-    ${marker ? `<text x="${markerX}" y="140" font-size="12" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(marker)}</text>` : ""}
+    ${marker
+      ? `<line x1="${markerX}" y1="150" x2="${markerX}" y2="196" stroke="${C.ink}" stroke-width="2"/>
+         <circle cx="${markerX}" cy="173" r="8" fill="${C.paper}" stroke="${C.ink}" stroke-width="2"/>
+         <text x="${markerX}" y="140" font-size="12" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(marker)}</text>`
+      : ""}
     <text x="80" y="220" font-size="14" font-weight="500" fill="${C.blue.text}">${esc(left.label)}</text>
     ${left.sub ? `<text x="80" y="238" font-size="12" fill="${C.inkSoft}">${esc(left.sub)}</text>` : ""}
     <text x="600" y="220" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="end">${esc(right.label)}</text>
     ${right.sub ? `<text x="600" y="238" font-size="12" fill="${C.inkSoft}" text-anchor="end">${esc(right.sub)}</text>` : ""}
+    ${itemEls.join("")}
   `;
   return svgWrap(H, `${left.label} ↔ ${right.label}`, marker, body);
 }
@@ -1042,15 +1339,22 @@ function renderEngine(m: MetaphorPlan): string {
 }
 
 function renderGears(m: MetaphorPlan): string {
-  const gears = m.items.slice(0, 3);
+  // Cap raised from 3 → 4 (Phase 2E.2c). 4 gears across a 680-wide
+  // canvas is the practical visual maximum — shrinking further loses
+  // the teeth detail that makes the metaphor read as gears.
+  const gears = m.items.slice(0, 4);
   if (gears.length === 0) return svgWrap(200, "Gears", "", "");
   const H = 420;
+  // 4-gear positions; rendered left→right with the biggest gear first.
+  // 3-gear plans use the first three positions, so the visual is
+  // unchanged for that case.
   const POSITIONS = [
-    { x: 200, y: 200, r: 60, teeth: 12 },
-    { x: 340, y: 200, r: 48, teeth: 10 },
-    { x: 470, y: 200, r: 40, teeth: 8 },
+    { x: 170, y: 200, r: 56, teeth: 12 },
+    { x: 300, y: 200, r: 44, teeth: 10 },
+    { x: 410, y: 200, r: 36, teeth: 8 },
+    { x: 500, y: 200, r: 30, teeth: 8 },
   ];
-  const PALETTES = [C.amber, C.blue, C.teal];
+  const PALETTES = [C.amber, C.blue, C.teal, C.purple];
   function gearPath(cx: number, cy: number, r: number, teeth: number): string {
     const depth = r * 0.18;
     const step = (Math.PI * 2) / (teeth * 2);
@@ -1237,5 +1541,315 @@ function renderMaze(m: MetaphorPlan): string {
       <circle cx="600" cy="100" r="14" fill="none" stroke="${C.amber.stroke}" stroke-width="2"/>
       <text x="600" y="70" font-size="14" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(end.name)}</text>
     `
+  );
+}
+
+// ===== Phase 2E.2d: new metaphor templates =====
+//
+// quadrant       — 2×2 matrix with two named axes; items[0..3] are the
+//                  four cells in row-major (TL, TR, BL, BR) order.
+// paradox        — "what you think vs what's actually true"; poles
+//                  carry the two opposing statements, with the sub
+//                  fields holding the supporting detail.
+// onion          — concentric rings from surface (item[0]) to core
+//                  (item[N-1]) representing successive depth of insight.
+// tipping_point  — bars representing cumulative pressures rising under
+//                  a horizontal threshold; outcome is what tips over
+//                  when the threshold is breached.
+
+function renderQuadrant(m: MetaphorPlan): string {
+  const xAxis = m.poles[0] ?? { label: "X axis", sub: null };
+  const yAxis = m.poles[1] ?? { label: "Y axis", sub: null };
+  // items[] are the 4 cells in row-major order: TL, TR, BL, BR.
+  // Empty slots render as muted "—" placeholders so the grid stays
+  // visually balanced even with fewer than 4 inputs.
+  const cells = Array.from(
+    { length: 4 },
+    (_, i) =>
+      m.items[i] ?? { name: "—", sub: null, icon: null }
+  );
+  const H = 460;
+
+  // 2×2 grid sized to inset comfortably below heading chrome.
+  const GX = 80;
+  const GY = 60;
+  const GW = 520;
+  const GH = 320;
+  const MX = GX + GW / 2;
+  const MY = GY + GH / 2;
+
+  const CELL_PALETTES = [C.blue, C.amber, C.purple, C.teal];
+
+  const cellEls = cells.map((c, i) => {
+    const col = i % 2;
+    const row = i < 2 ? 0 : 1;
+    const pal = CELL_PALETTES[i];
+    const cx = GX + col * (GW / 2);
+    const cy = GY + row * (GH / 2);
+    const cw = GW / 2;
+    const ch = GH / 2;
+    const isPlaceholder = c.name === "—";
+    const nameLines = isPlaceholder ? ["—"] : wrap(c.name, 18, 2);
+    const subLines = c.sub && !isPlaceholder ? wrap(c.sub, 24, 2) : [];
+    const fill = isPlaceholder ? C.paper : pal.fill;
+    const stroke = isPlaceholder ? C.gray.stroke : pal.stroke;
+    const textFill = isPlaceholder ? C.inkMuted : pal.text;
+    const nameEls = nameLines
+      .map(
+        (l, j) =>
+          `<text x="${cx + cw / 2}" y="${cy + 50 + j * 20}" font-size="15" font-weight="500" fill="${textFill}" text-anchor="middle">${esc(l)}</text>`
+      )
+      .join("");
+    const subEls = subLines
+      .map(
+        (l, j) =>
+          `<text x="${cx + cw / 2}" y="${cy + 50 + nameLines.length * 20 + j * 16}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(l)}</text>`
+      )
+      .join("");
+    return `
+      <rect x="${cx + 4}" y="${cy + 4}" width="${cw - 8}" height="${ch - 8}" rx="10" ry="10" fill="${fill}" stroke="${stroke}" stroke-width="${isPlaceholder ? 1 : 1.5}" opacity="${isPlaceholder ? 0.5 : 1}"/>
+      ${nameEls}
+      ${subEls}
+    `;
+  });
+
+  // Axis labels — X under the grid, Y rotated on the left.
+  const xLabel = `
+    <text x="${MX}" y="${GY + GH + 36}" font-size="12" font-weight="500" fill="${C.inkMuted}" letter-spacing="0.12em" text-anchor="middle">${esc(xAxis.label.toUpperCase())} →</text>
+    ${xAxis.sub ? `<text x="${MX}" y="${GY + GH + 54}" font-size="11" fill="${C.inkSoft}" text-anchor="middle">${esc(xAxis.sub)}</text>` : ""}
+  `;
+  const yLabel = `
+    <text x="${GX - 18}" y="${MY}" font-size="12" font-weight="500" fill="${C.inkMuted}" letter-spacing="0.12em" text-anchor="middle" transform="rotate(-90 ${GX - 18} ${MY})">↑ ${esc(yAxis.label.toUpperCase())}</text>
+    ${yAxis.sub ? `<text x="${GX - 36}" y="${MY}" font-size="11" fill="${C.inkSoft}" text-anchor="middle" transform="rotate(-90 ${GX - 36} ${MY})">${esc(yAxis.sub)}</text>` : ""}
+  `;
+
+  // Centre crosshair to reinforce the 2×2 read.
+  const crosshair = `
+    <line x1="${MX}" y1="${GY}" x2="${MX}" y2="${GY + GH}" stroke="${C.gray.stroke}" stroke-width="1" stroke-dasharray="2 4" opacity="0.5"/>
+    <line x1="${GX}" y1="${MY}" x2="${GX + GW}" y2="${MY}" stroke="${C.gray.stroke}" stroke-width="1" stroke-dasharray="2 4" opacity="0.5"/>
+  `;
+
+  return svgWrap(
+    H,
+    `${xAxis.label} × ${yAxis.label}`,
+    cells.map((c) => c.name).filter((n) => n !== "—").join(" · "),
+    `${crosshair}${cellEls.join("")}${xLabel}${yLabel}`
+  );
+}
+
+function renderParadox(m: MetaphorPlan): string {
+  const myth = m.poles[0] ?? { label: "What you think", sub: null };
+  const truth = m.poles[1] ?? { label: "What's actually true", sub: null };
+  const twist = m.outcome?.name || m.hint || "BUT";
+  const H = 420;
+  const CARD_W = 280;
+  const CARD_H = 220;
+  const PAD = 40;
+  const leftX = PAD;
+  const rightX = 680 - PAD - CARD_W;
+  const cardY = 70;
+
+  const renderCard = (
+    pole: { label: string; sub?: string | null },
+    x: number,
+    pal: { fill: string; stroke: string; text: string },
+    kicker: string
+  ): string => {
+    const labelLines = wrap(pole.label, 24, 3);
+    const subLines = pole.sub ? wrap(pole.sub, 28, 4) : [];
+    const labelEls = labelLines
+      .map(
+        (l, i) =>
+          `<text x="${x + 24}" y="${cardY + 76 + i * 24}" font-size="20" font-weight="500" fill="${pal.text}" font-family="Georgia, ui-serif, 'Times New Roman', serif">${esc(l)}</text>`
+      )
+      .join("");
+    const subEls = subLines
+      .map(
+        (l, i) =>
+          `<text x="${x + 24}" y="${cardY + 76 + labelLines.length * 24 + 18 + i * 16}" font-size="12" fill="${C.inkSoft}">${esc(l)}</text>`
+      )
+      .join("");
+    return `
+      <rect x="${x}" y="${cardY}" width="${CARD_W}" height="${CARD_H}" rx="14" ry="14" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+      <text x="${x + 24}" y="${cardY + 36}" font-size="11" font-weight="500" fill="${pal.stroke}" letter-spacing="0.16em">${esc(kicker)}</text>
+      <line x1="${x + 24}" y1="${cardY + 46}" x2="${x + 64}" y2="${cardY + 46}" stroke="${pal.stroke}" stroke-width="2"/>
+      ${labelEls}
+      ${subEls}
+    `;
+  };
+
+  const myCard = renderCard(myth, leftX, C.gray, "WHAT YOU THINK");
+  const truthCard = renderCard(truth, rightX, C.amber, "WHAT'S ACTUALLY TRUE");
+
+  // The "twist" connector in the middle — a circular badge with the
+  // turn word ("BUT", "ACTUALLY", "INSTEAD"). Sits centred between the
+  // two cards.
+  const twistCx = 340;
+  const twistCy = cardY + CARD_H / 2;
+  const twistShort = twist.length > 16 ? twist.slice(0, 14).trim() + "…" : twist;
+
+  const connector = `
+    <line x1="${leftX + CARD_W}" y1="${twistCy}" x2="${twistCx - 30}" y2="${twistCy}" stroke="${C.amber.stroke}" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
+    <line x1="${twistCx + 30}" y1="${twistCy}" x2="${rightX}" y2="${twistCy}" stroke="${C.amber.stroke}" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
+    <circle cx="${twistCx}" cy="${twistCy}" r="28" fill="${C.paper}" stroke="${C.amber.stroke}" stroke-width="2"/>
+    <text x="${twistCx}" y="${twistCy + 4}" font-size="13" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(twistShort.toUpperCase())}</text>
+  `;
+
+  return svgWrap(
+    H,
+    `${myth.label} → ${truth.label}`,
+    twist,
+    `${myCard}${truthCard}${connector}`
+  );
+}
+
+function renderOnion(m: MetaphorPlan): string {
+  // items[0] is the outermost ring (surface), items[N-1] the core. We
+  // cap at 5 rings — beyond that labels start colliding.
+  const rings = m.items.slice(0, 5);
+  if (rings.length === 0) return svgWrap(200, "Onion", "", "");
+  const core = m.outcome;
+  const H = 480;
+  const CX = 280;
+  const CY = 220;
+  // Outer radius shrinks if we have many rings to keep proportions
+  // similar to a sliced onion section.
+  const OUTER_R = 180;
+  const INNER_R = 40;
+  const step = (OUTER_R - INNER_R) / rings.length;
+
+  const PALETTES = [C.blue, C.teal, C.amber, C.purple, C.gray];
+
+  const ringEls = rings
+    .map((r, i) => {
+      const pal = PALETTES[i % PALETTES.length];
+      const radius = OUTER_R - i * step;
+      const inner = radius - step;
+      // Ring band as an annulus via even-odd fill rule on two arcs is
+      // overkill — use stacked circles with decreasing fill, oldest
+      // ring (outer) painted first.
+      return `
+        <circle cx="${CX}" cy="${CY}" r="${radius}" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1.5" opacity="${0.85 - i * 0.08}"/>
+        <circle cx="${CX}" cy="${CY}" r="${radius}" fill="none" stroke="${pal.stroke}" stroke-width="0.5" opacity="0.5"/>
+        <!-- Suppress non-band ring to keep concentric look on top -->
+        <!-- inner radius hint for future arc work: ${inner.toFixed(1)} -->
+      `;
+    })
+    .join("");
+
+  // Centre core badge (the destination insight).
+  const coreEl = core
+    ? `
+      <circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${C.ink}"/>
+      <text x="${CX}" y="${CY + 4}" font-size="12" font-weight="500" fill="${C.paper}" text-anchor="middle">${esc(core.name.length > 10 ? core.name.slice(0, 9) + "…" : core.name)}</text>
+    `
+    : `<circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${C.ink}" opacity="0.92"/>`;
+
+  // Leader labels on the right side, one per ring.
+  const LABEL_X = 510;
+  const labelEls = rings
+    .map((r, i) => {
+      const pal = PALETTES[i % PALETTES.length];
+      // Distribute label Ys evenly across the canvas right column.
+      const yTop = 80;
+      const yBot = 360;
+      const n = rings.length;
+      const ly = n === 1 ? (yTop + yBot) / 2 : yTop + ((yBot - yTop) * i) / (n - 1);
+      // Leader line: from the ring on the right side to the label.
+      const ringX = CX + (OUTER_R - i * step) * 0.6;
+      const ringY = CY;
+      const labelLines = wrap(r.name, 18, 2);
+      const labelEls = labelLines
+        .map(
+          (l, k) =>
+            `<text x="${LABEL_X}" y="${ly + k * 18}" font-size="14" font-weight="500" fill="${pal.text}">${esc(l)}</text>`
+        )
+        .join("");
+      return `
+        <line x1="${ringX}" y1="${ringY}" x2="${LABEL_X - 8}" y2="${ly - 4}" stroke="${pal.stroke}" stroke-width="1" opacity="0.6"/>
+        <circle cx="${LABEL_X - 12}" cy="${ly - 4}" r="3" fill="${pal.stroke}"/>
+        ${labelEls}
+      `;
+    })
+    .join("");
+
+  return svgWrap(
+    H,
+    core?.name || "Layers of depth",
+    rings.map((r) => r.name).join(" → "),
+    `${ringEls}${coreEl}${labelEls}`
+  );
+}
+
+function renderTippingPoint(m: MetaphorPlan): string {
+  // items[] are the cumulative pressures; outcome is what tips when
+  // the threshold is breached; hint is an optional threshold label.
+  const pressures = m.items.slice(0, 6);
+  if (pressures.length === 0)
+    return svgWrap(200, "Tipping point", "", "");
+  const consequence = m.outcome;
+  const thresholdLabel = (m.hint || "Threshold").trim();
+  const H = 460;
+
+  const BASELINE_Y = 360;
+  const THRESHOLD_Y = 120;
+  const BAR_TOP_FOR_LAST = THRESHOLD_Y - 24; // last bar tips ABOVE threshold
+  const LEFT = 80;
+  const RIGHT = 540;
+  const BAR_W = 56;
+  const GAP =
+    pressures.length > 1
+      ? (RIGHT - LEFT - BAR_W * pressures.length) / (pressures.length - 1)
+      : 0;
+
+  // Heights grow toward the threshold so the last bar visibly breaches it.
+  const barEls = pressures
+    .map((p, i) => {
+      const x = LEFT + i * (BAR_W + GAP);
+      const ratio = pressures.length === 1 ? 1 : i / (pressures.length - 1);
+      const top =
+        i === pressures.length - 1
+          ? BAR_TOP_FOR_LAST
+          : THRESHOLD_Y + 40 + (BASELINE_Y - THRESHOLD_Y - 40) * (1 - ratio);
+      const h = BASELINE_Y - top;
+      const pal = i === pressures.length - 1 ? C.amber : C.blue;
+      const labelLines = wrap(p.name, 12, 2);
+      const labelEls = labelLines
+        .map(
+          (l, k) =>
+            `<text x="${x + BAR_W / 2}" y="${BASELINE_Y + 22 + k * 14}" font-size="11" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(l)}</text>`
+        )
+        .join("");
+      const valueLabel = p.sub
+        ? `<text x="${x + BAR_W / 2}" y="${top - 8}" font-size="11" font-weight="500" fill="${pal.stroke}" text-anchor="middle">${esc(p.sub)}</text>`
+        : "";
+      return `
+        <rect x="${x}" y="${top}" width="${BAR_W}" height="${h}" rx="4" ry="4" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1.5" opacity="${0.6 + ratio * 0.4}"/>
+        ${valueLabel}
+        ${labelEls}
+      `;
+    })
+    .join("");
+
+  const threshold = `
+    <line x1="40" y1="${THRESHOLD_Y}" x2="640" y2="${THRESHOLD_Y}" stroke="#C7613D" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="40" y="${THRESHOLD_Y - 8}" font-size="11" font-weight="500" fill="#C7613D" letter-spacing="0.12em">${esc(thresholdLabel.toUpperCase())}</text>
+  `;
+
+  const baseline = `<line x1="${LEFT - 16}" y1="${BASELINE_Y}" x2="${RIGHT + 16}" y2="${BASELINE_Y}" stroke="${C.ink}" stroke-width="1"/>`;
+
+  const consequenceEl = consequence
+    ? `
+      <line x1="${RIGHT + 32}" y1="${BAR_TOP_FOR_LAST}" x2="${RIGHT + 88}" y2="${BAR_TOP_FOR_LAST - 20}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+      <text x="${RIGHT + 96}" y="${BAR_TOP_FOR_LAST - 28}" font-size="13" font-weight="500" fill="${C.amber.text}">${esc(consequence.name)}</text>
+      ${consequence.sub ? `<text x="${RIGHT + 96}" y="${BAR_TOP_FOR_LAST - 12}" font-size="11" fill="${C.inkSoft}">${esc(consequence.sub)}</text>` : ""}
+    `
+    : "";
+
+  return svgWrap(
+    H,
+    consequence?.name || "Tipping point",
+    pressures.map((p) => p.name).join(" + "),
+    `${threshold}${baseline}${barEls}${consequenceEl}`
   );
 }

@@ -160,21 +160,23 @@ export const VisualTypeSchema = z.enum([
 ]);
 export type VisualType = z.infer<typeof VisualTypeSchema>;
 
-// The 26 metaphor kinds the planner can choose from. Grouped by pattern:
-//   duality / tension : iceberg, bridge, scale, tug_of_war, spectrum
+// The 30 metaphor kinds the planner can choose from. Grouped by pattern:
+//   duality / tension : iceberg, bridge, scale, tug_of_war, spectrum, paradox
 //   sequence          : mountain, staircase, garden, domino, weaving
-//   many-to-one       : confluence, funnel
+//   many-to-one       : confluence, funnel, tipping_point
 //   one-to-many       : branching, ripple, crossroads
 //   focus             : lighthouse, spotlight, orbits
 //   cycle             : loop, tide, engine, gears
-//   stack / hierarchy : layers, pyramid
+//   stack / hierarchy : layers, pyramid, onion
 //   spatial           : compass, maze
+//   classification    : quadrant
 export const MetaphorKindSchema = z.enum([
   "iceberg",
   "bridge",
   "scale",
   "tug_of_war",
   "spectrum",
+  "paradox",
   "mountain",
   "staircase",
   "garden",
@@ -182,6 +184,7 @@ export const MetaphorKindSchema = z.enum([
   "weaving",
   "confluence",
   "funnel",
+  "tipping_point",
   "branching",
   "ripple",
   "crossroads",
@@ -194,8 +197,10 @@ export const MetaphorKindSchema = z.enum([
   "gears",
   "layers",
   "pyramid",
+  "onion",
   "compass",
   "maze",
+  "quadrant",
 ]);
 export type MetaphorKind = z.infer<typeof MetaphorKindSchema>;
 
