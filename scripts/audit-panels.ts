@@ -15,7 +15,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { renderAnthropicStat } from "../lib/render/templates/anthropicStat";
+import { renderBeforeAfter } from "../lib/render/templates/beforeAfter";
 import { renderFlowchart } from "../lib/render/templates/flowchart";
+import { renderFramework } from "../lib/render/templates/framework";
+import { renderInsight } from "../lib/render/templates/insight";
 import { renderStructural } from "../lib/render/templates/structural";
 import { renderTimeline } from "../lib/render/templates/timeline";
 import { renderMetaphor } from "../lib/render/metaphors";
@@ -477,6 +480,134 @@ push({
     source: "engineering.notes",
     slide: { index: 5, total: 7 },
   }),
+});
+
+// ------------------------------------------------------------------
+// Phase 2E.3 editorial primitives
+// ------------------------------------------------------------------
+
+push({
+  group: "insight",
+  label: "short — NEW",
+  svg: renderInsight({
+    sectionId: "in1",
+    heading: "The reading retention problem",
+    caption: "Across 14,000 readers measured during Q3.",
+    plan: {
+      text: "Most readers leave by paragraph three. Attention, not information, is what's actually scarce.",
+      kicker: "the insight",
+      attribution: "Internal data, Anthropic",
+    },
+    source: "anthropic.com",
+    slide: { index: 1, total: 5 },
+  }).content,
+});
+
+push({
+  group: "insight",
+  label: "long quote — NEW",
+  note: "Long input — fitText should shrink the serif to fit without truncating.",
+  svg: renderInsight({
+    sectionId: "in2",
+    heading: "Why approval fatigue is now a security problem",
+    caption: "From 12 weeks of telemetry across 47,000 prompts.",
+    plan: {
+      text: "When reviewers approve 93% of prompts automatically, the gate stops being a safeguard and starts being theater — the same act, repeated for the audience, with no actual scrutiny behind it.",
+      attribution: "Engineering retrospective, Q4",
+    },
+    source: "engineering.notes",
+    slide: { index: 2, total: 5 },
+  }).content,
+});
+
+push({
+  group: "framework",
+  label: "3 steps — NEW",
+  svg: renderFramework({
+    sectionId: "fr1",
+    heading: "How readers actually parse a long article",
+    caption: "A useful sequence for designing better readable layouts.",
+    plan: {
+      label: "the 3 R's",
+      steps: [
+        { name: "Recognize", description: "Skim the headline, dek, and first paragraph to decide if the article matches what they came for." },
+        { name: "Reframe", description: "Translate the article's content into their own mental model — losing or compressing where it doesn't fit." },
+        { name: "Repeat", description: "Loop the loop, scrolling forward only when the reframe yields more than the cost of reading further." },
+      ],
+    },
+    source: "ux.notes",
+    slide: { index: 3, total: 5 },
+  }).content,
+});
+
+push({
+  group: "framework",
+  label: "5 steps — NEW",
+  note: "OODA-style longer framework; check spacing.",
+  svg: renderFramework({
+    sectionId: "fr2",
+    heading: "The pipeline-debugging loop",
+    caption: "Used when an explainer comes out broken.",
+    plan: {
+      label: "the debug loop",
+      steps: [
+        { name: "Reproduce", description: "Get the same broken explainer locally with the same URL + audience level." },
+        { name: "Capture", description: "Save every intermediate artifact: ingest, comprehension, plan, render, assembly." },
+        { name: "Isolate", description: "Bisect: which stage's output is the first one that looks wrong?" },
+        { name: "Fix", description: "Patch in the agent or renderer responsible, with a test that captures the regression." },
+        { name: "Re-run", description: "Generate the same explainer end-to-end and confirm the output now reads correctly." },
+      ],
+    },
+    source: "engineering.notes",
+    slide: { index: 4, total: 5 },
+  }).content,
+});
+
+push({
+  group: "before_after",
+  label: "short — NEW",
+  svg: renderBeforeAfter({
+    sectionId: "ba1",
+    heading: "What auto-mode changed about the review workflow",
+    caption: "Before / after on the same 100-prompt sample.",
+    plan: {
+      before: {
+        label: "Every prompt was reviewed",
+        description: "Reviewers manually approved or denied 100% of prompts, including the 93% that posed no meaningful risk.",
+      },
+      after: {
+        label: "Auto-approves the safe 93%",
+        description: "Reviewers now see only the 7% of prompts a model-based classifier can't confidently sign off on — where their attention actually matters.",
+      },
+      transition: "becomes",
+    },
+    source: "anthropic.com",
+    slide: { index: 5, total: 5 },
+  }).content,
+});
+
+push({
+  group: "before_after",
+  label: "long descriptions — NEW",
+  note: "Stress test — both columns should fit without overflow.",
+  svg: renderBeforeAfter({
+    sectionId: "ba2",
+    heading: "How the ingest pipeline changed shape over Q4 2024",
+    caption: "Same article URL, same audience level, the new ingest pipeline does the same work in 60% less wall-clock time.",
+    plan: {
+      before: {
+        label: "Synchronous fetch + parse",
+        description: "The whole pipeline blocked on the article fetch and HTML parse — if either was slow, the user watched a spinner for ~40 seconds before any visible progress.",
+      },
+      after: {
+        label: "Streaming ingest + JS render fallback",
+        description: "Ingest now streams progress events as it goes, falls back to Playwright on 401/403, and emits intermediate status so the UI never goes silent.",
+      },
+      transition: "→",
+    },
+    source: "engineering.notes",
+    slide: { index: 5, total: 6 },
+  }).content,
 });
 
 // ------------------------------------------------------------------

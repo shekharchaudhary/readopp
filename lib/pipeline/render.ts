@@ -7,7 +7,10 @@ import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
 import { renderVsScene } from "../render/vsScene";
 import { renderAnthropicStat } from "../render/templates/anthropicStat";
+import { renderBeforeAfter } from "../render/templates/beforeAfter";
 import { renderFlowchart } from "../render/templates/flowchart";
+import { renderFramework } from "../render/templates/framework";
+import { renderInsight } from "../render/templates/insight";
 import { renderStructural } from "../render/templates/structural";
 import { renderTimeline } from "../render/templates/timeline";
 import {
@@ -182,6 +185,39 @@ export async function renderPanel(
       heading,
       caption: plan.caption,
       stat: plan.stat,
+      source: chrome.source,
+      slide: chrome.slide,
+    });
+  }
+
+  // Phase 2E.3 editorial primitives — single-shape panels for content
+  // that didn't map well to any prior template.
+  if (plan.visualType === "insight" && plan.insight) {
+    return renderInsight({
+      sectionId: plan.sectionId,
+      heading,
+      caption: plan.caption,
+      plan: plan.insight,
+      source: chrome.source,
+      slide: chrome.slide,
+    });
+  }
+  if (plan.visualType === "framework" && plan.framework) {
+    return renderFramework({
+      sectionId: plan.sectionId,
+      heading,
+      caption: plan.caption,
+      plan: plan.framework,
+      source: chrome.source,
+      slide: chrome.slide,
+    });
+  }
+  if (plan.visualType === "before_after" && plan.beforeAfter) {
+    return renderBeforeAfter({
+      sectionId: plan.sectionId,
+      heading,
+      caption: plan.caption,
+      plan: plan.beforeAfter,
       source: chrome.source,
       slide: chrome.slide,
     });

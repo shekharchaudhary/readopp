@@ -153,6 +153,10 @@ export const VisualTypeSchema = z.enum([
   "quote_card",       // book chapters / essays: pull quote + attribution
   "key_findings",     // research papers / whitepapers: numbered findings
   "definition_card",  // documentation: term + plain definition + analogy
+  // Phase 2E.3 editorial primitives
+  "insight",          // essays: single striking aha sentence
+  "framework",        // OODA / 3 Rs / etc — numbered named principles
+  "before_after",     // narrative transformation, lighter than `comparison`
   // Legacy types — still supported by the renderer; demoted in selection
   "flowchart",
   "illustrative",
@@ -376,6 +380,57 @@ export const DefinitionCardPlanSchema = z.object({
 });
 export type DefinitionCardPlan = z.infer<typeof DefinitionCardPlanSchema>;
 
+// ===== Phase 2E.3: editorial primitives =====
+//
+// `insight` — single striking sentence with optional attribution. The
+// "aha moment" panel; counter-intuitive reveal in display serif.
+//
+// `framework` — numbered named principles (OODA, 3 Rs, etc.). Each step
+// has a short label + optional one-sentence description.
+//
+// `before_after` — two-column transformation. Lighter than the
+// `comparison` template (vsScene) — meant for "old way → new way"
+// narrative beats, not table-style head-to-head comparisons.
+
+export const InsightPlanSchema = z.object({
+  /** The insight itself — one striking sentence. */
+  text: z.string().min(1).max(240),
+  /** Small all-caps eyebrow above the sentence ("THE INSIGHT", "AHA"). */
+  kicker: z.string().max(40).nullish(),
+  /** Where the insight comes from (author, paper, chapter). */
+  attribution: z.string().max(80).nullish(),
+});
+export type InsightPlan = z.infer<typeof InsightPlanSchema>;
+
+export const FrameworkPlanSchema = z.object({
+  /** Optional framework name shown as a kicker ("THE 3 R'S", "OODA LOOP"). */
+  label: z.string().max(40).nullish(),
+  steps: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(60),
+        description: z.string().max(220).nullish(),
+      })
+    )
+    .min(2)
+    .max(6),
+});
+export type FrameworkPlan = z.infer<typeof FrameworkPlanSchema>;
+
+export const BeforeAfterPlanSchema = z.object({
+  before: z.object({
+    label: z.string().min(1).max(40),
+    description: z.string().max(280).nullish(),
+  }),
+  after: z.object({
+    label: z.string().min(1).max(40),
+    description: z.string().max(280).nullish(),
+  }),
+  /** Connector word painted between the two columns ("→", "BECOMES", "TO"). */
+  transition: z.string().max(40).nullish(),
+});
+export type BeforeAfterPlan = z.infer<typeof BeforeAfterPlanSchema>;
+
 export const AnnotatedHeroPlanSchema = z.object({
   // A concrete depictable subject: "smartphone with chat app", "open book",
   // "growth chart", "coffee brewer cross-section". Not abstract concepts.
@@ -471,6 +526,10 @@ export const PanelPlanSchema = z.object({
   quoteCard: QuoteCardPlanSchema.nullish(),
   keyFindings: KeyFindingsPlanSchema.nullish(),
   definitionCard: DefinitionCardPlanSchema.nullish(),
+  // Phase 2E.3 editorial primitives
+  insight: InsightPlanSchema.nullish(),
+  framework: FrameworkPlanSchema.nullish(),
+  beforeAfter: BeforeAfterPlanSchema.nullish(),
   // One sentence explaining why the planner chose this visual for this section.
   // Dev-only surface (exposed via ?debug=1); kept on every plan so we can sample
   // and tune selection without re-running the pipeline.
