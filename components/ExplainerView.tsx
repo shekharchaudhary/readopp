@@ -254,7 +254,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
                     ? (id) => movePanel(id, "down")
                     : undefined
                 }
-                explainerId={explainer.id}
+                explainerId={canExport ? explainer.id : undefined}
                 template={explainer.template}
               />
             </PanelDraggable>
