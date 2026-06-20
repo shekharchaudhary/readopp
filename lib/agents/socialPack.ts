@@ -88,17 +88,30 @@ function userMessage(input: {
     .join("\n");
 }
 
+export interface SocialPackOptions {
+  /** Free-text guidance threaded into the user message ahead of the
+   *  PanelPlan + comprehension dump. Used by the on-demand regeneration
+   *  endpoint so the user can steer the caption ("shorter", "more
+   *  skeptical", "lead with the stat", "no questions"). */
+  hint?: string;
+}
+
 export async function runSocialPack(
   explainer: Explainer,
   comprehension: Comprehension,
-  jobId?: string
+  jobId?: string,
+  opts: SocialPackOptions = {}
 ): Promise<SocialPack> {
+  const hint = opts.hint?.trim();
   return withRetry("socialPack", async (retryHint) => {
     const res = await callMessages(
       {
         model: MODEL_FAST,
         max_tokens: 1024,
-        temperature: 0.5,
+        // Bump temperature a touch when the user supplies a hint so the
+        // model actually swings off the default voice rather than
+        // returning a near-clone of the prior caption.
+        temperature: hint ? 0.7 : 0.5,
         system: SYSTEM_PROMPT,
         messages: [
           {
@@ -106,7 +119,11 @@ export async function runSocialPack(
             content:
               (retryHint
                 ? `${retryHint}\n\nReturn the COMPLETE corrected SocialPack JSON. No fences, no commentary.\n\n---\n\n`
-                : "") + userMessage({ explainer, comprehension }),
+                : "") +
+              (hint
+                ? `EXTRA GUIDANCE FROM THE USER (apply this on top of the system rules):\n  ${hint}\n\n---\n\n`
+                : "") +
+              userMessage({ explainer, comprehension }),
           },
         ],
       },

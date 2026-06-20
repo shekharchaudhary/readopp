@@ -713,14 +713,28 @@ function CaptionPack({
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Free-text hint piped into the regenerate request so the user can
+  // nudge the caption ("shorter", "more skeptical", "lead with the
+  // stat"). Kept in local state so it survives between regens.
+  const [hint, setHint] = useState("");
+  // In-place editing of the existing caption — toggled by the "Edit"
+  // button on the Caption block. Save calls PATCH which overwrites the
+  // caption without re-running the agent (hashtags/alt-text untouched).
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
 
-  async function regenerate() {
+  async function regenerate(passedHint?: string) {
     setBusy(true);
     setErr(null);
     try {
+      const trimmedHint = (passedHint ?? hint).trim();
       const res = await fetch(
         `/api/explainers/${explainerId}/social-pack`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(trimmedHint ? { hint: trimmedHint } : {}),
+        }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
@@ -732,6 +746,36 @@ function CaptionPack({
     }
   }
 
+  async function saveEdit() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/explainers/${explainerId}/social-pack`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption: draft.trim() }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      if (data.explainer && onChange) onChange(data.explainer as Explainer);
+      setEditing(false);
+    } catch (e) {
+      setErr((e as Error).message || "Could not save caption.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEdit() {
+    if (!socialPack) return;
+    setDraft(socialPack.caption);
+    setEditing(true);
+    setErr(null);
+  }
+
   if (!socialPack) {
     return (
       <div className="space-y-3 rounded-md border border-paper-line bg-surface p-4">
@@ -741,7 +785,7 @@ function CaptionPack({
         </p>
         <button
           type="button"
-          onClick={regenerate}
+          onClick={() => regenerate()}
           disabled={busy}
           className="inline-flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-paper transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -756,24 +800,93 @@ function CaptionPack({
 
   return (
     <div className="space-y-4">
+      {/* Steering hint — sits above the Caption block because it only
+          affects the caption regeneration, not hashtags / alt-text. */}
+      <div className="space-y-1.5 rounded-md border border-paper-line bg-paper p-3">
+        <label
+          htmlFor="caption-hint"
+          className="block text-[10px] font-medium uppercase tracking-wider text-ink-faint"
+        >
+          Steer next refresh
+        </label>
+        <input
+          id="caption-hint"
+          type="text"
+          value={hint}
+          onChange={(e) => setHint(e.target.value)}
+          placeholder="e.g. shorter · more skeptical · lead with the stat · no question"
+          maxLength={280}
+          disabled={busy || editing}
+          className="w-full rounded-md border border-paper-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-ink-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        <p className="text-[11px] text-ink-faint">
+          Optional. The next Refresh applies this on top of the default voice.
+        </p>
+      </div>
+
       {/* Caption */}
       <Block
         label="Caption"
-        copyValue={socialPack.caption}
+        copyValue={editing ? undefined : socialPack.caption}
         actions={
-          <button
-            type="button"
-            onClick={regenerate}
-            disabled={busy}
-            className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {busy ? "Refreshing…" : "Refresh"}
-          </button>
+          editing ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setErr(null);
+                }}
+                disabled={busy}
+                className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={busy || draft.trim().length === 0}
+                className="rounded-md bg-ink px-2 py-1 text-[11px] font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={startEdit}
+                disabled={busy}
+                className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => regenerate()}
+                disabled={busy}
+                className="rounded-md border border-paper-line bg-surface px-2 py-1 text-[11px] text-ink-soft transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {busy ? "Refreshing…" : "Refresh"}
+              </button>
+            </>
+          )
         }
       >
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-          {socialPack.caption}
-        </p>
+        {editing ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={4}
+            maxLength={1200}
+            disabled={busy}
+            className="w-full resize-y rounded-md border border-paper-line bg-surface px-2.5 py-2 text-sm leading-relaxed text-ink focus:border-ink-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+            {socialPack.caption}
+          </p>
+        )}
       </Block>
 
       {/* Hashtags */}
