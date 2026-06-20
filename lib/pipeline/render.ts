@@ -20,6 +20,22 @@ import type {
   PanelPlan,
   RenderedPanel,
 } from "../shared/schemas";
+import { sourceLabel } from "../shared/source";
+
+/**
+ * Per-panel chrome (heading, source, slide position) threaded into the
+ * Tier C deterministic templates so the panel SVG carries its own
+ * heading + footer instead of being a headless box. Tier A templates
+ * (quote_card, key_findings, definition_card, chart) already inline
+ * their own envelopes, so they ignore this; AI-rendered panels can't
+ * receive it either.
+ *
+ * Source defaults to derive-from-job-URL when this object is omitted.
+ */
+export interface PanelChrome {
+  source?: string;
+  slide?: { index: number; total: number };
+}
 
 function targetFormat(plan: PanelPlan): "svg" | "html" {
   if (plan.visualType === "comparison" || plan.visualType === "timeline")
@@ -86,12 +102,17 @@ export async function renderPanel(
   plan: PanelPlan,
   audience: AudienceLevel,
   heading: string,
-  jobId?: string
+  jobId?: string,
+  chrome: PanelChrome = {}
 ): Promise<RenderedPanel> {
   // Metaphor panels with a deterministic template skip the model entirely.
   // Instant, free, consistent. Untemplated kinds fall through to AI render.
   if (plan.visualType === "metaphor") {
-    const svg = renderMetaphor(plan);
+    const svg = renderMetaphor(plan, {
+      heading,
+      source: chrome.source,
+      slide: chrome.slide,
+    });
     if (svg) {
       return {
         sectionId: plan.sectionId,
@@ -161,10 +182,16 @@ export async function renderPanel(
       heading,
       caption: plan.caption,
       stat: plan.stat,
+      source: chrome.source,
+      slide: chrome.slide,
     });
   }
+  // Tier C templates accept a chrome arg so the SVG carries its own
+  // heading + source + slide-position footer instead of being a headless
+  // box. heading is always threaded through; source/slide may be unset.
+  const tierCChrome = { heading, ...chrome };
   if (plan.visualType === "flowchart") {
-    const svg = renderFlowchart(plan);
+    const svg = renderFlowchart(plan, tierCChrome);
     if (svg) {
       return {
         sectionId: plan.sectionId,
@@ -180,7 +207,7 @@ export async function renderPanel(
     }
   }
   if (plan.visualType === "timeline") {
-    const svg = renderTimeline(plan);
+    const svg = renderTimeline(plan, tierCChrome);
     if (svg) {
       return {
         sectionId: plan.sectionId,
@@ -196,7 +223,7 @@ export async function renderPanel(
     }
   }
   if (plan.visualType === "structural") {
-    const svg = renderStructural(plan);
+    const svg = renderStructural(plan, tierCChrome);
     if (svg) {
       return {
         sectionId: plan.sectionId,
@@ -285,11 +312,14 @@ export async function renderAllPanels(
   plans: PanelPlan[],
   audience: AudienceLevel,
   headings: Record<string, string>,
-  jobId?: string
+  jobId?: string,
+  sourceUrl?: string
 ): Promise<RenderedPanel[]> {
   const CONCURRENCY = 4;
   const out: RenderedPanel[] = new Array(plans.length);
   let cursor = 0;
+  const source = sourceUrl ? sourceLabel(sourceUrl) : undefined;
+  const total = plans.length;
 
   async function worker() {
     while (true) {
@@ -297,7 +327,10 @@ export async function renderAllPanels(
       if (i >= plans.length) return;
       const plan = plans[i];
       const heading = headings[plan.sectionId] || "Panel";
-      out[i] = await renderPanel(plan, audience, heading, jobId);
+      out[i] = await renderPanel(plan, audience, heading, jobId, {
+        source,
+        slide: { index: i + 1, total },
+      });
     }
   }
 

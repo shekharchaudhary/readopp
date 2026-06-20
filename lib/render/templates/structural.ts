@@ -8,12 +8,25 @@
  *
  * Returns null when the plan doesn't fit cleanly: missing groups, too many
  * nodes per group, or pathological label lengths. Opus picks up the rest.
+ *
+ * Phase 2A: now wraps the body in a panelChrome envelope — the panel
+ * carries its own heading + source footer instead of being a headless
+ * box. The optional `chrome` arg threads through heading, source, and
+ * slide position; when omitted (callers haven't been migrated yet), the
+ * envelope is skipped and the body renders as before so production
+ * isn't disrupted mid-refactor.
  */
 
 import type { PanelPlan } from "../../shared/schemas";
-
-const FONT =
-  "ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif";
+import {
+  COLOR,
+  GRID,
+  footerBlock,
+  headingBlock,
+  svgWrap,
+  escapeXml as esc,
+} from "../system/panelChrome";
+import { fitText } from "../system/typography";
 
 const C = {
   blue: { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" },
@@ -22,37 +35,16 @@ const C = {
   purple: { fill: "#EEEDFE", stroke: "#534AB7", text: "#3C3489" },
   gray: { fill: "#F1EFE8", stroke: "#5F5E5A", text: "#2C2C2A" },
   outer: { fill: "#fafaf7", stroke: "#5F5E5A" },
-  ink: "#1a1a1a",
-  inkMuted: "#6b6b6b",
 } as const;
 
 type Palette = { fill: string; stroke: string; text: string };
 
 const GROUP_PALETTES: Palette[] = [C.blue, C.teal, C.amber, C.purple];
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function wrap(text: string, maxChars: number, maxLines: number): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    const next = cur ? `${cur} ${w}` : w;
-    if (next.length <= maxChars) cur = next;
-    else {
-      if (cur) lines.push(cur);
-      cur = w;
-      if (lines.length >= maxLines) break;
-    }
-  }
-  if (cur && lines.length < maxLines) lines.push(cur);
-  return lines.slice(0, maxLines);
+export interface ChromeOptions {
+  heading?: string;
+  source?: string;
+  slide?: { index: number; total: number };
 }
 
 function snap4(n: number): number {
@@ -66,7 +58,10 @@ interface Node {
   group?: string | null;
 }
 
-export function renderStructural(plan: PanelPlan): string | null {
+export function renderStructural(
+  plan: PanelPlan,
+  chrome: ChromeOptions = {}
+): string | null {
   const nodes = (plan.nodes ?? []) as Node[];
   if (nodes.length < 2 || nodes.length > 14) return null;
 
@@ -85,15 +80,49 @@ export function renderStructural(plan: PanelPlan): string | null {
   if (groups.length < 1 || groups.length > 4) return null;
   if (groups.some((g) => g.items.some((n) => n.label.length > 50))) return null;
 
-  if (groups.length === 1) return renderSingle(groups[0]);
-  if (groups.length === 2) return renderTwoCol(groups);
-  return renderGrid(groups);
+  // 1. Header block — heading + optional kicker.
+  const head = chrome.heading
+    ? headingBlock({ heading: chrome.heading, kicker: "STRUCTURE" })
+    : null;
+  const bodyStartY = head ? head.bottomY + 24 : GRID.PAD_TOP;
+
+  // 2. Body — pick layout by group count.
+  let body: { svg: string; endY: number };
+  if (groups.length === 1) body = renderSingle(groups[0], bodyStartY);
+  else if (groups.length === 2) body = renderTwoCol(groups, bodyStartY);
+  else body = renderGrid(groups, bodyStartY);
+
+  // 3. Footer + final height.
+  const FOOTER_GAP = 32;
+  let totalH: number;
+  let footerSvg = "";
+  if (head || chrome.source || chrome.slide) {
+    const footerY = body.endY + FOOTER_GAP;
+    const foot = footerBlock({
+      topY: footerY,
+      source: chrome.source,
+      slide: chrome.slide,
+      templateLabel: "structural",
+    });
+    footerSvg = foot.svg;
+    totalH = snap4(foot.bottomY + GRID.PAD_BOTTOM);
+  } else {
+    totalH = snap4(body.endY + 40);
+  }
+
+  const title = chrome.heading ?? "Structure";
+  const desc = groups.map((g) => g.name).join(" · ");
+  const inner = (head?.svg ?? "") + body.svg + footerSvg;
+  return svgWrap(inner, { height: totalH, title, desc });
 }
 
 // ---------- 1 group ----------
 
-function renderSingle(g: { name: string; items: Node[] }): string {
-  const PAD = 40;
+function renderSingle(
+  g: { name: string; items: Node[] },
+  startY: number
+): { svg: string; endY: number } {
+  const PAD = GRID.PAD_X;
   const INNER_PAD = 24;
   const HEADER_H = 30;
   const CHIP_H = 44;
@@ -101,33 +130,35 @@ function renderSingle(g: { name: string; items: Node[] }): string {
   const totalChipsH =
     g.items.length * CHIP_H + (g.items.length - 1) * CHIP_GAP;
   const innerH = HEADER_H + totalChipsH + INNER_PAD * 2;
-  const H = snap4(PAD * 2 + innerH);
 
-  const outer = `<rect x="${PAD}" y="${PAD}" width="${
+  const outer = `<rect x="${PAD}" y="${startY}" width="${
     680 - PAD * 2
   }" height="${innerH}" rx="12" fill="${C.outer.fill}" stroke="${C.outer.stroke}" stroke-width="1"/>`;
   const header = `<text x="${PAD + INNER_PAD}" y="${
-    PAD + INNER_PAD + 6
-  }" font-size="12" font-weight="500" fill="${C.inkMuted}" letter-spacing="0.08em">${esc(
+    startY + INNER_PAD + 6
+  }" font-size="12" font-weight="500" fill="${COLOR.inkMuted}" letter-spacing="0.08em">${esc(
     g.name.toUpperCase()
   )}</text>`;
 
   const palette = GROUP_PALETTES[0];
   const chipX = PAD + INNER_PAD;
   const chipW = 680 - PAD * 2 - INNER_PAD * 2;
-  const chipStartY = PAD + INNER_PAD + HEADER_H;
+  const chipStartY = startY + INNER_PAD + HEADER_H;
 
   const chips = g.items
     .map((n, i) => renderChip(n, chipX, chipStartY + i * (CHIP_H + CHIP_GAP), chipW, CHIP_H, palette))
     .join("");
 
-  return svg(H, "Structure", g.items.map((n) => n.label).join(" · "), `${outer}${header}${chips}`);
+  return { svg: `${outer}${header}${chips}`, endY: startY + innerH };
 }
 
 // ---------- 2 groups, side-by-side ----------
 
-function renderTwoCol(groups: { name: string; items: Node[] }[]): string {
-  const PAD = 40;
+function renderTwoCol(
+  groups: { name: string; items: Node[] }[],
+  startY: number
+): { svg: string; endY: number } {
+  const PAD = GRID.PAD_X;
   const INNER_PAD = 20;
   const HEADER_H = 30;
   const CHIP_H = 44;
@@ -137,11 +168,10 @@ function renderTwoCol(groups: { name: string; items: Node[] }[]): string {
   const maxItems = Math.max(...groups.map((g) => g.items.length));
   const colInnerH = HEADER_H + maxItems * CHIP_H + (maxItems - 1) * CHIP_GAP;
   const innerH = colInnerH + INNER_PAD * 2;
-  const H = snap4(PAD * 2 + innerH);
 
   const colW = (680 - PAD * 2 - COL_GAP) / 2;
 
-  const outer = `<rect x="${PAD}" y="${PAD}" width="${
+  const outer = `<rect x="${PAD}" y="${startY}" width="${
     680 - PAD * 2
   }" height="${innerH}" rx="12" fill="${C.outer.fill}" stroke="${C.outer.stroke}" stroke-width="1"/>`;
 
@@ -151,8 +181,8 @@ function renderTwoCol(groups: { name: string; items: Node[] }[]): string {
       const colX = PAD + i * (colW + COL_GAP);
       const inX = colX + INNER_PAD;
       const inW = colW - INNER_PAD * 2;
-      const headerY = PAD + INNER_PAD + 6;
-      const chipStartY = PAD + INNER_PAD + HEADER_H;
+      const headerY = startY + INNER_PAD + 6;
+      const chipStartY = startY + INNER_PAD + HEADER_H;
       const chips = g.items
         .map((n, j) =>
           renderChip(n, inX, chipStartY + j * (CHIP_H + CHIP_GAP), inW, CHIP_H, palette)
@@ -161,9 +191,9 @@ function renderTwoCol(groups: { name: string; items: Node[] }[]): string {
       const divider =
         i === 0
           ? `<line x1="${colX + colW + COL_GAP / 2}" y1="${
-              PAD + INNER_PAD
+              startY + INNER_PAD
             }" x2="${colX + colW + COL_GAP / 2}" y2="${
-              PAD + innerH - INNER_PAD
+              startY + innerH - INNER_PAD
             }" stroke="${C.outer.stroke}" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>`
           : "";
       const header = `<text x="${inX}" y="${headerY}" font-size="12" font-weight="500" fill="${palette.stroke}" letter-spacing="0.08em">${esc(
@@ -173,18 +203,16 @@ function renderTwoCol(groups: { name: string; items: Node[] }[]): string {
     })
     .join("");
 
-  return svg(
-    H,
-    "Structure",
-    groups.map((g) => g.name).join(" vs "),
-    `${outer}${cols}`
-  );
+  return { svg: `${outer}${cols}`, endY: startY + innerH };
 }
 
 // ---------- 3-4 groups, 2x2 grid ----------
 
-function renderGrid(groups: { name: string; items: Node[] }[]): string {
-  const PAD = 40;
+function renderGrid(
+  groups: { name: string; items: Node[] }[],
+  startY: number
+): { svg: string; endY: number } {
+  const PAD = GRID.PAD_X;
   const INNER_PAD = 20;
   const HEADER_H = 28;
   const CHIP_H = 40;
@@ -210,11 +238,10 @@ function renderGrid(groups: { name: string; items: Node[] }[]): string {
   const rowHeights = rowMaxItems.map(rowH);
   const innerH =
     rowHeights.reduce((a, b) => a + b, 0) + CELL_GAP * (ROWS - 1);
-  const H = snap4(PAD * 2 + innerH);
 
   const colW = (680 - PAD * 2 - CELL_GAP) / COLS;
 
-  const outer = `<rect x="${PAD}" y="${PAD}" width="${
+  const outer = `<rect x="${PAD}" y="${startY}" width="${
     680 - PAD * 2
   }" height="${innerH}" rx="12" fill="${C.outer.fill}" stroke="${C.outer.stroke}" stroke-width="1"/>`;
 
@@ -227,7 +254,7 @@ function renderGrid(groups: { name: string; items: Node[] }[]): string {
       const palette = GROUP_PALETTES[i % GROUP_PALETTES.length];
       const cellX = PAD + c * (colW + CELL_GAP);
       const cellY =
-        PAD + rowHeights.slice(0, r).reduce((a, b) => a + b, 0) + r * CELL_GAP;
+        startY + rowHeights.slice(0, r).reduce((a, b) => a + b, 0) + r * CELL_GAP;
       const inX = cellX + INNER_PAD;
       const inY = cellY + INNER_PAD;
       const inW = colW - INNER_PAD * 2;
@@ -250,12 +277,7 @@ function renderGrid(groups: { name: string; items: Node[] }[]): string {
     })
     .join("");
 
-  return svg(
-    H,
-    "Structure",
-    groups.map((g) => g.name).filter((n) => n !== "—").join(" · "),
-    `${outer}${cells}`
-  );
+  return { svg: `${outer}${cells}`, endY: startY + innerH };
 }
 
 // ---------- Chip ----------
@@ -268,22 +290,33 @@ function renderChip(
   h: number,
   palette: Palette
 ): string {
-  const labelBudget = Math.floor((w - 24) / 7);
-  const labelLines = wrap(n.label, labelBudget, 1);
-  const label = labelLines[0] ?? n.label.slice(0, labelBudget) + "…";
+  const innerW = w - 32;
+  // fitText keeps single-line chips on one line; long labels shrink
+  // 14 → 11 before falling back to ellipsis. Old behaviour silently
+  // ellipsis-truncated with a hard char budget.
+  const labelFit = fitText(n.label, {
+    width: innerW,
+    height: 14 * 1.2,
+    minSize: 11,
+    maxSize: 14,
+    lineHeight: 1.2,
+    family: "sans",
+  });
+  const label = labelFit.lines[0] ?? n.label.slice(0, 24) + "…";
   const subtitle = n.subtitle
-    ? wrap(n.subtitle, labelBudget, 1)[0] ?? ""
+    ? fitText(n.subtitle, {
+        width: innerW,
+        height: 12 * 1.2,
+        minSize: 10,
+        maxSize: 12,
+        lineHeight: 1.2,
+        family: "sans",
+      }).lines[0] ?? ""
     : "";
   const hasSubtitle = subtitle.length > 0;
   const labelY = hasSubtitle ? y + h / 2 - 4 : y + h / 2 + 5;
   return `
     <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${palette.fill}" stroke="${palette.stroke}" stroke-width="1"/>
-    <text x="${x + 16}" y="${labelY}" font-size="14" font-weight="500" fill="${palette.text}">${esc(label)}</text>
+    <text x="${x + 16}" y="${labelY}" font-size="${labelFit.size}" font-weight="500" fill="${palette.text}">${esc(label)}</text>
     ${hasSubtitle ? `<text x="${x + 16}" y="${y + h / 2 + 12}" font-size="12" fill="${palette.text}" opacity="0.75">${esc(subtitle)}</text>` : ""}`;
-}
-
-function svg(viewH: number, title: string, desc: string, body: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 ${viewH}" role="img" font-family="${FONT}"><title>${esc(
-    title
-  )}</title><desc>${esc(desc)}</desc>${body}</svg>`;
 }

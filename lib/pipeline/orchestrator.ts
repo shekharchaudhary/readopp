@@ -230,6 +230,7 @@ export async function runJob(jobId: string): Promise<void> {
       jobId,
       plans,
       audience: job.audienceLevel,
+      sourceUrl: job.url,
       headings: Object.fromEntries(
         outline.sections.map((s) => [s.id, s.heading])
       ),
@@ -301,11 +302,16 @@ async function renderAllPanelsStreaming(input: {
   plans: import("../shared/schemas").PanelPlan[];
   audience: import("../shared/schemas").AudienceLevel;
   headings: Record<string, string>;
+  /** Source URL of the explainer; used to derive the host label that
+   *  Tier C templates print in their footer. */
+  sourceUrl?: string;
 }): Promise<RenderedPanel[]> {
-  const { jobId, plans, audience, headings } = input;
+  const { jobId, plans, audience, headings, sourceUrl } = input;
   const total = plans.length;
   const out: RenderedPanel[] = new Array(total);
   let cursor = 0;
+  const { sourceLabel } = await import("../shared/source");
+  const source = sourceUrl ? sourceLabel(sourceUrl) : undefined;
 
   async function worker() {
     while (true) {
@@ -322,7 +328,8 @@ async function renderAllPanelsStreaming(input: {
           plan,
           audience,
           headings[plan.sectionId] || `Panel ${i + 1}`,
-          jobId
+          jobId,
+          { source, slide: { index: i + 1, total } }
         );
       } catch (e) {
         // Never propagate — fall back so the rest of the explainer survives

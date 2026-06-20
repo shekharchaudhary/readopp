@@ -9,11 +9,24 @@
  */
 
 import type { PanelPlan } from "../../shared/schemas";
+import {
+  GRID,
+  footerBlock,
+  headingBlock,
+  svgWrap as chromeWrap,
+} from "../system/panelChrome";
+import { fitText } from "../system/typography";
 
-const FONT =
-  "ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif";
+export interface ChromeOptions {
+  heading?: string;
+  source?: string;
+  slide?: { index: number; total: number };
+}
 
 const C = {
+  // Color tokens retained for node palette + edges. Chrome (paper bg,
+  // headings, footer) comes from system/panelChrome.ts.
+
   blue: { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" },
   teal: { fill: "#E1F5EE", stroke: "#0F6E56", text: "#085041" },
   amber: { fill: "#FAEEDA", stroke: "#854F0B", text: "#633806" },
@@ -49,23 +62,6 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function wrap(text: string, maxChars: number, maxLines: number): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    const next = cur ? `${cur} ${w}` : w;
-    if (next.length <= maxChars) cur = next;
-    else {
-      if (cur) lines.push(cur);
-      cur = w;
-      if (lines.length >= maxLines) break;
-    }
-  }
-  if (cur && lines.length < maxLines) lines.push(cur);
-  return lines.slice(0, maxLines);
-}
-
 function snap4(n: number): number {
   return Math.round(n / 4) * 4;
 }
@@ -86,7 +82,10 @@ interface Edge {
 }
 
 /** Render a flowchart from plan.nodes + plan.edges + plan.layoutHint. */
-export function renderFlowchart(plan: PanelPlan): string | null {
+export function renderFlowchart(
+  plan: PanelPlan,
+  chrome: ChromeOptions = {}
+): string | null {
   const nodes = (plan.nodes ?? []) as Node[];
   const edges = (plan.edges ?? []) as Edge[];
 
@@ -103,8 +102,8 @@ export function renderFlowchart(plan: PanelPlan): string | null {
     (plan.layoutHint == null && ordered.length <= 4);
 
   return horizontal
-    ? renderHorizontal(ordered, edges, plan.caption)
-    : renderVertical(ordered, edges, plan.caption);
+    ? renderHorizontal(ordered, edges, plan.caption, chrome)
+    : renderVertical(ordered, edges, plan.caption, chrome);
 }
 
 function isLinearChain(nodes: Node[], edges: Edge[]): boolean {
@@ -145,12 +144,22 @@ function orderByEdges(nodes: Node[], edges: Edge[]): Node[] | null {
 
 // ---------- Vertical chain ----------
 
-function renderVertical(nodes: Node[], edges: Edge[], caption: string): string {
+function renderVertical(
+  nodes: Node[],
+  edges: Edge[],
+  caption: string,
+  chrome: ChromeOptions
+): string {
   const NODE_W = 280;
   const X = (680 - NODE_W) / 2; // 200
-  const PAD_TOP = 40;
   const ARROW_GAP = 56;
   const EDGE_LABEL_X = X + NODE_W + 24;
+
+  // 1. Heading block.
+  const head = chrome.heading
+    ? headingBlock({ heading: chrome.heading, kicker: "FLOW" })
+    : null;
+  const PAD_TOP = head ? head.bottomY + 24 : 40;
 
   // Pre-compute heights per node from label/subtitle length.
   const layouts = nodes.map((n) => layoutNode(n, NODE_W));
@@ -160,7 +169,7 @@ function renderVertical(nodes: Node[], edges: Edge[], caption: string): string {
     positions.push({ y, h: l.h, nodeY: y });
     y += l.h + ARROW_GAP;
   }
-  const H = snap4(y - ARROW_GAP + PAD_TOP);
+  const bodyBottom = y - ARROW_GAP;
 
   const nodeEls = nodes
     .map((n, i) => renderNodeRect(n, X, positions[i].nodeY, NODE_W, layouts[i]))
@@ -186,19 +195,30 @@ function renderVertical(nodes: Node[], edges: Edge[], caption: string): string {
     })
     .join("");
 
-  const body = `${DEFS}${nodeEls}${arrowEls}`;
-  return svgWrap(
-    H,
-    "Flow",
-    nodes.map((n) => n.label).join(" → ") + (caption ? ` · ${caption.slice(0, 80)}` : ""),
-    body
-  );
+  // 2. Footer + final height.
+  const bodySvg = `${DEFS}${nodeEls}${arrowEls}`;
+  return assemble({
+    head,
+    body: bodySvg,
+    bodyEndY: bodyBottom,
+    chrome,
+    desc:
+      nodes.map((n) => n.label).join(" → ") +
+      (caption ? ` · ${caption.slice(0, 80)}` : ""),
+    title: chrome.heading ?? "Flow",
+    minBottomPadding: 40,
+  });
 }
 
 // ---------- Horizontal sequence ----------
 
-function renderHorizontal(nodes: Node[], edges: Edge[], caption: string): string {
-  const PAD = 40;
+function renderHorizontal(
+  nodes: Node[],
+  edges: Edge[],
+  caption: string,
+  chrome: ChromeOptions
+): string {
+  const PAD = GRID.PAD_X;
   const COUNT = nodes.length;
   const GAP = 36;
   const innerW = 680 - PAD * 2;
@@ -210,7 +230,12 @@ function renderHorizontal(nodes: Node[], edges: Edge[], caption: string): string
   const maxH = Math.max(...layouts.map((l) => l.h));
   const totalW = NODE_W * COUNT + GAP * (COUNT - 1);
   const startX = (680 - totalW) / 2;
-  const nodeY = 56;
+
+  // 1. Heading block.
+  const head = chrome.heading
+    ? headingBlock({ heading: chrome.heading, kicker: "FLOW" })
+    : null;
+  const nodeY = head ? head.bottomY + 32 : 56;
 
   const nodeEls = nodes
     .map((n, i) =>
@@ -246,16 +271,53 @@ function renderHorizontal(nodes: Node[], edges: Edge[], caption: string): string
     })
     .join("");
 
-  let H = snap4(nodeY + maxH + 40);
-  if (caption) H += 0; // caption is rendered outside the SVG by PanelCard
+  const bodySvg = `${DEFS}${nodeEls}${arrowEls}`;
+  return assemble({
+    head,
+    body: bodySvg,
+    bodyEndY: nodeY + maxH,
+    chrome,
+    desc:
+      nodes.map((n) => n.label).join(" → ") +
+      (caption ? ` · ${caption.slice(0, 80)}` : ""),
+    title: chrome.heading ?? "Flow",
+    minBottomPadding: 40,
+  });
+}
 
-  const body = `${DEFS}${nodeEls}${arrowEls}`;
-  return svgWrap(
-    H,
-    "Flow",
-    nodes.map((n) => n.label).join(" → "),
-    body
-  );
+/**
+ * Stitch a flowchart's heading + body + optional footer into the final
+ * SVG. Used by both vertical and horizontal layouts so the envelope
+ * logic doesn't drift between them.
+ */
+function assemble(args: {
+  head: { svg: string; bottomY: number } | null;
+  body: string;
+  bodyEndY: number;
+  chrome: ChromeOptions;
+  desc: string;
+  title: string;
+  minBottomPadding: number;
+}): string {
+  const { head, body, bodyEndY, chrome, desc, title, minBottomPadding } = args;
+  const FOOTER_GAP = 32;
+  let totalH: number;
+  let footerSvg = "";
+  if (head || chrome.source || chrome.slide) {
+    const footerY = bodyEndY + FOOTER_GAP;
+    const foot = footerBlock({
+      topY: footerY,
+      source: chrome.source,
+      slide: chrome.slide,
+      templateLabel: "flowchart",
+    });
+    footerSvg = foot.svg;
+    totalH = snap4(foot.bottomY + GRID.PAD_BOTTOM);
+  } else {
+    totalH = snap4(bodyEndY + minBottomPadding);
+  }
+  const inner = (head?.svg ?? "") + body + footerSvg;
+  return chromeWrap(inner, { height: totalH, title, desc });
 }
 
 // ---------- Node rendering ----------
@@ -263,17 +325,49 @@ function renderHorizontal(nodes: Node[], edges: Edge[], caption: string): string
 interface NodeLayout {
   h: number;
   labelLines: string[];
+  labelSize: number;
+  labelStep: number;
   subtitleLines: string[];
+  subtitleSize: number;
 }
 
 function layoutNode(n: Node, w: number): NodeLayout {
-  const labelBudget = Math.floor((w - 32) / 7); // ~7px per char at 14px font
-  const labelLines = wrap(n.label, labelBudget, 2);
-  const subtitleLines = n.subtitle ? wrap(n.subtitle, labelBudget, 1) : [];
-  const baseH =
-    labelLines.length * 18 + (subtitleLines.length > 0 ? 18 : 0) + 32;
+  // Replaces the old wrap(label, charsBudget, 2) silent truncation.
+  // fitText keeps the full label visible: shrinks 14→12 first, allows
+  // up to 3 lines, ellipsises only when even that can't fit.
+  const innerW = w - 32;
+  const labelFit = fitText(n.label, {
+    width: innerW,
+    height: 3 * 12 * 1.3,
+    minSize: 12,
+    maxSize: 14,
+    lineHeight: 1.3,
+    family: "sans",
+  });
+  const subtitleFit = n.subtitle
+    ? fitText(n.subtitle, {
+        width: innerW,
+        height: 12 * 1.3 * 2,
+        minSize: 10,
+        maxSize: 12,
+        lineHeight: 1.3,
+        family: "sans",
+      })
+    : null;
+  const labelStep = Math.round(labelFit.size * 1.3);
+  const subtitleH = subtitleFit
+    ? subtitleFit.lines.length * Math.round(subtitleFit.size * 1.3)
+    : 0;
+  const baseH = labelFit.lines.length * labelStep + subtitleH + 32;
   const h = Math.max(64, baseH);
-  return { h, labelLines, subtitleLines };
+  return {
+    h,
+    labelLines: labelFit.lines,
+    labelSize: labelFit.size,
+    labelStep,
+    subtitleLines: subtitleFit?.lines ?? [],
+    subtitleSize: subtitleFit?.size ?? 12,
+  };
 }
 
 function renderNodeRect(
@@ -287,24 +381,23 @@ function renderNodeRect(
   const h = forcedH ?? layout.h;
   const palette = paletteForRole(n.role);
   const cx = x + w / 2;
+  const subtitleStep = Math.round(layout.subtitleSize * 1.3);
   const totalText =
-    layout.labelLines.length * 18 + (layout.subtitleLines.length > 0 ? 18 : 0);
-  const top = y + (h - totalText) / 2 + 14;
+    layout.labelLines.length * layout.labelStep +
+    (layout.subtitleLines.length > 0 ? subtitleStep : 0);
+  const top = y + (h - totalText) / 2 + layout.labelSize;
   const labelTspans = layout.labelLines
     .map(
       (l, i) =>
-        `<tspan x="${cx}" dy="${i === 0 ? 0 : 18}">${esc(l)}</tspan>`
+        `<tspan x="${cx}" dy="${i === 0 ? 0 : layout.labelStep}">${esc(l)}</tspan>`
     )
     .join("");
   const subtitleEl = layout.subtitleLines[0]
-    ? `<text x="${cx}" y="${top + layout.labelLines.length * 18 + 2}" font-size="12" font-weight="400" fill="${palette.text}" text-anchor="middle" opacity="0.75">${esc(layout.subtitleLines[0])}</text>`
+    ? `<text x="${cx}" y="${top + layout.labelLines.length * layout.labelStep + 2}" font-size="${layout.subtitleSize}" font-weight="400" fill="${palette.text}" text-anchor="middle" opacity="0.75">${esc(layout.subtitleLines[0])}</text>`
     : "";
   return `
     <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" ry="10" fill="${palette.fill}" stroke="${palette.stroke}" stroke-width="1"/>
-    <text x="${cx}" y="${top}" font-size="14" font-weight="500" fill="${palette.text}" text-anchor="middle">${labelTspans}</text>
+    <text x="${cx}" y="${top}" font-size="${layout.labelSize}" font-weight="500" fill="${palette.text}" text-anchor="middle">${labelTspans}</text>
     ${subtitleEl}`;
 }
 
-function svgWrap(viewH: number, title: string, desc: string, body: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 ${viewH}" role="img" font-family="${FONT}"><title>${esc(title)}</title><desc>${esc(desc)}</desc>${body}</svg>`;
-}
