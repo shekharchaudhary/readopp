@@ -341,7 +341,14 @@ async function insertExplainer(
     social_pack: explainer.socialPack ?? null,
     template: explainer.template ?? null,
   } as unknown as never;
-  const { error } = await admin.from("explainers").insert(row);
+  // Upsert (not insert) so the cache-hit path works: when a user
+  // re-submits a URL they already have an explainer for, completeJob
+  // calls us with the cached explainer's existing id. A plain insert
+  // hits explainers_pkey; upsert preserves the original row and bumps
+  // the joining job_id so the new job has a valid foreign-key target.
+  const { error } = await admin
+    .from("explainers")
+    .upsert(row, { onConflict: "id" });
   if (error) {
     throw new Error(`Failed to persist explainer ${explainer.id}: ${error.message}`);
   }

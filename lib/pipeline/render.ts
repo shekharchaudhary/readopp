@@ -180,7 +180,7 @@ export async function renderPanel(
   // narrative timeline, and structural container diagrams. Each returns null
   // when its plan doesn't fit the template's range, falling through to Opus.
   if (plan.visualType === "stat_callout" && plan.stat) {
-    return renderAnthropicStat({
+    const out = renderAnthropicStat({
       sectionId: plan.sectionId,
       heading,
       caption: plan.caption,
@@ -188,12 +188,13 @@ export async function renderPanel(
       source: chrome.source,
       slide: chrome.slide,
     });
+    return { ...out, plan };
   }
 
   // Phase 2E.3 editorial primitives — single-shape panels for content
   // that didn't map well to any prior template.
   if (plan.visualType === "insight" && plan.insight) {
-    return renderInsight({
+    const out = renderInsight({
       sectionId: plan.sectionId,
       heading,
       caption: plan.caption,
@@ -201,9 +202,10 @@ export async function renderPanel(
       source: chrome.source,
       slide: chrome.slide,
     });
+    return { ...out, plan };
   }
   if (plan.visualType === "framework" && plan.framework) {
-    return renderFramework({
+    const out = renderFramework({
       sectionId: plan.sectionId,
       heading,
       caption: plan.caption,
@@ -211,9 +213,10 @@ export async function renderPanel(
       source: chrome.source,
       slide: chrome.slide,
     });
+    return { ...out, plan };
   }
   if (plan.visualType === "before_after" && plan.beforeAfter) {
-    return renderBeforeAfter({
+    const out = renderBeforeAfter({
       sectionId: plan.sectionId,
       heading,
       caption: plan.caption,
@@ -221,6 +224,7 @@ export async function renderPanel(
       source: chrome.source,
       slide: chrome.slide,
     });
+    return { ...out, plan };
   }
   // Tier C templates accept a chrome arg so the SVG carries its own
   // heading + source + slide-position footer instead of being a headless

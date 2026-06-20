@@ -88,28 +88,53 @@ GENRE PLAYBOOKS — start from the genre-specific ladder, then fall back
     2. key_findings — the paper's core claims as numbered findings with
        figures. The signature panel for whitepapers.
     3. chart — IF contentFeatures.hasNumericData is true.
-    4. comparison — current state vs proposed state, or vendor options.
-    5. metaphor (bridge, crossroads, funnel) — the recommendation.
+    4. before_after OR comparison — current state vs proposed state, or
+       vendor options. Pick before_after for narrative "old → new" pairs,
+       comparison for full multi-row tables.
+    5. framework — IF the recommendation is a named multi-step method
+       ("the 3-pillar approach", "ABCDE framework"). Beats listing
+       steps in a flowchart.
+    6. insight — IF the paper has a single counter-intuitive thesis
+       sentence the author wants you to remember.
+    7. metaphor (bridge, crossroads, funnel, tipping_point) — the
+       recommendation as a conceptual move.
 
 ▸ genre = "article" / "other"
   Use the storytelling-metaphor flow: walk this ladder TOP-DOWN and stop
   at the first match per section:
     1. stat_callout    — one striking number summarises the section.
-    2. quote_card      — the section pivots on a striking quotable line
+    2. insight         — the section's whole payoff is ONE striking
+                        sentence the reader should walk away with. Use
+                        when the section is a counter-intuitive reveal,
+                        an "aha" claim, or the essay's thesis line.
+                        Different from stat_callout (no hero number) and
+                        from quote_card (not lifted from the source).
+    3. quote_card      — the section pivots on a striking quotable line
                         (interviewee quote, thesis sentence, famous line).
-    3. comparison      — 2–4 named things contrasted.
-    4. timeline        — dated or sequenced events.
-    5. chart           — section has 3+ labeled numbers worth charting
+    4. before_after    — section narrates a transformation: "old way →
+                        new way", "before X → after X". Lighter than
+                        comparison — two short paragraphs, not a table.
+    5. framework       — section names a sequence of principles or steps
+                        the reader is meant to remember ("the 3 Rs",
+                        "OODA loop", "5 whys", numbered named methods).
+                        Each step has a name + one-sentence description.
+    6. comparison      — 2–4 named things contrasted (use for full table
+                        comparisons; for narrative before/after use the
+                        before_after card above).
+    7. timeline        — dated or sequenced events.
+    8. chart           — section has 3+ labeled numbers worth charting
                         (only if contentFeatures.hasNumericData is true).
-    6. key_findings    — section enumerates 2–4 discrete takeaways/lessons.
-    7. definition_card — section unpacks one term of art for outsiders.
-    8. metaphor        — section describes a conceptual pattern (duality,
+    9. key_findings    — section enumerates 2–4 discrete takeaways/lessons
+                        each with an optional figure.
+    10. definition_card — section unpacks one term of art for outsiders.
+    11. metaphor       — section describes a conceptual pattern (duality,
                         sequence, aggregation, divergence, tension, cycle,
-                        hierarchy, signal vs noise, growth, navigation).
-                        Storytelling default.
-    9. annotated_hero  — section walks reader through a concrete depictable
+                        hierarchy, signal vs noise, growth, navigation,
+                        classification, paradox, layered depth, tipping
+                        point). Storytelling default.
+    12. annotated_hero — section walks reader through a concrete depictable
                         subject (UI, device, chart, document, object).
-    10. flowchart      — LAST RESORT. Use sparingly; a metaphor is richer.
+    13. flowchart      — LAST RESORT. Use sparingly; a metaphor is richer.
 
 ═══════════════════════════════════════════════════════════════════════════
 WHEN TO REACH FOR chart SPECIFICALLY

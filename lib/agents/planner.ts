@@ -107,6 +107,37 @@ FILL FIELDS BY VISUALTYPE
     - analogy?: a "think of it like…" comparison to something everyday
       (≤160 chars). Strongly encouraged — it's what makes the card land.
 
+• insight -> "insight" with:
+    - text: ONE striking sentence the reader should walk away with
+      (≤240 chars). The "aha" line, the counter-intuitive reveal, the
+      thesis. Plain prose; no list, no quote marks, no attribution
+      inside the sentence. This is YOUR sentence summarising the
+      section — not a verbatim quote (use quote_card for that).
+    - kicker?: optional eyebrow ≤40 chars ("THE INSIGHT", "AHA",
+      "WHAT'S ACTUALLY TRUE").
+    - attribution?: optional source for the claim ("Internal data",
+      "Carney et al., 2014"). Skip if the insight is the author's own.
+
+• framework -> "framework" with:
+    - label?: optional kicker ≤40 chars ("THE 3 R'S", "OODA LOOP",
+      "THE FIVE WHYS").
+    - steps: 2–6 entries. Each:
+      - name: the step's short noun-or-verb name (≤60 chars,
+        "Recognize", "Observe", "Audit posture").
+      - description?: one sentence explaining the step (≤220 chars).
+    Order them in the canonical sequence of the framework. Use when
+    the section names a memorable multi-step method or principle set.
+
+• before_after -> "beforeAfter" with:
+    - before: { label, description? } describing the world before the
+      change. label ≤40 chars, description ≤280 chars.
+    - after:  { label, description? } describing the world after.
+    - transition?: optional connector word that goes in the centre
+      badge ("→", "BECOMES", "INSTEAD", "UNTIL"). Defaults to "→".
+    Use for narrative transformations (old way → new way, before X →
+    after X). Don't use for full multi-row tabular comparisons — those
+    are "comparison".
+
 • metaphor -> "metaphor" with:
     - kind: pick ONE of the 26 below.
     - Fill the fields that kind needs (see the recipe below). Leave irrelevant
@@ -128,15 +159,24 @@ METAPHOR PICK RULES — walk this ladder TOP-DOWN, stop at the first match
 
 Duality / tension (two-pole — fill poles[0] and poles[1]):
   iceberg     : surface vs depth, visible vs hidden, the 10% vs the 90%.
-                hint? = ratio like "90%".
+                hint? = ratio like "90%". items? = specific examples of
+                what's hidden, rendered as callouts in the underwater mass.
   bridge      : before-state vs after-state with a transition between them.
                 outcome.name = the transition/mechanism label (e.g. "rewrite").
+                items? = waypoints along the bridge (steps of the crossing).
   scale       : two ideas being weighed against each other; trade-off question.
                 hint? = the question being weighed ("which matters more?").
+                items? = factors being weighed (rendered as pills below).
   tug_of_war  : two active forces directly opposing each other for a prize/outcome.
-                outcome? = what's at stake.
+                outcome? = what's at stake. items? = team members on each side.
   spectrum    : a continuous range between two poles, often with a marker on it.
                 hint? = where the marker sits ("today: 60% toward right pole").
+                items? = labeled positions along the spectrum.
+  paradox     : "what you think vs what's actually true". poles[0] = the
+                common belief (sub = supporting line). poles[1] = the
+                reality (sub = supporting line). outcome.name? = the
+                connector word in the middle ("UNTIL", "ACTUALLY",
+                "INSTEAD"). Use for counter-intuitive reveals.
 
 Sequence (ordered list — fill items[] 2–6, outcome? = final summit/result):
   mountain    : a multi-stage climb toward a goal; each stage is a camp.
@@ -150,6 +190,12 @@ Many-to-one (fill hub, items[] = sources, flow="in"):
   confluence  : multiple sources merging into one downstream output.
   funnel      : broad input narrowing through stages to a specific output.
                 items = the narrowing stages.
+  tipping_point : cumulative pressures rising until they breach a
+                threshold and tip something over. items[] = the
+                contributing pressures (3–6). outcome.name = what tips
+                over when the threshold is breached. hint? = the
+                threshold label ("CAPACITY", "BUDGET"). Use for "small
+                causes accumulating, sudden effect" arguments.
 
 One-to-many (fill hub = root, items[] = branches, flow="out"):
   branching   : one root splitting into multiple paths/options/categories.
@@ -171,12 +217,29 @@ Cycle (fill items[] = phases in cycle order):
 Stack / hierarchy (fill items[] = layers BOTTOM TO TOP):
   layers      : strata of accumulated stuff (geology, tech stack).
   pyramid     : hierarchical narrowing-toward-top (Maslow-style).
+  onion       : concentric depth from surface to core. items[] = 2–5
+                rings ordered OUTERMOST (item[0]) to INNERMOST. outcome?
+                = the core insight at the centre. Use for "peel back the
+                layers" content (symptom → root cause → underlying
+                belief → first principle), NOT for vertical stacks
+                (those are layers).
 
 Spatial / navigation:
   compass     : orientation with N/E/S/W principles or directions.
                 hub = the center, items = the 2–4 directions.
   maze        : navigating uncertainty from a start toward a goal.
                 hub = start, outcome = goal, items = key choice points.
+
+Classification (2-axis grid):
+  quadrant    : 2×2 matrix sorting things by two independent dimensions.
+                poles[0] = the X axis. poles[0].label = axis name
+                ("Market growth"), poles[0].sub = scale hint
+                ("low → high"). poles[1] = the Y axis, same shape.
+                items[] = exactly 4 cells in row-major order:
+                  [top-left, top-right, bottom-left, bottom-right].
+                Each item.name = the cell's label. Use for content
+                that sorts options by two attributes
+                (urgent/important, effort/impact, growth/share).
 
 ═══════════════════════════════════════════════════════════════════════════
 GENRE VOICE — match the panel's wording to the document's genre
@@ -321,6 +384,17 @@ export async function runPlanner(
     if (plan.visualType === "definition_card" && !plan.definitionCard) {
       throw new Error(
         'visualType "definition_card" requires the "definitionCard" field'
+      );
+    }
+    if (plan.visualType === "insight" && !plan.insight) {
+      throw new Error('visualType "insight" requires the "insight" field');
+    }
+    if (plan.visualType === "framework" && !plan.framework) {
+      throw new Error('visualType "framework" requires the "framework" field');
+    }
+    if (plan.visualType === "before_after" && !plan.beforeAfter) {
+      throw new Error(
+        'visualType "before_after" requires the "beforeAfter" field'
       );
     }
 
