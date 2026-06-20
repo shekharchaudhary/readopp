@@ -7,7 +7,7 @@ import {
   type OutlineSection,
   type PanelPlan,
 } from "../shared/schemas";
-import { extractJson, withRetry } from "./util";
+import { extractJson, parseWithFeedback, withRetry } from "./util";
 
 const SYSTEM_PROMPT = `
 You are the visual planning stage. Given ONE section of an explainer plus the article's
@@ -345,7 +345,7 @@ export async function runPlanner(
         role: "user" as const,
         content:
           (retryHint
-            ? `Your previous output failed validation: ${retryHint}\nReturn ONLY corrected JSON.\n\n`
+            ? `${retryHint}\n\nReturn the COMPLETE corrected PanelPlan JSON (not just the fixed fields). No fences, no commentary.\n\n---\n\n`
             : "") + userMessage(section, comprehension, audience),
       },
     ];
@@ -368,7 +368,11 @@ export async function runPlanner(
     const parsed = JSON.parse(extractJson(text)) as Record<string, unknown>;
     parsed.sectionId = section.id;
     parsed.visualType = section.visualType;
-    const plan = PanelPlanSchema.parse(parsed);
+    // parseWithFeedback throws an Error whose message is a flat
+    // per-field instruction list ("Shorten this to ≤160 chars",
+    // "Provide at least 2 items", etc.). withRetry feeds that back as
+    // the retryHint on the next attempt so the model self-corrects.
+    const plan = parseWithFeedback(PanelPlanSchema, parsed);
 
     // Sanity: the articulation types are slot-driven — a missing slot would
     // fall through to freeform AI render, which for quotes means fabrication.
