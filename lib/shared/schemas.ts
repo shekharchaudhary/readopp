@@ -558,6 +558,27 @@ export const RenderedPanelSchema = z.object({
   // any re-render from plan (template re-runs, plan-based regeneration) so
   // hand-edits aren't blown away. Older persisted explainers default to false.
   edited: z.boolean().default(false),
+  // Vision-critic feedback for panels rendered via the Opus draw path
+  // (template-rendered panels never carry one). Optional because:
+  //   1. critique is gated behind READOPP_VISION_CRITIQUE — disabled
+  //      runs produce no critique at all.
+  //   2. older persisted explainers predate the field entirely.
+  // The shape mirrors CritiqueResult in lib/render/criticize.ts.
+  critique: z
+    .object({
+      pass: z.boolean(),
+      overall: z.number(),
+      scores: z.object({
+        hierarchy: z.number(),
+        alignment: z.number(),
+        density: z.number(),
+        readability: z.number(),
+        narrativeFit: z.number(),
+      }),
+      issues: z.array(z.string()).default([]),
+      suggestion: z.string().default(""),
+    })
+    .optional(),
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
 

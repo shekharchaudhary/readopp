@@ -31,6 +31,12 @@ export const MODEL_FAST =
   process.env.ANTHROPIC_MODEL_FAST || "claude-haiku-4-5-20251001";
 export const MODEL_DRAW =
   process.env.ANTHROPIC_MODEL_DRAW || "claude-opus-4-7";
+// Vision tier: scores a rendered panel PNG against the design rubric and
+// hands back actionable feedback for the next render attempt. Sonnet is
+// plenty for structured critique — Opus vision is 5× the price for a
+// marginal lift on this task.
+export const MODEL_VISION =
+  process.env.ANTHROPIC_MODEL_VISION || "claude-sonnet-4-5";
 
 let _client: Anthropic | null = null;
 

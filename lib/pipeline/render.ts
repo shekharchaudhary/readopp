@@ -1,10 +1,12 @@
 import { cachedSystem, callMessages, MODEL_DRAW } from "../anthropic";
+import { critiquePanel, type CritiqueResult } from "../render/criticize";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
 import { fixSvg } from "../render/fixer";
 import { renderGenrePanel } from "../render/genrePanels";
 import { HERO_SYSTEM_PROMPT } from "../render/heroPrompt";
 import { renderMetaphor } from "../render/metaphors";
+import { svgToPng } from "../render/rasterize";
 import { renderVsScene } from "../render/vsScene";
 import { renderAnthropicStat } from "../render/templates/anthropicStat";
 import { renderBeforeAfter } from "../render/templates/beforeAfter";
@@ -39,6 +41,29 @@ export interface PanelChrome {
   source?: string;
   slide?: { index: number; total: number };
 }
+
+/**
+ * Knobs for the LLM-render path. Defaults come from env so the regular
+ * pipeline picks them up without ceremony; the A/B test script overrides
+ * `critique` explicitly to compare with/without back-to-back.
+ *
+ * `critique` only affects panels that hit the model (templated panels
+ * never see it — they're already deterministic).
+ */
+export interface RenderOptions {
+  critique?: boolean;
+}
+
+function critiqueEnabled(opts: RenderOptions): boolean {
+  if (typeof opts.critique === "boolean") return opts.critique;
+  return process.env.READOPP_VISION_CRITIQUE === "1";
+}
+
+/** Worst-case Opus draw attempts per panel when critique is on (baseline
+ *  + 2 retry rounds). When critique is off we fall back to the legacy
+ *  2-attempt structural-only loop. */
+const MAX_DRAW_ATTEMPTS_WITH_CRITIQUE = 3;
+const MAX_DRAW_ATTEMPTS_LEGACY = 2;
 
 function targetFormat(plan: PanelPlan): "svg" | "html" {
   if (plan.visualType === "comparison" || plan.visualType === "timeline")
@@ -106,7 +131,8 @@ export async function renderPanel(
   audience: AudienceLevel,
   heading: string,
   jobId?: string,
-  chrome: PanelChrome = {}
+  chrome: PanelChrome = {},
+  opts: RenderOptions = {}
 ): Promise<RenderedPanel> {
   // Metaphor panels with a deterministic template skip the model entirely.
   // Instant, free, consistent. Untemplated kinds fall through to AI render.
@@ -281,16 +307,27 @@ export async function renderPanel(
 
   const format = targetFormat(plan);
   const system = buildSystemPrompt(format, plan);
+  const useCritique = critiqueEnabled(opts) && format === "svg";
+  const maxAttempts = useCritique
+    ? MAX_DRAW_ATTEMPTS_WITH_CRITIQUE
+    : MAX_DRAW_ATTEMPTS_LEGACY;
 
   let lastError: string | null = null;
+  // Last structurally-valid draft we got back from the model. If we
+  // exhaust the critique budget without a pass, this is what ships —
+  // critique is advisory, not gating, so a flagged-but-valid panel is
+  // always better than the placeholder fallback.
+  let lastValid:
+    | { content: string; critique?: CritiqueResult }
+    | null = null;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const messages = [
       {
         role: "user" as const,
         content:
           (lastError
-            ? `Your previous output failed validation: ${lastError}\nReturn ONLY a corrected ${format.toUpperCase()} block.\n\n`
+            ? `Your previous output had problems: ${lastError}\nReturn ONLY a corrected ${format.toUpperCase()} block.\n\n`
             : "") + userMessage(plan, audience),
       },
     ];
@@ -327,7 +364,13 @@ export async function renderPanel(
     const v =
       format === "svg" ? validateSvg(content) : validateHtmlPanel(content);
 
-    if (v.ok) {
+    if (!v.ok) {
+      lastError = v.reason;
+      continue;
+    }
+
+    // Structural validation passed. If critique is off, ship it.
+    if (!useCritique) {
       return {
         sectionId: plan.sectionId,
         heading,
@@ -340,10 +383,97 @@ export async function renderPanel(
         plan,
       };
     }
-    lastError = v.reason;
+
+    // Critique pass. Rasterize → vision-score → either accept or feed the
+    // suggestion back into the next attempt as `lastError`.
+    let critique: CritiqueResult | undefined;
+    try {
+      const raster = svgToPng(content);
+      critique = await critiquePanel({
+        pngBase64: raster.base64,
+        heading,
+        caption: plan.caption,
+        visualType: plan.visualType,
+        jobId,
+        label: `critique[${plan.sectionId}]#${attempt + 1}`,
+      });
+    } catch (e) {
+      // Rasterize failed → can't critique → accept the structurally-valid
+      // draft. Logged so a bad SVG family becomes visible in job traces.
+      console.warn(
+        `render[${plan.sectionId}] rasterize failed, skipping critique: ${(e as Error).message}`
+      );
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format,
+        content,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+      };
+    }
+
+    lastValid = { content, critique };
+
+    if (critique.pass) {
+      return {
+        sectionId: plan.sectionId,
+        heading,
+        caption: plan.caption,
+        format,
+        content,
+        validated: true,
+        fallback: false,
+        edited: false,
+        plan,
+        critique,
+      };
+    }
+
+    // Failed critique. If budget left, retry with the suggestion as
+    // explicit feedback to the draw model. If not, fall through to the
+    // post-loop accept-best path.
+    if (attempt < maxAttempts - 1) {
+      lastError = [
+        "A visual critic scored your previous render below the bar. Issues:",
+        ...critique.issues.map((i) => `  - ${i}`),
+        "",
+        critique.suggestion
+          ? `What to change: ${critique.suggestion}`
+          : "Improve hierarchy, alignment, density, readability, and narrative-fit.",
+      ].join("\n");
+      continue;
+    }
   }
 
-  // Fallback: titled card with the caption so the explainer isn't broken.
+  // Critique-loop exhaustion: we have a structurally-valid draft that
+  // never quite cleared the rubric. Ship the last one — better than the
+  // placeholder fallback.
+  if (lastValid) {
+    console.warn(
+      `render[${plan.sectionId}] critique never passed (overall=${lastValid.critique?.overall?.toFixed(
+        2
+      )}); shipping last draft.`
+    );
+    return {
+      sectionId: plan.sectionId,
+      heading,
+      caption: plan.caption,
+      format,
+      content: lastValid.content,
+      validated: true,
+      fallback: false,
+      edited: false,
+      plan,
+      critique: lastValid.critique,
+    };
+  }
+
+  // Structural validation never passed across every attempt. This is the
+  // real broken path — placeholder so the explainer ships at all.
   console.warn(`render[${plan.sectionId}] fell back to placeholder: ${lastError}`);
   return buildFallbackPanel(plan.sectionId, heading, plan.caption);
 }
