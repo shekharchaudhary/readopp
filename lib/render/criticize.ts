@@ -37,14 +37,23 @@ to convey. Grade it 1–5 on each of five axes, then decide pass / fail.
                   for a process, a comparison for a contrast, etc. Penalise
                   generic shapes that don't reinforce the specific point.
 
-Scoring scale:
-  5 = excellent — would ship to a paying customer as-is
-  4 = good — minor polish would help but it's clearly competent
-  3 = mediocre — recognisable issue that hurts the post
+Scoring scale — be discerning. Most LinkedIn-quality panels should fall
+in the 3–4 range. Reserve 5s for axes that are genuinely flawless.
+
+  5 = flawless — a senior designer would change NOTHING on this axis
+  4 = good — at least one specific tweak a competent designer would make
+  3 = mediocre — a clear issue is visibly hurting the post
   2 = poor — broken in a noticeable way
   1 = unusable
 
-PASS RULE: every axis ≥ 4. If any axis is ≤ 3 → fail.
+DEFAULT TO 4. If you can name even one specific element you'd nudge,
+resize, realign, or recolor on an axis, that axis is a 4, not a 5.
+Awarding 5s indiscriminately makes this critic useless.
+
+PASS RULE (strict): average across the 5 axes ≥ 4.5 AND every axis ≥ 4.
+A panel that scores straight 4s is competent but not yet polished — fail
+it so the renderer takes another pass. To pass, the panel must be
+excellent on a majority of axes, not merely acceptable across all of them.
 
 Return ONLY JSON of this exact shape (no fences, no commentary):
 
@@ -152,10 +161,14 @@ export async function critiquePanel(input: {
       : [];
     const suggestion =
       typeof parsed.suggestion === "string" ? parsed.suggestion.trim() : "";
-    const overall =
-      Object.values(scores).reduce((a, b) => a + b, 0) /
-      Object.values(scores).length;
-    const pass = Object.values(scores).every((s) => s >= 4);
+    const values = Object.values(scores);
+    const overall = values.reduce((a, b) => a + b, 0) / values.length;
+    // Tightened bar: straight-4s ("competent but not polished") no longer
+    // passes. To stop the loop, the panel needs average ≥ 4.5 (i.e. a
+    // majority of axes at 5) AND no axis below 4. Mirrors the prompt's
+    // PASS RULE so the model is grading against the same threshold the
+    // code enforces.
+    const pass = overall >= 4.5 && values.every((s) => s >= 4);
     return { pass, scores, issues, suggestion, overall };
   } catch (e) {
     // eslint-disable-next-line no-console
