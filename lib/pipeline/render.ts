@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { cachedSystem, callMessages, MODEL_DRAW } from "../anthropic";
+import { findRelevant, type RetrievalHit } from "../references/store";
 import { critiquePanel, type CritiqueResult } from "../render/criticize";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
 import { buildFallbackPanel } from "../render/fallbackPanel";
@@ -52,11 +55,23 @@ export interface PanelChrome {
  */
 export interface RenderOptions {
   critique?: boolean;
+  /** Inject top-k reference panels from the curated corpus as image
+   *  blocks ahead of the user message. Defaults to env. */
+  references?: boolean;
+  /** Comprehension.genre — threaded through so retrieval can score on
+   *  it. Optional because the deterministic-template branches don't
+   *  need it; only the LLM-draw path queries the corpus. */
+  genre?: string;
 }
 
 function critiqueEnabled(opts: RenderOptions): boolean {
   if (typeof opts.critique === "boolean") return opts.critique;
   return process.env.READOPP_VISION_CRITIQUE === "1";
+}
+
+function referencesEnabled(opts: RenderOptions): boolean {
+  if (typeof opts.references === "boolean") return opts.references;
+  return process.env.READOPP_REFERENCE_RAG === "1";
 }
 
 /** Worst-case Opus draw attempts per panel when critique is on (baseline
@@ -312,6 +327,12 @@ export async function renderPanel(
     ? MAX_DRAW_ATTEMPTS_WITH_CRITIQUE
     : MAX_DRAW_ATTEMPTS_LEGACY;
 
+  // Reference-RAG: fetch once outside the retry loop — the same panels
+  // apply on every attempt, no point re-querying the corpus per retry.
+  // Returns [] when the env flag is off, when the corpus is empty, or
+  // when the embedding API errors — render never blocks on it.
+  const referenceBlocks = await fetchReferenceBlocks(plan, opts);
+
   let lastError: string | null = null;
   // Last structurally-valid draft we got back from the model. If we
   // exhaust the critique budget without a pass, this is what ships —
@@ -322,13 +343,24 @@ export async function renderPanel(
     | null = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const textBody =
+      (lastError
+        ? `Your previous output had problems: ${lastError}\nReturn ONLY a corrected ${format.toUpperCase()} block.\n\n`
+        : "") + userMessage(plan, audience);
+    // Anthropic API accepts either a string OR a content-block array.
+    // Use the array form only when we have references to inject —
+    // otherwise leave the cheap string form so the existing retry-only
+    // path is byte-for-byte identical to pre-RAG behavior.
     const messages = [
       {
         role: "user" as const,
         content:
-          (lastError
-            ? `Your previous output had problems: ${lastError}\nReturn ONLY a corrected ${format.toUpperCase()} block.\n\n`
-            : "") + userMessage(plan, audience),
+          referenceBlocks.length > 0
+            ? [
+                ...referenceBlocks,
+                { type: "text" as const, text: textBody },
+              ]
+            : textBody,
       },
     ];
 
@@ -483,7 +515,8 @@ export async function renderAllPanels(
   audience: AudienceLevel,
   headings: Record<string, string>,
   jobId?: string,
-  sourceUrl?: string
+  sourceUrl?: string,
+  extra: { genre?: string } = {}
 ): Promise<RenderedPanel[]> {
   const CONCURRENCY = 4;
   const out: RenderedPanel[] = new Array(plans.length);
@@ -497,10 +530,17 @@ export async function renderAllPanels(
       if (i >= plans.length) return;
       const plan = plans[i];
       const heading = headings[plan.sectionId] || "Panel";
-      out[i] = await renderPanel(plan, audience, heading, jobId, {
-        source,
-        slide: { index: i + 1, total },
-      });
+      out[i] = await renderPanel(
+        plan,
+        audience,
+        heading,
+        jobId,
+        {
+          source,
+          slide: { index: i + 1, total },
+        },
+        { genre: extra.genre }
+      );
     }
   }
 
@@ -510,4 +550,90 @@ export async function renderAllPanels(
   );
   await Promise.all(workers);
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Reference-RAG helpers
+// ---------------------------------------------------------------------------
+
+type ImageBlock = {
+  type: "image";
+  source: { type: "base64"; media_type: "image/png"; data: string };
+};
+type TextBlock = { type: "text"; text: string };
+type AnthropicContentBlock = ImageBlock | TextBlock;
+
+/**
+ * Build the leading content blocks for the draw call when reference-
+ * RAG is enabled. Returns an empty array — meaning "no injection" — on
+ * any failure path (RAG disabled, empty corpus, OpenAI key missing,
+ * embedding error, missing PNG file). The renderer treats `[]` as a
+ * no-op and falls back to the cheap string-content path, so RAG never
+ * breaks a render.
+ *
+ * Block layout per reference:
+ *   - one short text label ("Reference 1 — why it works: ...")
+ *   - the PNG itself as a base64 image block
+ *
+ * Followed by a single trailing instruction block telling the model
+ * how to use them.
+ */
+async function fetchReferenceBlocks(
+  plan: PanelPlan,
+  opts: RenderOptions
+): Promise<AnthropicContentBlock[]> {
+  if (!referencesEnabled(opts)) return [];
+  let hits: RetrievalHit[];
+  try {
+    hits = await findRelevant({
+      visualType: plan.visualType,
+      genre: opts.genre,
+      caption: plan.caption,
+    });
+  } catch (e) {
+    console.warn(
+      `[readopp] reference retrieval failed; rendering without RAG: ${(e as Error).message}`
+    );
+    return [];
+  }
+  if (hits.length === 0) return [];
+
+  const blocks: AnthropicContentBlock[] = [];
+  let used = 0;
+  for (const hit of hits) {
+    const path = join(process.cwd(), "references", hit.reference.pngFile);
+    let buf: Buffer;
+    try {
+      buf = await readFile(path);
+    } catch (e) {
+      console.warn(
+        `[readopp] reference PNG missing: ${path} — skipping (${(e as Error).message})`
+      );
+      continue;
+    }
+    blocks.push({
+      type: "text",
+      text: `Reference ${used + 1} — caption: "${hit.reference.caption}" · why it works: ${hit.reference.whyItWorks}`,
+    });
+    blocks.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/png",
+        data: buf.toString("base64"),
+      },
+    });
+    used++;
+  }
+  if (used === 0) return [];
+
+  blocks.push({
+    type: "text",
+    text:
+      `The ${used} reference panel${used === 1 ? "" : "s"} above are real-world examples curated for ` +
+      "visual quality. Imitate their LAYOUT principles (hierarchy, grid, " +
+      "whitespace, accent colour usage) — NOT their literal content. The " +
+      "content you must render comes from the PanelPlan below.",
+  });
+  return blocks;
 }

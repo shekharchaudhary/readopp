@@ -231,6 +231,10 @@ export async function runJob(jobId: string): Promise<void> {
       plans,
       audience: job.audienceLevel,
       sourceUrl: job.url,
+      // Genre is one of the strongest signals for reference retrieval —
+      // a tech-essay reference shouldn't surface against a research-paper
+      // query even when the captions look similar.
+      genre: comprehension.genre,
       headings: Object.fromEntries(
         outline.sections.map((s) => [s.id, s.heading])
       ),
@@ -305,8 +309,11 @@ async function renderAllPanelsStreaming(input: {
   /** Source URL of the explainer; used to derive the host label that
    *  Tier C templates print in their footer. */
   sourceUrl?: string;
+  /** Comprehension.genre — threaded into renderPanel so reference-RAG
+   *  retrieval can score on it. */
+  genre?: string;
 }): Promise<RenderedPanel[]> {
-  const { jobId, plans, audience, headings, sourceUrl } = input;
+  const { jobId, plans, audience, headings, sourceUrl, genre } = input;
   const total = plans.length;
   const out: RenderedPanel[] = new Array(total);
   let cursor = 0;
@@ -329,7 +336,8 @@ async function renderAllPanelsStreaming(input: {
           audience,
           headings[plan.sectionId] || `Panel ${i + 1}`,
           jobId,
-          { source, slide: { index: i + 1, total } }
+          { source, slide: { index: i + 1, total } },
+          { genre }
         );
       } catch (e) {
         // Never propagate — fall back so the rest of the explainer survives
