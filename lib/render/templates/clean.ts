@@ -32,7 +32,7 @@ import {
   escapeXml,
   type HeadingSegment,
 } from "../system/cleanChrome";
-import { FONT, wrapToWidth } from "../system/typography";
+import { FONT, fitText, wrapToWidth } from "../system/typography";
 
 const { W, H, PAD, CONTENT_W } = CLEAN_GRID;
 
@@ -563,11 +563,19 @@ export function renderCleanOutro(input: CleanOutroInput): RenderedPanel {
         color: fg,
       }) +
       (b.sub
-        ? bodyLine(b.sub, bx + boxW / 2, ty + 26, {
-            anchor: "middle",
-            size: 13,
-            color: subFg,
-          })
+        ? // The box is a tight label slot — a long caption would run off
+          // both edges. Clamp to a single ellipsised line that fits the box.
+          bodyLine(
+            fitText(b.sub, {
+              width: boxW - 24,
+              height: 20,
+              minSize: 13,
+              maxSize: 13,
+            }).lines[0] ?? "",
+            bx + boxW / 2,
+            ty + 26,
+            { anchor: "middle", size: 13, color: subFg }
+          )
         : "")
     );
   }
