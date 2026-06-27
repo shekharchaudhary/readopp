@@ -24,6 +24,7 @@ import {
   mutedOn,
   topAccent,
   uniformSize,
+  fitDisplayLines,
   displayLine,
   kickerLine,
   escapeXml,
@@ -82,11 +83,21 @@ function resolveColor(
 }
 
 export function renderBoldStatement(input: BoldStatementInput): RenderedPanel {
-  const { bg, kicker, lines, sub } = input;
-  const texts = lines.map((l) => l.text);
-  const size = uniformSize(texts, { width: CONTENT_W, maxSize: 86, minSize: 38 });
+  const { bg, kicker, lines: inputLines, sub } = input;
+  // Wrap + size the phrase to fit BOTH the content width and the vertical
+  // space left after the kicker (above) and sub-line (below). The incoming
+  // lines are just the source text — we re-flow them so a long sentence
+  // can't run off the panel edge.
+  const text = inputLines.map((l) => l.text).join(" ");
+  const vBudget = H - PAD * 2 - (kicker ? 64 : 0) - (sub ? 120 : 0);
+  const { lines: texts, size } = fitDisplayLines(text, {
+    width: CONTENT_W,
+    maxHeight: vBudget,
+    maxSize: 86,
+    minSize: 30,
+  });
   const lineStep = Math.round(size * 1.0);
-  const blockH = (lines.length - 1) * lineStep;
+  const blockH = (texts.length - 1) * lineStep;
 
   // Vertically centre the phrase block, biased slightly above middle so
   // the optional sub-line has room below.
@@ -99,14 +110,16 @@ export function renderBoldStatement(input: BoldStatementInput): RenderedPanel {
     parts.push(kickerLine(kicker, PAD, firstBaseline - size - 28, kColor));
   }
 
-  lines.forEach((l, i) => {
+  // Loud convention: paint the final line red as the punch line.
+  const lastIdx = texts.length - 1;
+  texts.forEach((t, i) => {
     parts.push(
       displayLine(
-        l.text,
+        t,
         PAD,
         firstBaseline + i * lineStep,
         size,
-        resolveColor(l.color, bg)
+        resolveColor(i === lastIdx ? "red" : "fg", bg)
       )
     );
   });
@@ -503,7 +516,7 @@ export function renderBoldPanel(plan: PanelPlan, ctx: BoldPanelCtx): RenderedPan
           ...common,
           bg,
           kicker: plan.insight.kicker ?? undefined,
-          lines: statementLines(plan.insight.text),
+          lines: [{ text: plan.insight.text }],
           sub: plan.insight.attribution ?? undefined,
         });
       }
@@ -514,7 +527,7 @@ export function renderBoldPanel(plan: PanelPlan, ctx: BoldPanelCtx): RenderedPan
         return renderBoldStatement({
           ...common,
           bg,
-          lines: statementLines(plan.quoteCard.text),
+          lines: [{ text: plan.quoteCard.text }],
           sub: plan.quoteCard.attribution ?? undefined,
         });
       }
@@ -526,7 +539,7 @@ export function renderBoldPanel(plan: PanelPlan, ctx: BoldPanelCtx): RenderedPan
   return renderBoldStatement({
     ...common,
     bg,
-    lines: statementLines(ctx.heading || plan.caption || "Readopp"),
+    lines: [{ text: ctx.heading || plan.caption || "Readopp" }],
     sub: ctx.caption,
   });
 }

@@ -97,6 +97,64 @@ export function uniformSize(
   return Math.max(opts.minSize, Math.min(opts.maxSize, fit));
 }
 
+/**
+ * Lay heavy display text into a block that fits BOTH the content width
+ * and a vertical budget. Searches from `maxSize` downward: at each size
+ * it word-wraps to the char count that fills `width`, then accepts the
+ * first size whose stacked block also fits `maxHeight`. This guarantees
+ * no horizontal overflow (the wrap respects width at the chosen size) and
+ * no vertical overflow (the block height is checked) — replacing the old
+ * "split at N chars then merge the remainder into one giant line" path
+ * that ran long sentences off the right edge of the panel.
+ */
+export function fitDisplayLines(
+  text: string,
+  opts: {
+    width: number;
+    maxHeight: number;
+    maxSize: number;
+    minSize: number;
+    ratio?: number;
+    /** Line-height as a multiple of font size. Default 1.0 (tight). */
+    lineStep?: number;
+  }
+): { lines: string[]; size: number } {
+  const ratio = opts.ratio ?? 0.62;
+  const lineStepMul = opts.lineStep ?? 1.0;
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
+
+  const wrapAt = (charsPerLine: number): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w;
+      if (next.length > charsPerLine && cur) {
+        out.push(cur);
+        cur = w;
+      } else {
+        cur = next;
+      }
+    }
+    if (cur) out.push(cur);
+    return out.length ? out : [""];
+  };
+
+  for (let size = opts.maxSize; size >= opts.minSize; size -= 1) {
+    const charsPerLine = Math.max(1, Math.floor(opts.width / (size * ratio)));
+    // A single word wider than the line can't fit at this size; shrink more.
+    if (longestWord > charsPerLine) continue;
+    const lines = wrapAt(charsPerLine);
+    const blockH = lines.length * size * lineStepMul;
+    if (blockH <= opts.maxHeight) return { lines, size };
+  }
+
+  // Nothing fit cleanly (extremely long text): use the smallest size and
+  // wrap to width so it at least never overflows horizontally.
+  const charsPerLine = Math.max(1, Math.floor(opts.width / (opts.minSize * ratio)));
+  return { lines: wrapAt(charsPerLine), size: opts.minSize };
+}
+
 /** One line of heavy condensed-uppercase display type. */
 export function displayLine(
   text: string,
