@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isApiKeyConfigured } from "@/lib/anthropic";
-import { runJob } from "@/lib/pipeline/orchestrator";
+import { enqueueJob } from "@/lib/pipeline/runner";
+import "@/lib/pipeline/registerRunner";
 import { stashPendingPdf } from "@/lib/pipeline/preIngested";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
 import { AudienceLevelSchema, BrandStyleSchema } from "@/lib/shared/schemas";
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
   // instead of a 30–60s "Uploading…" spinner. Errors from extraction now
   // flow through the normal job failure path.
   stashPendingPdf(job.id, { buffer: buf, filename });
-  void runJob(job.id);
+  enqueueJob(job.id);
 
   return NextResponse.json({ jobId: job.id, cached: false }, { status: 201 });
 }

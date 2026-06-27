@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { CreateJobRequestSchema } from "@/lib/shared/schemas";
 import { createJob, findCachedExplainer, cacheKeyFor, completeJob } from "@/lib/store";
-import { runJob } from "@/lib/pipeline/orchestrator";
+import { enqueueJob } from "@/lib/pipeline/runner";
+import "@/lib/pipeline/registerRunner";
 import { isApiKeyConfigured } from "@/lib/anthropic";
 import { getOrCreateUser } from "@/lib/supabase/server";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
@@ -82,7 +83,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ jobId: job.id, cached: true }, { status: 201 });
   }
 
-  void runJob(job.id);
+  enqueueJob(job.id);
 
   return NextResponse.json({ jobId: job.id, cached: false }, { status: 201 });
 }

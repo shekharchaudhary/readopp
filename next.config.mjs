@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
+    // Enables instrumentation.ts register() — used to boot the background
+    // job pump in a process-owned context (see lib/pipeline/runner.ts).
+    instrumentationHook: true,
     serverComponentsExternalPackages: [
       "@mozilla/readability",
       "jsdom",

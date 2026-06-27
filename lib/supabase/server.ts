@@ -45,6 +45,14 @@ export function getAdminSupabase() {
   if (_admin) return _admin;
   _admin = createClient(supabaseUrl(), supabaseServiceRoleKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      // Next patches the global fetch in route handlers to cache GET responses.
+      // Supabase-js issues its REST reads through that fetch, so without this a
+      // job-status poll would keep returning the FIRST cached row — e.g. a job
+      // stuck at "comprehending" long after it actually completed. Force every
+      // admin query uncached; job/explainer rows must always read live.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return _admin;
 }
