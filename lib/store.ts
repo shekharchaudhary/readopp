@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   ExplainerSchema,
   type AudienceLevel,
+  type BrandStyle,
   type BrandKit,
   type Explainer,
   type Job,
@@ -19,9 +20,13 @@ import { getAdminSupabase, getServerSupabase } from "./supabase/server";
  * persist in Postgres. Nothing critical is in process memory anymore.
  */
 
-export function cacheKeyFor(url: string, audienceLevel: AudienceLevel): string {
+export function cacheKeyFor(
+  url: string,
+  audienceLevel: AudienceLevel,
+  style: BrandStyle = "editorial"
+): string {
   return createHash("sha256")
-    .update(`${url}::${audienceLevel}`)
+    .update(`${url}::${audienceLevel}::${style}`)
     .digest("hex")
     .slice(0, 16);
 }
@@ -34,6 +39,7 @@ interface JobRow {
   url: string;
   audience_level: string;
   status: string;
+  style?: string | null;
   cache_key: string;
   progress: unknown;
   usage: unknown;
@@ -49,6 +55,7 @@ function rowToJob(row: JobRow): Job & { userId: string } {
     id: row.id,
     url: row.url,
     audienceLevel: row.audience_level as AudienceLevel,
+    style: (row.style as BrandStyle | null) ?? "editorial",
     status: row.status as JobStatus,
     cacheKey: row.cache_key,
     progress:
@@ -67,16 +74,21 @@ export async function createJob(input: {
   url: string;
   audienceLevel: AudienceLevel;
   userId: string;
-  /** Optional explicit cache key (e.g. file-hash for PDF uploads). Defaults to url+audience hash. */
+  /** Deck-level visual style; defaults to editorial. */
+  style?: BrandStyle;
+  /** Optional explicit cache key (e.g. file-hash for PDF uploads). Defaults to url+audience+style hash. */
   cacheKey?: string;
 }): Promise<Job & { userId: string }> {
   const admin = getAdminSupabase();
+  const style = input.style ?? "editorial";
   const row = {
     user_id: input.userId,
     url: input.url,
     audience_level: input.audienceLevel,
+    style,
     status: "queued",
-    cache_key: input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel),
+    cache_key:
+      input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel, style),
     progress: [],
     usage: { inputTokens: 0, outputTokens: 0, calls: 0 },
   } as unknown as never;

@@ -14,6 +14,12 @@ export const AudienceLevelSchema = z.enum([
 ]);
 export type AudienceLevel = z.infer<typeof AudienceLevelSchema>;
 
+// Visual voice for the rendered deck. "editorial" is the calm serif-on-
+// paper default; "bold" re-skins the whole deck in the loud full-bleed
+// carousel family (lib/render/templates/bold.ts).
+export const BrandStyleSchema = z.enum(["editorial", "bold", "clean"]);
+export type BrandStyle = z.infer<typeof BrandStyleSchema>;
+
 export const JobStatusSchema = z.enum([
   "queued",
   "ingesting",
@@ -717,6 +723,8 @@ export const JobSchema = z.object({
   id: z.string(),
   url: z.string(),
   audienceLevel: AudienceLevelSchema,
+  // Visual voice for the deck. Older jobs predate the field → default.
+  style: BrandStyleSchema.default("editorial"),
   status: JobStatusSchema,
   cacheKey: z.string(),
   explainerId: z.string().optional(),
@@ -736,5 +744,6 @@ export type Job = z.infer<typeof JobSchema>;
 export const CreateJobRequestSchema = z.object({
   url: z.string().url(),
   audienceLevel: AudienceLevelSchema.default("general"),
+  style: BrandStyleSchema.default("editorial"),
 });
 export type CreateJobRequest = z.infer<typeof CreateJobRequestSchema>;

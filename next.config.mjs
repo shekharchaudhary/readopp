@@ -5,6 +5,9 @@ const nextConfig = {
     serverComponentsExternalPackages: [
       "@mozilla/readability",
       "jsdom",
+      // Native SVG→PNG rasteriser; webpack can't parse the .node addon, so
+      // keep it external on both dev and serverless builds.
+      "@resvg/resvg-js",
       // Playwright (local) + the serverless Chromium build (Vercel) are
       // heavy native modules. Marking them external prevents Next from
       // bundling them, which would bloat the function and break native deps.

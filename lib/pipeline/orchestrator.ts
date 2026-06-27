@@ -235,6 +235,7 @@ export async function runJob(jobId: string): Promise<void> {
       // a tech-essay reference shouldn't surface against a research-paper
       // query even when the captions look similar.
       genre: comprehension.genre,
+      style: job.style,
       headings: Object.fromEntries(
         outline.sections.map((s) => [s.id, s.heading])
       ),
@@ -312,8 +313,10 @@ async function renderAllPanelsStreaming(input: {
   /** Comprehension.genre — threaded into renderPanel so reference-RAG
    *  retrieval can score on it. */
   genre?: string;
+  /** Deck-level visual style — "bold" re-skins every panel. */
+  style?: import("../shared/schemas").BrandStyle;
 }): Promise<RenderedPanel[]> {
-  const { jobId, plans, audience, headings, sourceUrl, genre } = input;
+  const { jobId, plans, audience, headings, sourceUrl, genre, style } = input;
   const total = plans.length;
   const out: RenderedPanel[] = new Array(total);
   let cursor = 0;
@@ -337,7 +340,7 @@ async function renderAllPanelsStreaming(input: {
           headings[plan.sectionId] || `Panel ${i + 1}`,
           jobId,
           { source, slide: { index: i + 1, total } },
-          { genre }
+          { genre, style }
         );
       } catch (e) {
         // Never propagate — fall back so the rest of the explainer survives

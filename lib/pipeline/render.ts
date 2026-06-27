@@ -18,6 +18,8 @@ import { renderFramework } from "../render/templates/framework";
 import { renderInsight } from "../render/templates/insight";
 import { renderStructural } from "../render/templates/structural";
 import { renderTimeline } from "../render/templates/timeline";
+import { renderBoldPanel } from "../render/templates/bold";
+import { renderCleanPanel } from "../render/templates/clean";
 import {
   stripFences,
   validateHtmlPanel,
@@ -25,6 +27,7 @@ import {
 } from "../render/validate";
 import type {
   AudienceLevel,
+  BrandStyle,
   PanelPlan,
   RenderedPanel,
 } from "../shared/schemas";
@@ -62,6 +65,10 @@ export interface RenderOptions {
    *  it. Optional because the deterministic-template branches don't
    *  need it; only the LLM-draw path queries the corpus. */
   genre?: string;
+  /** Deck-level visual style. "bold" re-skins every panel through the
+   *  Bold family; "editorial" (default) keeps the per-visualType
+   *  templates + Opus draw path. */
+  style?: BrandStyle;
 }
 
 function critiqueEnabled(opts: RenderOptions): boolean {
@@ -149,6 +156,32 @@ export async function renderPanel(
   chrome: PanelChrome = {},
   opts: RenderOptions = {}
 ): Promise<RenderedPanel> {
+  // Bold style re-skins the WHOLE deck: every plan routes through the
+  // Bold family so the carousel stays in one loud voice, never mixed
+  // with editorial templates. Deterministic + free — no model call.
+  if (opts.style === "bold") {
+    return {
+      ...renderBoldPanel(plan, {
+        heading,
+        caption: plan.caption,
+        slide: chrome.slide ? chrome.slide.index - 1 : 0,
+        total: chrome.slide?.total,
+      }),
+      plan,
+    };
+  }
+  if (opts.style === "clean") {
+    return {
+      ...renderCleanPanel(plan, {
+        heading,
+        caption: plan.caption,
+        slide: chrome.slide ? chrome.slide.index - 1 : 0,
+        total: chrome.slide?.total,
+      }),
+      plan,
+    };
+  }
+
   // Metaphor panels with a deterministic template skip the model entirely.
   // Instant, free, consistent. Untemplated kinds fall through to AI render.
   if (plan.visualType === "metaphor") {
@@ -516,7 +549,7 @@ export async function renderAllPanels(
   headings: Record<string, string>,
   jobId?: string,
   sourceUrl?: string,
-  extra: { genre?: string } = {}
+  extra: { genre?: string; style?: BrandStyle } = {}
 ): Promise<RenderedPanel[]> {
   const CONCURRENCY = 4;
   const out: RenderedPanel[] = new Array(plans.length);
@@ -539,7 +572,7 @@ export async function renderAllPanels(
           source,
           slide: { index: i + 1, total },
         },
-        { genre: extra.genre }
+        { genre: extra.genre, style: extra.style }
       );
     }
   }

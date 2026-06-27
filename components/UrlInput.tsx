@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
-import type { AudienceLevel } from "@/lib/shared/schemas";
+import type { AudienceLevel, BrandStyle } from "@/lib/shared/schemas";
 import { GoogleLogo } from "./GoogleLogo";
 
 const AUDIENCE_OPTIONS: {
@@ -33,6 +33,28 @@ const AUDIENCE_OPTIONS: {
   },
 ];
 
+const STYLE_OPTIONS: {
+  value: BrandStyle;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "editorial",
+    label: "Editorial",
+    hint: "Calm serif on paper, hairline rules",
+  },
+  {
+    value: "bold",
+    label: "Bold",
+    hint: "Loud full-bleed colour, heavy uppercase type",
+  },
+  {
+    value: "clean",
+    label: "Clean",
+    hint: "Editorial diagrams, thin blue line-art on off-white",
+  },
+];
+
 interface Quota {
   isAnonymous: boolean;
   used: number;
@@ -56,6 +78,7 @@ export function UrlInput() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [audience, setAudience] = useState<AudienceLevel>("general");
+  const [style, setStyle] = useState<BrandStyle>("editorial");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +119,7 @@ export function UrlInput() {
       const form = new FormData();
       form.append("file", file);
       form.append("audienceLevel", audience);
+      form.append("style", style);
       const res = await fetch("/api/jobs/upload", { method: "POST", body: form });
       const data = await res.json();
       if (res.status === 402) {
@@ -127,7 +151,7 @@ export function UrlInput() {
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), audienceLevel: audience }),
+        body: JSON.stringify({ url: url.trim(), audienceLevel: audience, style }),
       });
       const data = await res.json();
       if (res.status === 402) {
@@ -220,6 +244,39 @@ export function UrlInput() {
         </div>
         <p className="mt-2 text-xs text-ink-muted">
           {AUDIENCE_OPTIONS.find((o) => o.value === audience)?.hint}
+        </p>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-3 block text-sm font-medium text-ink-soft">
+          Visual style
+        </legend>
+        <div className="grid grid-cols-3 gap-2">
+          {STYLE_OPTIONS.map((opt) => {
+            const selected = style === opt.value;
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => setStyle(opt.value)}
+                disabled={submitting || !!uploading || blocked}
+                title={opt.hint}
+                className={
+                  "rounded-md border px-3 py-2 text-sm transition-colors " +
+                  (selected
+                    ? "border-sky bg-sky text-white"
+                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
+                  " disabled:cursor-not-allowed disabled:opacity-60"
+                }
+                aria-pressed={selected}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-ink-muted">
+          {STYLE_OPTIONS.find((o) => o.value === style)?.hint}
         </p>
       </fieldset>
 

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { url, audienceLevel } = parsed.data;
+  const { url, audienceLevel, style } = parsed.data;
 
   // Anonymous sign-in if needed. Every job has an owner from this point on,
   // even before the user signs in with a real identity.
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   // Cache-key short-circuit (per-user): if this user has already generated
   // this exact (url + audience), reuse it without counting against the
   // free-tier quota.
-  const key = cacheKeyFor(url, audienceLevel);
+  const key = cacheKeyFor(url, audienceLevel, style);
   const cached = await findCachedExplainer(userId, key);
 
   if (!cached) {
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const job = await createJob({ url, audienceLevel, userId });
+  const job = await createJob({ url, audienceLevel, style, userId });
 
   if (cached) {
     await completeJob(job.id, cached);

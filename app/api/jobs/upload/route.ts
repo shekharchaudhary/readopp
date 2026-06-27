@@ -4,7 +4,7 @@ import { isApiKeyConfigured } from "@/lib/anthropic";
 import { runJob } from "@/lib/pipeline/orchestrator";
 import { stashPendingPdf } from "@/lib/pipeline/preIngested";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
-import { AudienceLevelSchema } from "@/lib/shared/schemas";
+import { AudienceLevelSchema, BrandStyleSchema } from "@/lib/shared/schemas";
 import {
   completeJob,
   createJob,
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
 
   const file = form.get("file");
   const audienceRaw = (form.get("audienceLevel") as string | null) ?? "general";
+  const styleRaw = (form.get("style") as string | null) ?? "editorial";
 
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -76,6 +77,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const style = BrandStyleSchema.safeParse(styleRaw);
+  if (!style.success) {
+    return NextResponse.json({ error: "Invalid style." }, { status: 400 });
+  }
+
   let userId: string;
   let isAnonymous: boolean;
   try {
@@ -93,8 +99,8 @@ export async function POST(req: Request) {
   const filename = file.name || "upload.pdf";
   const fakeUrl = `upload://${filename}`;
   // Cache key is file-content based, so re-uploading the same PDF at the same
-  // audience level hits the cache regardless of filename.
-  const cacheKey = `pdf:${hash}:${audience.data}`;
+  // audience level + style hits the cache regardless of filename.
+  const cacheKey = `pdf:${hash}:${audience.data}:${style.data}`;
 
   // Cache short-circuit (same per-user as URL flow).
   const cached = await findCachedExplainer(userId, cacheKey);
@@ -116,6 +122,7 @@ export async function POST(req: Request) {
   const job = await createJob({
     url: fakeUrl,
     audienceLevel: audience.data,
+    style: style.data,
     userId,
     cacheKey,
   });
