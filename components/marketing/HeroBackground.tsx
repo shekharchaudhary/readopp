@@ -1,17 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 /**
- * Two-layer animated background for the landing-page hero:
- *
- *   1. Editorial column grid — 6 vertical rule lines + 4 baselines, the
- *      bones of a magazine spread. Drifts with parallax on scroll so the
- *      grid feels deeper than the foreground.
- *   2. Reading artifacts — paragraph fragments, highlighter swipes,
- *      sticky note, squiggle, asterisk, check mark, margin marker. They
- *      drift on individual loops and visualise the brand promise
- *      (turning what you READ into a post).
+ * Animated background for the landing-page hero: drifting reading
+ * artifacts — pull quote, sticky note, squiggle, asterisk, check mark,
+ * margin marker, geometric glyphs. They drift on individual loops and
+ * visualise the brand promise (turning what you READ into a post).
  *
  * All layers are pointer-events-none and aria-hidden; nothing here is
  * interactive. prefers-reduced-motion halts every animation; static
@@ -146,39 +139,11 @@ const DRIFTERS: Drift[] = [
 ];
 
 export function HeroBackground() {
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  // Scroll-coupled parallax: write the scroll offset into a CSS variable
-  // every animation frame. Grid + ripples consume it via calc(); other
-  // artifacts ignore it. rAF-throttled so scroll handler is cheap.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      wrap.style.setProperty("--hero-scroll", `${window.scrollY}`);
-    };
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
   return (
     <div
-      ref={wrapRef}
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 overflow-hidden"
     >
-      <EditorialGrid />
       {DRIFTERS.map((d, i) => (
         <span
           key={i}
@@ -197,57 +162,6 @@ export function HeroBackground() {
           {renderArtifact(d)}
         </span>
       ))}
-    </div>
-  );
-}
-
-/**
- * Editorial column grid. Six column rules + four baselines stretching
- * across the section. Drawn as inline SVG so colors thread through the
- * Tailwind palette. Parallax via translateY tied to --hero-scroll.
- */
-function EditorialGrid() {
-  return (
-    <div
-      className="absolute inset-0 hero-grid-parallax"
-    >
-      <svg
-        viewBox="0 0 1200 720"
-        preserveAspectRatio="none"
-        className="h-full w-full"
-      >
-        {/* Six column rules */}
-        {[200, 400, 600, 800, 1000].map((x) => (
-          <line
-            key={x}
-            x1={x}
-            x2={x}
-            y1={0}
-            y2={720}
-            stroke="currentColor"
-            strokeWidth="1"
-            strokeDasharray="2 6"
-            className="text-ink/15 dark:text-ink/25"
-          />
-        ))}
-        {/* Edge column rules */}
-        <line x1={60} x2={60} y1={0} y2={720} stroke="currentColor" strokeWidth="1" className="text-ink/12 dark:text-ink/20" />
-        <line x1={1140} x2={1140} y1={0} y2={720} stroke="currentColor" strokeWidth="1" className="text-ink/12 dark:text-ink/20" />
-        {/* Horizontal baselines */}
-        {[140, 320, 500, 660].map((y) => (
-          <line
-            key={y}
-            x1={40}
-            x2={1160}
-            y1={y}
-            y2={y}
-            stroke="currentColor"
-            strokeWidth="1"
-            strokeDasharray="3 8"
-            className="text-ink/10 dark:text-ink/18"
-          />
-        ))}
-      </svg>
     </div>
   );
 }

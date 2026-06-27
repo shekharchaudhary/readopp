@@ -24,7 +24,7 @@ export default function HomePage() {
       <main>
         {/* Hero — one unified "input → Readopp → output" sentence:
             source pills feed the real UrlInput on the left, the
-            LinkedIn-style HeroPostMockup on the right, hand-drawn
+            social-post HeroPostMockup on the right, hand-drawn
             bridge between them. Reads at a glance, no step-by-step
             tutorial in the hero (HowItWorks below explains the how). */}
         <section className="section-amb amb-tr relative overflow-hidden bg-paper">
@@ -38,17 +38,16 @@ export default function HomePage() {
                     active="hl-in"
                     className="hl-sweep hl-mint hl-text box-decoration-clone rounded-lg px-2"
                   >
-                    LinkedIn-ready post
+                    share-ready post
                   </InViewClass>
                   .
                 </h1>
               </Reveal>
               <Reveal delayMs={160}>
                 <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">
-                  Articles, research papers, newsletters, even books — if
-                  turning a great read into a feed-worthy carousel feels harder
-                  than the article itself, paste a link. Readopp designs the
-                  post for you.
+                  Articles, research papers, newsletters, even books — paste a
+                  link or upload a document, and Readopp designs a feed-worthy
+                  post for LinkedIn, X, Substack, and wherever else you publish.
                 </p>
               </Reveal>
             </div>
@@ -85,7 +84,7 @@ export default function HomePage() {
                 </Reveal>
               </div>
 
-              {/* Output — LinkedIn-style carousel post mockup. */}
+              {/* Output — social carousel post mockup. */}
               <div>
                 <Reveal delayMs={300}>
                   <HeroPostMockup />

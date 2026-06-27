@@ -6,6 +6,8 @@ const PLATFORMS = [
   { name: "Shorts", dims: "1080 × 1920", kind: "MP4" },
   { name: "Instagram feed", dims: "1080 × 1080", kind: "PNG · MP4" },
   { name: "LinkedIn", dims: "1200 × 627", kind: "PNG" },
+  { name: "X", dims: "1600 × 900", kind: "PNG" },
+  { name: "Substack", dims: "1456 × 816", kind: "PNG" },
 ];
 
 export function PlatformsStrip() {

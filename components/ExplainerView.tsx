@@ -427,7 +427,7 @@ function PermalinkVisitorBanner() {
         <span className="inline-block h-2 w-2 -translate-y-px rounded-full bg-accent align-middle" />
         <span className="ml-2 font-medium text-ink">Made with Readopp</span>
         <span className="ml-2 text-ink-muted">
-          — paste any article, get a LinkedIn-ready visual carousel.
+          — paste any article, get a share-ready visual carousel.
         </span>
       </p>
       <a

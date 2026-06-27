@@ -18,11 +18,11 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "Readopp — Visual posts from anything you read",
   description:
-    "The shortest path from great read to great post. Paste a URL, paper, or PDF — Readopp turns it into a LinkedIn-ready visual carousel in under 30 seconds. You shouldn't have to design what you already understand.",
+    "The shortest path from great read to great post. Paste a URL, paper, or PDF — Readopp turns it into a share-ready visual carousel for LinkedIn, X, and Substack in under 30 seconds. You shouldn't have to design what you already understand.",
   openGraph: {
     title: "Readopp — Visual posts from anything you read",
     description:
-      "Turn the articles, papers, and PDFs you read into LinkedIn-ready visual posts in under 30 seconds.",
+      "Turn the articles, papers, and PDFs you read into share-ready visual posts for LinkedIn, X, and Substack in under 30 seconds.",
     type: "website",
   },
   twitter: {

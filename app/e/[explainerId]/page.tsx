@@ -26,7 +26,7 @@ export async function generateMetadata({
     return {
       title: "Readopp",
       description:
-        "Turn what you read into a LinkedIn-ready visual carousel in under 30 seconds.",
+        "Turn what you read into a share-ready visual carousel in under 30 seconds.",
     };
   }
   const title = `${explainer.title} — Readopp`;

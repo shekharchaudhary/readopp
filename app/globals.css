@@ -398,15 +398,6 @@ body {
   will-change: transform;
 }
 
-/* Editorial column grid — parallax follows page scroll via the
-   --hero-scroll variable (pixels) set by HeroBackground's rAF listener.
-   Negative multiplier so the grid sinks as you scroll, suggesting depth. */
-.hero-grid-parallax {
-  transform: translate3d(0, calc(var(--hero-scroll, 0) * -0.18px), 0);
-  will-change: transform;
-}
-
-
 @media (prefers-reduced-motion: reduce) {
   .hl-sweep {
     animation: none;
@@ -425,9 +416,6 @@ body {
   }
   .animate-hero-drift {
     animation: none;
-  }
-  .hero-grid-parallax {
-    transform: none;
   }
 }
 
