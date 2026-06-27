@@ -112,8 +112,21 @@ export function renderBoldStatement(input: BoldStatementInput): RenderedPanel {
   });
 
   if (sub) {
+    const subSize = 19;
+    const subStep = Math.round(subSize * 1.35);
+    const subTop = firstBaseline + blockH + 50;
+    // Wrap to the content width so a long sub-line stacks instead of running
+    // off the panel. One <text> with <tspan> lines keeps it a single editable
+    // node for the canvas editor.
+    const subLines = wrapToWidth(sub, CONTENT_W, subSize, "sans");
+    const tspans = subLines
+      .map(
+        (ln, i) =>
+          `<tspan x="${PAD}" dy="${i === 0 ? 0 : subStep}">${escapeXml(ln)}</tspan>`
+      )
+      .join("");
     parts.push(
-      `<text x="${PAD}" y="${firstBaseline + blockH + 50}" font-family="${FONT.sans}" font-size="19" font-weight="600" fill="${mutedOn(bg)}">${escapeXml(sub)}</text>`
+      `<text x="${PAD}" y="${subTop}" font-family="${FONT.sans}" font-size="${subSize}" font-weight="600" fill="${mutedOn(bg)}">${tspans}</text>`
     );
   }
 

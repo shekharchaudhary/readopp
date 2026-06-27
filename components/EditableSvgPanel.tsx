@@ -906,12 +906,15 @@ function InlineTextInput({
 }) {
   const [v, setV] = useState(textEdit.value);
   return (
-    <input
+    <textarea
       autoFocus
+      rows={1}
       value={v}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => onCommit(v)}
       onKeyDown={(e) => {
+        // Enter commits (these nodes hold a single logical value); the textarea
+        // is only used so long text wraps in the field instead of running off.
         if (e.key === "Enter") {
           e.preventDefault();
           onCommit(v);
@@ -925,7 +928,13 @@ function InlineTextInput({
         top: textEdit.top,
         left: textEdit.left,
         width: textEdit.width,
+        // Never let the field extend past the panel — without this a text node
+        // whose rendered width exceeds the panel produces an edit box that runs
+        // off-screen. The wrapper is position:relative and spans the panel.
+        maxWidth: `calc(100% - ${textEdit.left}px - 8px)`,
         minHeight: textEdit.height,
+        resize: "none",
+        overflowWrap: "anywhere",
         font: "14px ui-sans-serif, system-ui, -apple-system, sans-serif",
       }}
       className="z-50 rounded-sm border border-accent bg-white px-1 py-0.5 text-ink shadow-md focus:outline-none"
