@@ -124,6 +124,13 @@ export interface FooterBlockOptions {
 /**
  * Slim editorial footer: paper-line divider + small attribution line.
  * Layout is left=source · centre=template label · right=slide N/M.
+ *
+ * Long source labels (e.g. ENGINEERING.NOTES at 0.16em letter-spacing)
+ * used to collide with the centre templateLabel, producing run-on text
+ * like "READOPPANTHROPIC STAT". We now estimate width and drop the
+ * centre label when there's no room — the eyebrow heading at the top
+ * of every panel already names the type, so the footer copy is
+ * decorative and safe to omit on overflow.
  */
 export function footerBlock(opts: FooterBlockOptions): { svg: string; bottomY: number } {
   const { topY, source, slide, templateLabel } = opts;
@@ -138,15 +145,32 @@ export function footerBlock(opts: FooterBlockOptions): { svg: string; bottomY: n
   const left: string[] = [];
   if (source) left.push(source);
   left.push("READOPP");
+  const leftText = left.join(" · ").toUpperCase();
 
   parts.push(
-    `<text x="${GRID.PAD_X}" y="${textY}" font-family="${FONT.sans}" font-size="${TYPE.footer.size}" font-weight="${TYPE.footer.weight}" fill="${COLOR.inkMuted}" letter-spacing="0.16em">${escapeXml(left.join(" · ").toUpperCase())}</text>`
+    `<text x="${GRID.PAD_X}" y="${textY}" font-family="${FONT.sans}" font-size="${TYPE.footer.size}" font-weight="${TYPE.footer.weight}" fill="${COLOR.inkMuted}" letter-spacing="0.16em">${escapeXml(leftText)}</text>`
   );
 
   if (templateLabel) {
-    parts.push(
-      `<text x="${GRID.CANVAS_W / 2}" y="${textY}" font-family="${FONT.sans}" font-size="${TYPE.footer.size}" font-weight="${TYPE.footer.weight}" fill="${COLOR.inkFaint}" letter-spacing="0.16em" text-anchor="middle">${escapeXml(templateLabel.toUpperCase())}</text>`
-    );
+    // Width estimate: each char ≈ font-size × 0.62 (caps avg width) +
+    // font-size × 0.16 (letter-spacing). Conservative upper bound so
+    // we err on the side of dropping the centre label rather than
+    // letting it overlap.
+    const charW = TYPE.footer.size * 0.78;
+    const labelText = templateLabel.toUpperCase();
+    const leftWidthPx = leftText.length * charW;
+    const labelWidthPx = labelText.length * charW;
+    const slideReservePx = slide ? 60 : 0;
+    const centreLeft = GRID.CANVAS_W / 2 - labelWidthPx / 2;
+    const centreRight = GRID.CANVAS_W / 2 + labelWidthPx / 2;
+    const safeFromLeft = centreLeft > GRID.PAD_X + leftWidthPx + 24;
+    const safeFromRight =
+      centreRight < GRID.CANVAS_W - GRID.PAD_X - slideReservePx - 24;
+    if (safeFromLeft && safeFromRight) {
+      parts.push(
+        `<text x="${GRID.CANVAS_W / 2}" y="${textY}" font-family="${FONT.sans}" font-size="${TYPE.footer.size}" font-weight="${TYPE.footer.weight}" fill="${COLOR.inkFaint}" letter-spacing="0.16em" text-anchor="middle">${escapeXml(labelText)}</text>`
+      );
+    }
   }
 
   if (slide) {

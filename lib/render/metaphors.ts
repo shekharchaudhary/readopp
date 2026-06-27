@@ -700,30 +700,79 @@ function renderTugOfWar(m: MetaphorPlan): string {
   const left = m.poles[0] ?? { label: "Side A", sub: null };
   const right = m.poles[1] ?? { label: "Side B", sub: null };
   const prize = m.outcome?.name || "";
-  // Phase 2E.2b: items[] now renders as team members on each side —
-  // odd-index items go left, even-index right. Previously dropped.
   const items = m.items.slice(0, 6);
   const leftItems = items.filter((_, i) => i % 2 === 0);
   const rightItems = items.filter((_, i) => i % 2 === 1);
   const H = items.length > 0 ? 440 : 380;
+
+  // Geometry: the rope runs across the rope band; the two team
+  // anchors (chunky tabs) clamp it at each end. Outward arrows beyond
+  // the tabs visualize the direction of pull, which is what was
+  // missing before — without them the scene reads as two static boxes
+  // connected by a wire instead of teams *pulling*.
+  const ROPE_Y = 232;
+  const LEFT_TAB_X = 110;
+  const RIGHT_TAB_X = 570;
+  const TAB_W = 70;
+  const TAB_H = 78;
+  const ROPE_LEFT_X = LEFT_TAB_X + TAB_W / 2;
+  const ROPE_RIGHT_X = RIGHT_TAB_X - TAB_W / 2;
+  const CENTRE_X = (ROPE_LEFT_X + ROPE_RIGHT_X) / 2;
+
+  // Rope: three thin parallel strands give a braided look; a faint
+  // central highlight reads as the rope's spine. Much closer to a
+  // real rope than the single line + paper-coloured dashes the old
+  // code used.
+  const rope = `
+    <line x1="${ROPE_LEFT_X}" y1="${ROPE_Y - 3}" x2="${ROPE_RIGHT_X}" y2="${ROPE_Y - 3}" stroke="${C.gray.stroke}" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
+    <line x1="${ROPE_LEFT_X}" y1="${ROPE_Y}" x2="${ROPE_RIGHT_X}" y2="${ROPE_Y}" stroke="${C.gray.stroke}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="${ROPE_LEFT_X}" y1="${ROPE_Y + 3}" x2="${ROPE_RIGHT_X}" y2="${ROPE_Y + 3}" stroke="${C.gray.stroke}" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
+  `;
+
+  // Centre marker: vertical staff + small triangular flag waving away
+  // from centre. Replaces the tiny black diamond which was visually
+  // invisible.
+  const flag = `
+    <line x1="${CENTRE_X}" y1="${ROPE_Y - 4}" x2="${CENTRE_X}" y2="${ROPE_Y - 32}" stroke="${C.ink}" stroke-width="1.8" stroke-linecap="round"/>
+    <polygon points="${CENTRE_X},${ROPE_Y - 32} ${CENTRE_X + 18},${ROPE_Y - 27} ${CENTRE_X},${ROPE_Y - 22}" fill="${C.amber.stroke}"/>
+  `;
+
+  // Side anchors. Each carries the slotIcon if available, otherwise
+  // three short rope-grip dashes inside the tab. Outward arrow heads
+  // visualize the pull direction — the metaphor needs them to read.
+  const leftAnchor = `
+    <rect x="${LEFT_TAB_X - TAB_W / 2}" y="${ROPE_Y - TAB_H / 2}" width="${TAB_W}" height="${TAB_H}" rx="10" ry="10" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
+    ${left.icon ? slotIcon(left.icon, LEFT_TAB_X - 14, ROPE_Y - 14, 28, C.blue.stroke) : `
+      <line x1="${LEFT_TAB_X - 12}" y1="${ROPE_Y - 10}" x2="${LEFT_TAB_X + 12}" y2="${ROPE_Y - 10}" stroke="${C.blue.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="${LEFT_TAB_X - 12}" y1="${ROPE_Y}" x2="${LEFT_TAB_X + 12}" y2="${ROPE_Y}" stroke="${C.blue.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="${LEFT_TAB_X - 12}" y1="${ROPE_Y + 10}" x2="${LEFT_TAB_X + 12}" y2="${ROPE_Y + 10}" stroke="${C.blue.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+    `}
+    <line x1="${LEFT_TAB_X - TAB_W / 2 - 6}" y1="${ROPE_Y}" x2="${LEFT_TAB_X - TAB_W / 2 - 30}" y2="${ROPE_Y}" stroke="${C.blue.stroke}" stroke-width="2" stroke-linecap="round"/>
+    <polygon points="${LEFT_TAB_X - TAB_W / 2 - 30},${ROPE_Y - 6} ${LEFT_TAB_X - TAB_W / 2 - 42},${ROPE_Y} ${LEFT_TAB_X - TAB_W / 2 - 30},${ROPE_Y + 6}" fill="${C.blue.stroke}"/>
+  `;
+  const rightAnchor = `
+    <rect x="${RIGHT_TAB_X - TAB_W / 2}" y="${ROPE_Y - TAB_H / 2}" width="${TAB_W}" height="${TAB_H}" rx="10" ry="10" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
+    ${right.icon ? slotIcon(right.icon, RIGHT_TAB_X - 14, ROPE_Y - 14, 28, C.amber.stroke) : `
+      <line x1="${RIGHT_TAB_X - 12}" y1="${ROPE_Y - 10}" x2="${RIGHT_TAB_X + 12}" y2="${ROPE_Y - 10}" stroke="${C.amber.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="${RIGHT_TAB_X - 12}" y1="${ROPE_Y}" x2="${RIGHT_TAB_X + 12}" y2="${ROPE_Y}" stroke="${C.amber.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="${RIGHT_TAB_X - 12}" y1="${ROPE_Y + 10}" x2="${RIGHT_TAB_X + 12}" y2="${ROPE_Y + 10}" stroke="${C.amber.stroke}" stroke-width="1.5" stroke-linecap="round"/>
+    `}
+    <line x1="${RIGHT_TAB_X + TAB_W / 2 + 6}" y1="${ROPE_Y}" x2="${RIGHT_TAB_X + TAB_W / 2 + 30}" y2="${ROPE_Y}" stroke="${C.amber.stroke}" stroke-width="2" stroke-linecap="round"/>
+    <polygon points="${RIGHT_TAB_X + TAB_W / 2 + 30},${ROPE_Y - 6} ${RIGHT_TAB_X + TAB_W / 2 + 42},${ROPE_Y} ${RIGHT_TAB_X + TAB_W / 2 + 30},${ROPE_Y + 6}" fill="${C.amber.stroke}"/>
+  `;
+
   const body = `
-    ${prize ? `<text x="340" y="60" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle">${esc(prize)}</text>` : ""}
-    <rect x="80" y="200" width="60" height="60" rx="6" ry="6" fill="${C.blue.fill}" stroke="${C.blue.stroke}" stroke-width="1.5"/>
-    ${slotIcon(left.icon, 94, 214, 32, C.blue.stroke)}
-    <line x1="60" y1="260" x2="160" y2="260" stroke="${C.blue.stroke}" stroke-width="1.5"/>
-    <rect x="540" y="200" width="60" height="60" rx="6" ry="6" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
-    ${slotIcon(right.icon, 554, 214, 32, C.amber.stroke)}
-    <line x1="520" y1="260" x2="620" y2="260" stroke="${C.amber.stroke}" stroke-width="1.5"/>
-    <line x1="140" y1="230" x2="540" y2="230" stroke="${C.gray.stroke}" stroke-width="4" stroke-linecap="round"/>
-    <line x1="140" y1="230" x2="540" y2="230" stroke="${C.paper}" stroke-width="1" stroke-dasharray="2 4"/>
-    <line x1="340" y1="215" x2="340" y2="245" stroke="${C.ink}" stroke-width="2"/>
-    <polygon points="340,215 352,225 340,235 328,225" fill="${C.ink}"/>
-    <text x="110" y="180" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(left.label)}</text>
-    ${left.sub ? `<text x="110" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
-    <text x="570" y="180" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
-    ${right.sub ? `<text x="570" y="300" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
-    ${renderTugTeam(leftItems, 110, "left")}
-    ${renderTugTeam(rightItems, 570, "right")}
+    ${prize ? `<text x="${CENTRE_X}" y="60" font-size="12" font-weight="500" fill="${C.inkMuted}" text-anchor="middle" letter-spacing="0.04em">${esc(prize)}</text>` : ""}
+    ${rope}
+    ${leftAnchor}
+    ${rightAnchor}
+    ${flag}
+    <text x="${LEFT_TAB_X}" y="${ROPE_Y - TAB_H / 2 - 12}" font-size="14" font-weight="500" fill="${C.blue.text}" text-anchor="middle">${esc(left.label)}</text>
+    ${left.sub ? `<text x="${LEFT_TAB_X}" y="${ROPE_Y + TAB_H / 2 + 22}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(left.sub)}</text>` : ""}
+    <text x="${RIGHT_TAB_X}" y="${ROPE_Y - TAB_H / 2 - 12}" font-size="14" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${esc(right.label)}</text>
+    ${right.sub ? `<text x="${RIGHT_TAB_X}" y="${ROPE_Y + TAB_H / 2 + 22}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(right.sub)}</text>` : ""}
+    ${renderTugTeam(leftItems, LEFT_TAB_X, "left")}
+    ${renderTugTeam(rightItems, RIGHT_TAB_X, "right")}
   `;
   return svgWrap(H, `${left.label} vs ${right.label}`, prize, body);
 }
@@ -1345,35 +1394,86 @@ function renderGears(m: MetaphorPlan): string {
   const gears = m.items.slice(0, 4);
   if (gears.length === 0) return svgWrap(200, "Gears", "", "");
   const H = 420;
-  // 4-gear positions; rendered left→right with the biggest gear first.
-  // 3-gear plans use the first three positions, so the visual is
-  // unchanged for that case.
-  const POSITIONS = [
-    { x: 170, y: 200, r: 56, teeth: 12 },
-    { x: 300, y: 200, r: 44, teeth: 10 },
-    { x: 410, y: 200, r: 36, teeth: 8 },
-    { x: 500, y: 200, r: 30, teeth: 8 },
+  const TOOTH_DEPTH_RATIO = 0.18;
+
+  // Sizes get smaller down the chain — bigger upstream gear drives a
+  // smaller one. Centres are placed so adjacent gears MESH (centre
+  // distance = r1 + r2 - small overlap) instead of floating apart.
+  // Without this, the panel reads as "four decorative wheels," not as
+  // a connected system.
+  const SIZES = [
+    { r: 52, teeth: 12 },
+    { r: 42, teeth: 10 },
+    { r: 34, teeth: 9 },
+    { r: 28, teeth: 8 },
   ];
   const PALETTES = [C.amber, C.blue, C.teal, C.purple];
-  function gearPath(cx: number, cy: number, r: number, teeth: number): string {
-    const depth = r * 0.18;
+
+  const placed = SIZES.slice(0, gears.length).map((s, i) => ({
+    ...s,
+    pal: PALETTES[i % PALETTES.length],
+    name: gears[i].name,
+    sub: gears[i].sub,
+    cx: 0, // filled below
+  }));
+
+  // Walk left→right, putting each gear's centre at the previous one's
+  // pitch radius + this gear's pitch radius − a small overlap so the
+  // teeth visibly bite into each other.
+  const OVERLAP = 6;
+  let cursorX = 0;
+  for (let i = 0; i < placed.length; i++) {
+    if (i === 0) cursorX = placed[i].r;
+    else cursorX += placed[i - 1].r + placed[i].r - OVERLAP;
+    placed[i].cx = cursorX;
+  }
+  const totalSpan = placed[placed.length - 1].cx + placed[placed.length - 1].r;
+  // Centre the meshed row horizontally on the 680-wide canvas.
+  const OFFSET = (680 - totalSpan) / 2;
+
+  const ROW_Y = 200;
+
+  function gearPath(
+    cx: number,
+    cy: number,
+    r: number,
+    teeth: number,
+    rotateBy: number
+  ): string {
+    const depth = r * TOOTH_DEPTH_RATIO;
     const step = (Math.PI * 2) / (teeth * 2);
     const pts: string[] = [];
     for (let i = 0; i < teeth * 2; i++) {
       const radius = i % 2 === 0 ? r + depth : r;
-      const a = i * step;
-      pts.push(`${(cx + radius * Math.cos(a)).toFixed(1)},${(cy + radius * Math.sin(a)).toFixed(1)}`);
+      const a = i * step + rotateBy;
+      pts.push(
+        `${(cx + radius * Math.cos(a)).toFixed(1)},${(cy + radius * Math.sin(a)).toFixed(1)}`
+      );
     }
     return `M ${pts.join(" L ")} Z`;
   }
-  const gearEls = gears.map((g, i) => {
-    const pos = POSITIONS[i] ?? POSITIONS[POSITIONS.length - 1];
-    const pal = PALETTES[i % PALETTES.length];
+
+  // Because adjacent gears now mesh (centres ~r1+r2 apart), their
+  // labels would collide if all sat at the same y. Zig-zag the labels:
+  // even gears below the mechanism, odd gears further below, so
+  // neighbouring labels never share a horizontal band.
+  const LABEL_NEAR_Y_OFFSET = 26;
+  const LABEL_FAR_Y_OFFSET = 56;
+  const gearEls = placed.map((p, i) => {
+    const cx = p.cx + OFFSET;
+    const cy = ROW_Y;
+    // Alternate tooth phase by half a tooth-step so adjacent gears
+    // appear to interlock (one gear's tooth slots into the next one's
+    // gap) instead of teeth-to-teeth collision.
+    const phase = i % 2 === 0 ? 0 : Math.PI / p.teeth;
+    const labelY =
+      cy + p.r + (i % 2 === 0 ? LABEL_NEAR_Y_OFFSET : LABEL_FAR_Y_OFFSET);
     return `
-      <path d="${gearPath(pos.x, pos.y, pos.r, pos.teeth)}" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1.5"/>
-      <circle cx="${pos.x}" cy="${pos.y}" r="${Math.round(pos.r * 0.3)}" fill="${C.paper}" stroke="${pal.stroke}" stroke-width="1.5"/>
-      <text x="${pos.x}" y="${pos.y + pos.r + 32}" font-size="14" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(g.name)}</text>
-      ${g.sub ? `<text x="${pos.x}" y="${pos.y + pos.r + 50}" font-size="12" fill="${C.inkSoft}" text-anchor="middle">${esc(g.sub)}</text>` : ""}
+      <path d="${gearPath(cx, cy, p.r, p.teeth, phase)}" fill="${p.pal.fill}" stroke="${p.pal.stroke}" stroke-width="1.5"/>
+      <circle cx="${cx}" cy="${cy}" r="${Math.round(p.r * 0.32)}" fill="${C.paper}" stroke="${p.pal.stroke}" stroke-width="1.5"/>
+      <line x1="${cx}" y1="${cy + p.r + 2}" x2="${cx}" y2="${labelY - 12}" stroke="${p.pal.stroke}" stroke-width="0.8" opacity="0.45"/>
+      <text x="${cx}" y="${labelY}" font-size="12" font-weight="500" fill="${p.pal.text}" text-anchor="middle">${esc(p.name)}</text>
+      ${p.sub ? `<text x="${cx}" y="${labelY + 16}" font-size="11" fill="${C.inkSoft}" text-anchor="middle">${esc(p.sub)}</text>` : ""}
     `;
   });
   return svgWrap(H, "Mechanism", gears.map((g) => g.name).join(" + "), gearEls.join(""));
@@ -1737,13 +1837,17 @@ function renderOnion(m: MetaphorPlan): string {
     })
     .join("");
 
-  // Centre core badge (the destination insight).
+  // Centre core badge (the destination insight). Fill takes the deep
+  // stroke of the innermost ring so the core feels continuous with the
+  // surrounding palette instead of a stark black blob.
+  const coreFill =
+    PALETTES[(rings.length - 1) % PALETTES.length]?.stroke ?? C.amber.stroke;
   const coreEl = core
     ? `
-      <circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${C.ink}"/>
+      <circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${coreFill}"/>
       <text x="${CX}" y="${CY + 4}" font-size="12" font-weight="500" fill="${C.paper}" text-anchor="middle">${esc(core.name.length > 10 ? core.name.slice(0, 9) + "…" : core.name)}</text>
     `
-    : `<circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${C.ink}" opacity="0.92"/>`;
+    : `<circle cx="${CX}" cy="${CY}" r="${INNER_R}" fill="${coreFill}" opacity="0.9"/>`;
 
   // Leader labels on the right side, one per ring.
   const LABEL_X = 510;
