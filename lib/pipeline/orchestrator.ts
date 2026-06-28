@@ -17,9 +17,11 @@ import {
   setJobStatus,
 } from "../store";
 import { drainPendingPdf, drainPreIngested } from "./preIngested";
-import { extractPdfArticle } from "../pdf/extract";
+import { extractPdfArticle, extractResumeDoc } from "../pdf/extract";
+import { buildResumeDeck } from "../render/resumeDeck";
 import type {
   Explainer,
+  ExplainerOutline,
   JobError,
   JobStatus,
   RenderedPanel,
@@ -167,80 +169,142 @@ export async function runJob(jobId: string): Promise<void> {
       summarizeComprehension(comprehension)
     );
 
-    // 3. Structure
-    await emitStatus(jobId, "structuring");
-    await emitAgentStart(jobId, "structure");
-    await emitAgentProgress(jobId, "structure", "Choosing panel types…");
-    const outline = await runStructure(comprehension, jobId);
-    await emitAgentDone(jobId, "structure", summarizeOutline(outline));
+    // Résumé fast path: when the document is a resume AND we still hold the
+    // uploaded PDF buffer, parse it into a structured ResumeDoc and draw a
+    // deterministic résumé deck — skipping the article-tuned structure /
+    // planner / render agents, which map poorly onto a CV. Any failure here
+    // falls back to the normal article path so a resume is never a dead end.
+    const resumeDoc =
+      comprehension.genre === "resume" && pendingPdf
+        ? await extractResumeDoc({
+            buffer: pendingPdf.buffer,
+            filename: pendingPdf.filename,
+            jobId,
+          }).catch((e) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[readopp] resume extraction failed, using article path (job ${jobId}): ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+            return null;
+          })
+        : null;
 
-    // 4. Planner — one call per section, sequential is fine and cheaper to debug.
-    // If one section's planner fails after retries we skip it and continue, so
-    // a single bad panel can't kill the whole explainer.
-    await emitStatus(jobId, "planning");
-    await emitAgentStart(jobId, "planner");
-    const plans = [];
-    let skipped = 0;
-    for (let i = 0; i < outline.sections.length; i++) {
-      const section = outline.sections[i];
-      await emitAgentProgress(
-        jobId,
-        "planner",
-        `Designing panel ${i + 1} of ${outline.sections.length}…`
-      );
-      try {
-        const plan = await runPlanner(
-          section,
-          comprehension,
-          job.audienceLevel,
-          jobId
-        );
-        plans.push(plan);
-      } catch (e) {
-        skipped++;
-        const msg = (e as Error).message?.slice(0, 200) ?? "unknown";
+    let outline: ExplainerOutline;
+    let panels: RenderedPanel[];
+
+    if (resumeDoc) {
+      // 3+4. Structure + plan are folded into one deterministic build.
+      await emitStatus(jobId, "structuring");
+      await emitAgentStart(jobId, "structure");
+      const deck = buildResumeDeck(resumeDoc);
+      await emitAgentDone(jobId, "structure", `Résumé — ${deck.length} slides`);
+      await emitAgentStart(jobId, "planner");
+      await emitAgentDone(jobId, "planner", "Laid out résumé deck");
+
+      // 5. Render — the deck is already drawn; stream it out so the UI fills in.
+      await emitStatus(jobId, "rendering");
+      await emitAgentStart(jobId, "render");
+      for (let i = 0; i < deck.length; i++) {
+        await emitEvent(jobId, {
+          type: "panel.start",
+          data: { sectionId: deck[i].sectionId, index: i + 1, total: deck.length },
+        });
+        await emitEvent(jobId, {
+          type: "panel.done",
+          data: { panel: deck[i], index: i + 1, total: deck.length },
+        });
+      }
+      await emitAgentDone(jobId, "render", `Rendered ${deck.length} résumé slides`);
+
+      panels = deck;
+      outline = {
+        title: `${resumeDoc.contact.name} — Résumé`,
+        sections: deck.map((p) => ({
+          id: p.sectionId,
+          heading: p.heading,
+          intent: "résumé section",
+          visualType: "profile_card",
+          sourceClaimIndexes: [],
+        })),
+      };
+    } else {
+      // 3. Structure
+      await emitStatus(jobId, "structuring");
+      await emitAgentStart(jobId, "structure");
+      await emitAgentProgress(jobId, "structure", "Choosing panel types…");
+      outline = await runStructure(comprehension, jobId);
+      await emitAgentDone(jobId, "structure", summarizeOutline(outline));
+
+      // 4. Planner — one call per section, sequential is fine and cheaper to debug.
+      // If one section's planner fails after retries we skip it and continue, so
+      // a single bad panel can't kill the whole explainer.
+      await emitStatus(jobId, "planning");
+      await emitAgentStart(jobId, "planner");
+      const plans = [];
+      let skipped = 0;
+      for (let i = 0; i < outline.sections.length; i++) {
+        const section = outline.sections[i];
         await emitAgentProgress(
           jobId,
           "planner",
-          `Skipped panel ${i + 1} (${section.heading}) — ${msg}`
+          `Designing panel ${i + 1} of ${outline.sections.length}…`
         );
-        // eslint-disable-next-line no-console
-        console.warn("[readopp] planner skipped section", {
-          jobId,
-          sectionId: section.id,
-          error: e,
-        });
+        try {
+          const plan = await runPlanner(
+            section,
+            comprehension,
+            job.audienceLevel,
+            jobId
+          );
+          plans.push(plan);
+        } catch (e) {
+          skipped++;
+          const msg = (e as Error).message?.slice(0, 200) ?? "unknown";
+          await emitAgentProgress(
+            jobId,
+            "planner",
+            `Skipped panel ${i + 1} (${section.heading}) — ${msg}`
+          );
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[readopp] planner skipped section ${section.id} (job ${jobId}): ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
+        }
       }
-    }
-    if (plans.length === 0) {
-      throw new Error(
-        "planner produced no valid panels for any section of the outline"
-      );
-    }
-    const doneNote =
-      skipped > 0
-        ? `Designed ${plans.length} panel${plans.length === 1 ? "" : "s"} (skipped ${skipped})`
-        : `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`;
-    await emitAgentDone(jobId, "planner", doneNote);
+      if (plans.length === 0) {
+        throw new Error(
+          "planner produced no valid panels for any section of the outline"
+        );
+      }
+      const doneNote =
+        skipped > 0
+          ? `Designed ${plans.length} panel${plans.length === 1 ? "" : "s"} (skipped ${skipped})`
+          : `Designed layouts for ${plans.length} panel${plans.length === 1 ? "" : "s"}`;
+      await emitAgentDone(jobId, "planner", doneNote);
 
-    // 5. Render — fan out per panel; emit panel.start / panel.done
-    await emitStatus(jobId, "rendering");
-    await emitAgentStart(jobId, "render");
-    const panels: RenderedPanel[] = await renderAllPanelsStreaming({
-      jobId,
-      plans,
-      audience: job.audienceLevel,
-      sourceUrl: job.url,
-      // Genre is one of the strongest signals for reference retrieval —
-      // a tech-essay reference shouldn't surface against a research-paper
-      // query even when the captions look similar.
-      genre: comprehension.genre,
-      style: job.style,
-      headings: Object.fromEntries(
-        outline.sections.map((s) => [s.id, s.heading])
-      ),
-    });
-    await emitAgentDone(jobId, "render", `Rendered ${panels.length} panels`);
+      // 5. Render — fan out per panel; emit panel.start / panel.done
+      await emitStatus(jobId, "rendering");
+      await emitAgentStart(jobId, "render");
+      panels = await renderAllPanelsStreaming({
+        jobId,
+        plans,
+        audience: job.audienceLevel,
+        sourceUrl: job.url,
+        // Genre is one of the strongest signals for reference retrieval —
+        // a tech-essay reference shouldn't surface against a research-paper
+        // query even when the captions look similar.
+        genre: comprehension.genre,
+        style: job.style,
+        headings: Object.fromEntries(
+          outline.sections.map((s) => [s.id, s.heading])
+        ),
+      });
+      await emitAgentDone(jobId, "render", `Rendered ${panels.length} panels`);
+    }
 
     // 6. Assembly
     await emitStatus(jobId, "assembling");
@@ -283,7 +347,11 @@ export async function runJob(jobId: string): Promise<void> {
         "Skipped — refresh from the export sheet"
       );
       // eslint-disable-next-line no-console
-      console.warn("[readopp] socialPack failed", { jobId, error: e });
+      console.warn(
+        `[readopp] socialPack failed (job ${jobId}): ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      );
     }
 
     await completeJob(jobId, explainer);
@@ -294,7 +362,11 @@ export async function runJob(jobId: string): Promise<void> {
     await failJob(jobId, err);
     await emitEvent(jobId, { type: "job.failed", data: { error: err } });
     // eslint-disable-next-line no-console
-    console.error("[readopp] job failed", { jobId, error: e });
+    console.error(
+      `[readopp] job failed (job ${jobId}): ${
+        e instanceof Error ? (e.stack ?? e.message) : String(e)
+      }`
+    );
   }
 }
 

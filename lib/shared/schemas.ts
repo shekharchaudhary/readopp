@@ -66,6 +66,98 @@ export const CleanArticleSchema = z.object({
 });
 export type CleanArticle = z.infer<typeof CleanArticleSchema>;
 
+// ---------- Resume document (structured ingest) ----------
+//
+// When the source is a resume/CV, the prose `CleanArticle` body isn't enough
+// to draw a real resume — we need the underlying *structure* (contact block,
+// dated roles, grouped skills, education, …). `ResumeDoc` is that structure,
+// extracted directly from the PDF by `extractResumeDoc`. It feeds BOTH the
+// resume-styled carousel (Option A) and the single-page resume builder
+// (Option B), so it carries every section a one-pager needs. Every field is
+// tolerant (nullish / array-default) — a resume that omits, say, languages or
+// projects must not hard-fail the extract.
+
+export const ResumeLinkSchema = z.object({
+  label: z.string().min(1).max(40), // "GitHub", "LinkedIn", "Portfolio"
+  url: z.string().max(200),
+});
+export type ResumeLink = z.infer<typeof ResumeLinkSchema>;
+
+export const ResumeContactSchema = z.object({
+  name: z.string().min(1).max(80),
+  headline: z.string().max(120).nullish(), // "Senior Software Engineer"
+  email: z.string().max(120).nullish(),
+  phone: z.string().max(40).nullish(),
+  location: z.string().max(80).nullish(),
+  links: z.array(ResumeLinkSchema).max(6).default([]),
+});
+export type ResumeContact = z.infer<typeof ResumeContactSchema>;
+
+export const ResumeExperienceSchema = z.object({
+  title: z.string().min(1).max(80),
+  company: z.string().min(1).max(80),
+  location: z.string().max(60).nullish(),
+  period: z.string().max(40).nullish(), // "2021–Present"
+  bullets: z.array(z.string().max(220)).max(6).default([]),
+});
+export type ResumeExperience = z.infer<typeof ResumeExperienceSchema>;
+
+export const ResumeEducationSchema = z.object({
+  degree: z.string().min(1).max(100),
+  institution: z.string().min(1).max(100),
+  location: z.string().max(60).nullish(),
+  period: z.string().max(40).nullish(),
+  detail: z.string().max(160).nullish(), // GPA, honours, thesis
+});
+export type ResumeEducation = z.infer<typeof ResumeEducationSchema>;
+
+export const ResumeSkillGroupSchema = z.object({
+  name: z.string().min(1).max(40), // "Languages", "Tools", "Design"
+  skills: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(40),
+        level: z.enum(["expert", "strong", "familiar"]).nullish(),
+      })
+    )
+    .min(1)
+    .max(12),
+});
+export type ResumeSkillGroup = z.infer<typeof ResumeSkillGroupSchema>;
+
+export const ResumeCertificationSchema = z.object({
+  name: z.string().min(1).max(100),
+  issuer: z.string().max(80).nullish(),
+  year: z.string().max(12).nullish(),
+});
+export type ResumeCertification = z.infer<typeof ResumeCertificationSchema>;
+
+export const ResumeLanguageSchema = z.object({
+  name: z.string().min(1).max(40),
+  level: z.string().max(40).nullish(), // "Native", "Fluent", "B2"
+});
+export type ResumeLanguage = z.infer<typeof ResumeLanguageSchema>;
+
+export const ResumeProjectSchema = z.object({
+  name: z.string().min(1).max(80),
+  description: z.string().max(200).nullish(),
+  link: z.string().max(200).nullish(),
+});
+export type ResumeProject = z.infer<typeof ResumeProjectSchema>;
+
+export const ResumeDocSchema = z.object({
+  contact: ResumeContactSchema,
+  summary: z.string().max(600).nullish(),
+  experience: z.array(ResumeExperienceSchema).max(8).default([]),
+  education: z.array(ResumeEducationSchema).max(5).default([]),
+  skills: z.array(ResumeSkillGroupSchema).max(6).default([]),
+  certifications: z.array(ResumeCertificationSchema).max(8).default([]),
+  languages: z.array(ResumeLanguageSchema).max(8).default([]),
+  projects: z.array(ResumeProjectSchema).max(6).default([]),
+  awards: z.array(z.string().max(120)).max(6).default([]),
+});
+export type ResumeDoc = z.infer<typeof ResumeDocSchema>;
+
 // ---------- Agent 2: Comprehension ----------
 
 // Both Entity and Jargon are tolerant of missing/extra fields — the model
