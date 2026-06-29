@@ -352,8 +352,24 @@ export function renderBoldOutro(input: BoldOutroInput): RenderedPanel {
   );
 
   if (sub) {
+    const subSize = 16;
+    const subStep = Math.round(subSize * 1.35);
+    // Wrap to the content width and clamp to 2 lines so a full-sentence
+    // caption stacks under the wordmark instead of running off the panel.
+    const wrapped = wrapToWidth(sub, CONTENT_W, subSize, "sans");
+    const subLines = wrapped.slice(0, 2);
+    if (wrapped.length > subLines.length) {
+      subLines[subLines.length - 1] =
+        subLines[subLines.length - 1].replace(/[.,;:\s]+$/, "") + "…";
+    }
+    const tspans = subLines
+      .map(
+        (ln, i) =>
+          `<tspan x="${PAD}" dy="${i === 0 ? 0 : subStep}">${escapeXml(ln)}</tspan>`
+      )
+      .join("");
     parts.push(
-      `<text x="${PAD}" y="${brandY + 34}" font-family="${FONT.sans}" font-size="16" font-weight="500" fill="${mutedOn(bg)}">${escapeXml(sub)}</text>`
+      `<text x="${PAD}" y="${brandY + 34}" font-family="${FONT.sans}" font-size="${subSize}" font-weight="500" fill="${mutedOn(bg)}">${tspans}</text>`
     );
   }
 

@@ -17,6 +17,7 @@ import {
   headingBlock,
   svgWrap as chromeWrap,
 } from "./system/panelChrome";
+import { wrapToWidth } from "./system/typography";
 
 export interface MetaphorChrome {
   heading?: string;
@@ -1355,18 +1356,28 @@ function renderEngine(m: MetaphorPlan): string {
   const process = m.hub ?? { name: "Process", sub: null };
   const output = m.outcome ?? { name: "Output", sub: null };
   const H = 380;
-  const BOX_X = 200;
+  const BOX_X = 150;
   const BOX_Y = 130;
-  const BOX_W = 280;
+  const BOX_W = 380;
   const BOX_H = 110;
   const CENTER_Y = BOX_Y + BOX_H / 2;
   const stageBadges = stages.map((s, i) => {
     const gap = BOX_W / (stages.length + 1);
     const cx = BOX_X + gap * (i + 1);
+    // Wrap each label to its slot width and stack so adjacent stage
+    // names never collide. Smaller type + 2-line cap keeps it tidy.
+    const labelSize = 11;
+    const labelLines = wrapToWidth(s.name, gap - 8, labelSize, "sans").slice(0, 2);
+    const labelTspans = labelLines
+      .map(
+        (ln, j) =>
+          `<tspan x="${cx}" dy="${j === 0 ? 0 : 12}">${esc(ln)}</tspan>`
+      )
+      .join("");
     return `
       <circle cx="${cx}" cy="${CENTER_Y - 10}" r="14" fill="${C.amber.fill}" stroke="${C.amber.stroke}" stroke-width="1.5"/>
       <text x="${cx}" y="${CENTER_Y - 5}" font-size="12" font-weight="500" fill="${C.amber.text}" text-anchor="middle">${i + 1}</text>
-      <text x="${cx}" y="${CENTER_Y + 24}" font-size="12" fill="${C.ink}" text-anchor="middle">${esc(s.name.slice(0, 14))}</text>
+      <text x="${cx}" y="${CENTER_Y + 24}" font-size="${labelSize}" fill="${C.ink}" text-anchor="middle">${labelTspans}</text>
     `;
   });
   return svgWrap(

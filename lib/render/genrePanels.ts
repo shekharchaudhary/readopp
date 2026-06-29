@@ -212,10 +212,17 @@ function renderCareerTimeline(p: CareerTimelinePlan): string {
       ${wins
         .map((w, j) => {
           const y = top + 60 + j * 22;
-          const lines = wrap(w, 64, 2);
+          const MAX = 64;
+          const lines = wrap(w, MAX, 2);
+          let text = lines[0] ?? "";
+          // wrap() never hard-breaks an over-long token, so a single long word
+          // would overflow and clip mid-word; cap it and signal truncation.
+          const truncated = lines.length > 1 || text.length > MAX;
+          if (text.length > MAX) text = text.slice(0, MAX - 1).replace(/[\s.,;:-]+$/, "");
+          if (truncated) text = text.replace(/[\s.,;:]+$/, "") + "…";
           return `
           <circle cx="${TEXT_X + 4}" cy="${y - 4}" r="1.5" fill="${C.inkMuted}"/>
-          <text x="${TEXT_X + 14}" y="${y}" font-size="12" fill="${C.inkSoft}">${esc(lines[0] ?? "")}</text>
+          <text x="${TEXT_X + 14}" y="${y}" font-size="12" fill="${C.inkSoft}">${esc(text)}</text>
         `;
         })
         .join("")}
