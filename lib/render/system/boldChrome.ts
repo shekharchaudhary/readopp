@@ -14,11 +14,15 @@
 import { escapeXml } from "./panelChrome";
 import { FONT } from "./typography";
 
-// Bold palette — pinned hex pulled from the carousel design source.
+// Bold palette — loud, but tuned to the brand warm family so the Bold
+// deck reads as a sibling of the editorial (clay/bronze) system rather
+// than a generic primary-colour template. Red is a deep vermilion that
+// harmonises with the brand clay #C7613D; amber is a rich marigold
+// instead of a saturated school-bus yellow.
 export const BOLD = {
   ink: "#1A1A1A",
-  red: "#E03131",
-  amber: "#FFB400",
+  red: "#D33F2B",
+  amber: "#F0A11A",
   paper: "#FAF9F5",
   white: "#FFFFFF",
   mutedOnLight: "#6B6B6B",

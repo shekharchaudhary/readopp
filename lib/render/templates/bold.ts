@@ -222,6 +222,20 @@ function lerpColor(a: string, b: string, t: number): string {
   return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** A bar with only its top two corners rounded (premium chart detail). */
+function topRoundedBar(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  fill: string
+): string {
+  const rad = Math.min(r, w / 2, h);
+  const d = `M${x} ${y + h} L${x} ${y + rad} Q${x} ${y} ${x + rad} ${y} L${x + w - rad} ${y} Q${x + w} ${y} ${x + w} ${y + rad} L${x + w} ${y + h} Z`;
+  return `<path d="${d}" fill="${fill}"/>`;
+}
+
 export function renderBoldBars(input: BoldBarsInput): RenderedPanel {
   const { bg, headingLines, values, barCaption } = input;
   const bars = values?.length ?? input.bars ?? 4;
@@ -236,7 +250,8 @@ export function renderBoldBars(input: BoldBarsInput): RenderedPanel {
     y += hStep;
   }
 
-  // Chart geometry — descending heights + amber→dark fade.
+  // Chart geometry — descending heights + a warm amber→red ramp (on
+  // brand, reads as heat/intensity dropping rather than muddy brown).
   const baseY = 480;
   const areaW = CONTENT_W;
   const gap = 22;
@@ -254,10 +269,8 @@ export function renderBoldBars(input: BoldBarsInput): RenderedPanel {
         ? Math.round(minBarH + (maxBarH - minBarH) * (values[i] / peak))
         : Math.round(maxBarH - (maxBarH - minBarH) * t);
     const x = PAD + i * (barW + gap);
-    const fill = lerpColor(BOLD.amber, bg === "ink" ? BOLD.ink : "#7A5A00", t * 0.85);
-    parts.push(
-      `<rect x="${x}" y="${baseY - bh}" width="${barW}" height="${bh}" fill="${fill}"/>`
-    );
+    const fill = lerpColor(BOLD.amber, BOLD.red, t * 0.8);
+    parts.push(topRoundedBar(x, baseY - bh, barW, bh, 6, fill));
   }
 
   if (barCaption) {
