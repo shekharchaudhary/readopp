@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ExportSheet } from "./ExportSheet";
 import { PanelCard } from "./PanelCard";
+import { ResumeDownload } from "./ResumeDownload";
 import { TemplatePicker } from "./TemplatePicker";
 import type { Explainer, TemplateId } from "@/lib/shared/schemas";
 import { sourceIsLinkable, sourceLabel } from "@/lib/shared/source";
@@ -221,6 +222,10 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
           )}
         </div>
       </header>
+
+      {canExport && explainer.resumeDoc && (
+        <ResumeDownload explainerId={explainer.id} />
+      )}
 
       <section className="space-y-3">
         {canExport && (

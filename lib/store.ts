@@ -306,6 +306,7 @@ interface ExplainerRow {
   usage: unknown;
   social_pack: unknown;
   template: string | null;
+  resume_doc: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -323,6 +324,7 @@ function rowToExplainer(row: ExplainerRow): Explainer {
     updatedAt: row.updated_at,
     socialPack: row.social_pack ?? undefined,
     template: row.template ?? undefined,
+    resumeDoc: row.resume_doc ?? undefined,
   });
   if (!parsed.success) {
     throw new Error(
@@ -352,6 +354,7 @@ async function insertExplainer(
     panels: explainer.panels,
     social_pack: explainer.socialPack ?? null,
     template: explainer.template ?? null,
+    resume_doc: explainer.resumeDoc ?? null,
   } as unknown as never;
   // Upsert (not insert) so the cache-hit path works: when a user
   // re-submits a URL they already have an explainer for, completeJob

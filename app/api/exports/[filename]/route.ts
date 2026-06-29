@@ -7,11 +7,12 @@ import { EXPORTS_DIR } from "@/lib/export/screenshot";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FILENAME_OK = /^[a-z0-9._-]+\.(png|mp4)$/i;
+const FILENAME_OK = /^[a-z0-9._-]+\.(png|mp4|pdf)$/i;
 
 const CONTENT_TYPES: Record<string, string> = {
   png: "image/png",
   mp4: "video/mp4",
+  pdf: "application/pdf",
 };
 
 export async function GET(

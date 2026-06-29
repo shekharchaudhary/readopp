@@ -316,6 +316,7 @@ export async function runJob(jobId: string): Promise<void> {
       outline,
       comprehension,
       panels,
+      resumeDoc: resumeDoc ?? undefined,
     });
     await emitAgentDone(jobId, "assembly", "Assembled explainer");
 

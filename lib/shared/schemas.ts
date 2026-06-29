@@ -764,6 +764,9 @@ export const ExplainerSchema = z.object({
   socialPack: SocialPackSchema.optional(),
   // Visual identity for export. Older explainers default to "tachyon".
   template: TemplateIdSchema.optional(),
+  // Structured résumé source, kept only for resume explainers so the
+  // single-page résumé PDF can be re-rendered on demand. Absent otherwise.
+  resumeDoc: ResumeDocSchema.nullish(),
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 

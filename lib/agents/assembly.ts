@@ -5,6 +5,7 @@ import type {
   Explainer,
   ExplainerOutline,
   RenderedPanel,
+  ResumeDoc,
 } from "../shared/schemas";
 
 /**
@@ -18,6 +19,8 @@ export function runAssembly(input: {
   outline: ExplainerOutline;
   comprehension: Comprehension;
   panels: RenderedPanel[];
+  /** Structured résumé source, present only for resume explainers. */
+  resumeDoc?: ResumeDoc;
 }): Explainer {
   const orderById = new Map<string, number>();
   input.outline.sections.forEach((s, i) => orderById.set(s.id, i));
@@ -37,5 +40,6 @@ export function runAssembly(input: {
     audienceLevel: input.audienceLevel,
     panels: ordered,
     createdAt: new Date().toISOString(),
+    ...(input.resumeDoc ? { resumeDoc: input.resumeDoc } : {}),
   };
 }
