@@ -22,21 +22,25 @@ import type {
 const FONT =
   "ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif";
 
+// Brand-aligned chip palette. Keys (blue/teal/amber/purple/gray) are kept
+// so chart `color` names in existing plans still resolve, but every hue is
+// remapped to the editorial palette — ivory paper, ink, clay, and the
+// approved soft pastels. No green; the old bright-blue accent is gone.
 const C = {
-  blue: { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" },
-  teal: { fill: "#E1F5EE", stroke: "#0F6E56", text: "#085041" },
-  amber: { fill: "#FAEEDA", stroke: "#854F0B", text: "#633806" },
-  purple: { fill: "#EEEDFE", stroke: "#534AB7", text: "#3C3489" },
-  gray: { fill: "#F1EFE8", stroke: "#5F5E5A", text: "#2C2C2A" },
-  ink: "#1a1a1a",
-  inkSoft: "#3a3a3a",
-  inkMuted: "#6b6b6b",
-  inkFaint: "#a3a3a3",
-  line: "#e3e1d8",
-  paper: "#fafaf7",
-  accent: "#1F97DC",
-  accentSoft: "#E2F0FB",
-  accentDeep: "#0D5786",
+  blue: { fill: "#E8EFF6", stroke: "#5B7C9D", text: "#39516B" }, // sky
+  teal: { fill: "#F7E7EC", stroke: "#AF5F78", text: "#83405A" }, // rose
+  amber: { fill: "#F6EFD9", stroke: "#A9842F", text: "#74581B" }, // butter
+  purple: { fill: "#EDEAF5", stroke: "#776CA4", text: "#4F467E" }, // lavender
+  gray: { fill: "#F1EFE8", stroke: "#6E665A", text: "#2C2C2A" }, // sand
+  ink: "#1A1A1A",
+  inkSoft: "#4E463C",
+  inkMuted: "#7A6F62",
+  inkFaint: "#A89E8E",
+  line: "#D6CFC2",
+  paper: "#FAF9F5",
+  accent: "#C7613D", // clay
+  accentSoft: "#F4E4DB",
+  accentDeep: "#9A4326",
 } as const;
 
 const PALETTE_BY_NAME: Record<
@@ -105,13 +109,16 @@ function wrap(text: string, maxChars: number, maxLines: number): string[] {
   return lines.slice(0, maxLines);
 }
 
+const CARD_SHADOW_ID = "genreCardShadow";
+const CARD_SHADOW_DEF = `<filter id="${CARD_SHADOW_ID}" x="-12%" y="-12%" width="124%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#2A2118" flood-opacity="0.12"/></filter>`;
+
 function svgWrap(
   viewH: number,
   title: string,
   desc: string,
   body: string
 ): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 ${viewH}" role="img" font-family="${FONT}"><title>${esc(title)}</title><desc>${esc(desc)}</desc>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 ${viewH}" role="img" font-family="${FONT}"><title>${esc(title)}</title><desc>${esc(desc)}</desc><defs>${CARD_SHADOW_DEF}</defs><rect x="0" y="0" width="680" height="${viewH}" fill="${C.paper}"/>${body}</svg>`;
 }
 
 // ---------- profile_card ----------
@@ -679,8 +686,8 @@ function renderKeyFindings(p: KeyFindingsPlan): string {
       f.title.length > titleMax ? f.title.slice(0, titleMax - 1) + "…" : f.title;
     const detailLines = f.detail ? wrap(f.detail, 58, 2) : [];
     return `
-      <rect x="40" y="${top}" width="600" height="${heights[i]}" rx="10" ry="10" fill="${C.paper}" stroke="${C.line}" stroke-width="1"/>
-      <rect x="40" y="${top}" width="4" height="${heights[i]}" rx="2" ry="2" fill="${C.accent}"/>
+      <rect x="40" y="${top}" width="600" height="${heights[i]}" rx="10" ry="10" fill="#FFFFFF" stroke="${C.line}" stroke-width="1" filter="url(#${CARD_SHADOW_ID})"/>
+      <rect x="44" y="${top}" width="4" height="${heights[i]}" rx="2" ry="2" fill="${C.accent}"/>
       <text x="66" y="${top + 34}" font-size="20" font-weight="500" fill="${C.accent}" opacity="0.85">${num}</text>
       <text x="108" y="${top + 33}" font-size="16" font-weight="500" fill="${C.ink}">${esc(title)}</text>
       ${detailLines
@@ -724,7 +731,7 @@ function renderDefinitionCard(p: DefinitionCardPlan): string {
 
   const analogyEl = analogy
     ? `
-      <rect x="56" y="${analogyTop}" width="568" height="${analogyH}" rx="10" ry="10" fill="${C.accentSoft}" stroke="${C.accent}" stroke-width="1" stroke-opacity="0.35"/>
+      <rect x="56" y="${analogyTop}" width="568" height="${analogyH}" rx="10" ry="10" fill="${C.accentSoft}" stroke="${C.accent}" stroke-width="1" stroke-opacity="0.35" filter="url(#${CARD_SHADOW_ID})"/>
       <text x="76" y="${analogyTop + 24}" font-size="11" font-weight="500" fill="${C.accentDeep}" letter-spacing="0.1em">THINK OF IT LIKE</text>
       ${analogyLines
         .map(

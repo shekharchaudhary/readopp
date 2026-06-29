@@ -232,17 +232,22 @@ function slotIcon(
 }
 
 // Palette tokens reused across templates.
+// Brand-aligned chip palette — mirrors lib/render/genrePanels.ts. Keys are
+// kept (blue/teal/amber/purple/gray) so the per-metaphor PALETTES arrays
+// keep working, but every hue is remapped to the editorial soft pastels.
+// No green: the old teal flow color is now rose.
 export const C = {
-  blue: { fill: "#E6F1FB", stroke: "#185FA5", text: "#0C447C" },
-  teal: { fill: "#E1F5EE", stroke: "#0F6E56", text: "#085041" },
-  amber: { fill: "#FAEEDA", stroke: "#854F0B", text: "#633806" },
-  purple: { fill: "#EEEDFE", stroke: "#534AB7", text: "#3C3489" },
-  gray: { fill: "#F1EFE8", stroke: "#5F5E5A", text: "#2C2C2A" },
-  ink: "#1a1a1a",
-  inkSoft: "#3a3a3a",
-  inkMuted: "#6b6b6b",
-  line: "#e3e1d8",
-  paper: "#fafaf7",
+  blue: { fill: "#E8EFF6", stroke: "#5B7C9D", text: "#39516B" }, // sky
+  teal: { fill: "#F7E7EC", stroke: "#AF5F78", text: "#83405A" }, // rose
+  amber: { fill: "#F6EFD9", stroke: "#A9842F", text: "#74581B" }, // butter
+  purple: { fill: "#EDEAF5", stroke: "#776CA4", text: "#4F467E" }, // lavender
+  gray: { fill: "#F1EFE8", stroke: "#6E665A", text: "#2C2C2A" }, // sand
+  clay: { fill: "#F4E4DB", stroke: "#C7613D", text: "#9A4326" },
+  ink: "#1A1A1A",
+  inkSoft: "#4E463C",
+  inkMuted: "#7A6F62",
+  line: "#D6CFC2",
+  paper: "#FAF9F5",
 } as const;
 
 // ---------- templates ----------

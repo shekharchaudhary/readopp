@@ -192,12 +192,59 @@ export interface SvgWrapOptions {
 }
 
 /**
+ * Reusable soft drop-shadow filter. Defined once per panel in svgWrap so
+ * card() can reference it without each template re-declaring a filter.
+ */
+const CARD_SHADOW_ID = "panelCardShadow";
+const CARD_SHADOW_DEF = `<filter id="${CARD_SHADOW_ID}" x="-12%" y="-12%" width="124%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#2A2118" flood-opacity="0.12"/></filter>`;
+
+/**
  * Outer <svg> element with the brand paper background. Templates wrap
  * their body content in this so dimensions / metadata are consistent.
  */
 export function svgWrap(body: string, opts: SvgWrapOptions): string {
   const desc = opts.desc ? `<desc>${escapeXml(opts.desc)}</desc>` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GRID.CANVAS_W} ${opts.height}" role="img"><title>${escapeXml(opts.title)}</title>${desc}<rect x="0" y="0" width="${GRID.CANVAS_W}" height="${opts.height}" fill="${COLOR.paper}"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GRID.CANVAS_W} ${opts.height}" role="img"><title>${escapeXml(opts.title)}</title>${desc}<defs>${CARD_SHADOW_DEF}</defs><rect x="0" y="0" width="${GRID.CANVAS_W}" height="${opts.height}" fill="${COLOR.paper}"/>${body}</svg>`;
+}
+
+// ---------- Elevated card primitive ----------
+
+export interface CardOptions {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Corner radius. Default 14. */
+  radius?: number;
+  /** Card fill. Default a hair lighter than paper for subtle lift. */
+  fill?: string;
+  /** Hairline stroke. Default brand rule. */
+  stroke?: string;
+  strokeWidth?: number;
+  /** Cast the soft drop shadow (depth). Default true. */
+  shadow?: boolean;
+}
+
+/**
+ * A single elevated card: soft drop shadow + 1px hairline + tonal fill.
+ * Replaces the flat thin-stroke rounded rects so panels read with depth
+ * instead of looking like wireframes. The shadow references the filter
+ * svgWrap injects, so always render cards inside an svgWrap body.
+ */
+export function card(opts: CardOptions): string {
+  const {
+    x,
+    y,
+    width,
+    height,
+    radius = 14,
+    fill = "#FFFFFF",
+    stroke = COLOR.rule,
+    strokeWidth = 1,
+    shadow = true,
+  } = opts;
+  const filter = shadow ? ` filter="url(#${CARD_SHADOW_ID})"` : "";
+  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${filter}/>`;
 }
 
 // ---------- Body text helper ----------

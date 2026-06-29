@@ -15,6 +15,7 @@ import type { BeforeAfterPlan, RenderedPanel } from "../../shared/schemas";
 import {
   COLOR,
   GRID,
+  card,
   footerBlock,
   headingBlock,
   svgWrap,
@@ -145,7 +146,15 @@ export function renderBeforeAfter(
   ): string => {
     const labelStep = Math.round(labelFit.size * 1.2);
     const descStep = descFit ? Math.round(descFit.size * 1.5) : 0;
-    const cardBg = `<rect x="${x}" y="${cardTop}" width="${CARD_W}" height="${CARD_H}" rx="14" ry="14" fill="${palFill}" stroke="${palStroke}" stroke-width="1.25"/>`;
+    const cardBg = card({
+      x,
+      y: cardTop,
+      width: CARD_W,
+      height: CARD_H,
+      fill: palFill,
+      stroke: palStroke,
+      strokeWidth: 1.25,
+    });
     const kickerSvg = `<text x="${x + CARD_PAD}" y="${cardTop + CARD_PAD + 8}" font-family="${FONT.sans}" font-size="11" font-weight="500" fill="${palStroke}" letter-spacing="0.18em">${esc(kicker)}</text>`;
     const ruleSvg = `<line x1="${x + CARD_PAD}" y1="${cardTop + CARD_PAD + 18}" x2="${x + CARD_PAD + 32}" y2="${cardTop + CARD_PAD + 18}" stroke="${palStroke}" stroke-width="2" stroke-linecap="round"/>`;
     const labelY = cardTop + CARD_PAD + 18 + 24 + labelFit.size;
@@ -176,7 +185,7 @@ export function renderBeforeAfter(
     beforeLabelFit,
     beforeDescFit,
     "#7A6F62", // muted ink as stroke
-    COLOR.paper, // ivory
+    "#FFFFFF", // near-white lifts off the ivory paper
     COLOR.inkSoft,
     "BEFORE"
   );

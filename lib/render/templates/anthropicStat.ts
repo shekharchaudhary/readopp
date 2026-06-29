@@ -117,8 +117,8 @@ export function renderAnthropicStat(input: AnthropicStatInput): RenderedPanel {
     .join("");
   const labelSvg = `<text x="${GRID.CANVAS_W / 2}" y="${labelTopY}" font-size="${labelFit.size}" font-weight="400" fill="${COLOR.inkSoft}" text-anchor="middle" font-family="${FONT.sans}">${labelTspans}</text>`;
 
-  // Hand-drawn squiggle — fixed origin under the hero block.
-  const squiggleSvg = `<path d="M ${GRID.PAD_X} ${squiggleY} q 18 -7 36 0 t 36 0 t 36 0 t 36 0 t 36 0" fill="none" stroke="${COLOR.clay}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+  // Clean editorial tick under the hero block, left-aligned to the caption.
+  const squiggleSvg = `<line x1="${GRID.PAD_X}" y1="${squiggleY}" x2="${GRID.PAD_X + 56}" y2="${squiggleY}" stroke="${COLOR.clay}" stroke-width="2" stroke-linecap="round"/>`;
 
   const captionTspans = captionFit.lines
     .map(
