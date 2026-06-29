@@ -119,10 +119,21 @@ function wrapMetaphorWithChrome(
     : null;
   const HEADING_BOTTOM = head ? head.bottomY + 28 : GRID.PAD_TOP;
 
-  const translatedBody = `<g transform="translate(0, ${HEADING_BOTTOM})">${body}</g>`;
+  // Many metaphor renderers were drawn standalone with generous top
+  // padding for a title they no longer draw (chrome supplies the heading
+  // now). Stacking that padding under the heading leaves a top-heavy dead
+  // band. Measure the inner body's real top edge and pull it up so content
+  // sits a small fixed gap below the heading. Metaphors that already start
+  // near y=0 get shift≈0, so this never clips a tight layout.
+  const DESIRED_TOP_GAP = 16;
+  const rawTop = minBodyTop(body);
+  const shift = Math.max(0, Math.round(rawTop - DESIRED_TOP_GAP));
+  const bodyOffset = HEADING_BOTTOM - shift;
+
+  const translatedBody = `<g transform="translate(0, ${bodyOffset})">${body}</g>`;
 
   const FOOTER_GAP = 32;
-  const footerY = HEADING_BOTTOM + innerH + FOOTER_GAP;
+  const footerY = bodyOffset + innerH + FOOTER_GAP;
   const foot = footerBlock({
     topY: footerY,
     source: chrome.source,
@@ -141,6 +152,32 @@ function wrapMetaphorWithChrome(
 
 export function hasMetaphorTemplate(kind: MetaphorKind): boolean {
   return kind in REGISTRY;
+}
+
+/**
+ * Smallest vertical coordinate used anywhere in a metaphor body — i.e. the
+ * top edge of its drawn content. Scans the explicit vertical attributes
+ * (y / cy / y1 / y2) plus the y-coordinates inside path `d` data. Used to
+ * trim each metaphor's built-in top padding when wrapping it in chrome.
+ */
+function minBodyTop(body: string): number {
+  // Drop <defs> (markers, gradients) — their local coordinate systems
+  // (e.g. a marker path at y=0) would otherwise read as a false top edge.
+  const scan = body.replace(/<defs>[\s\S]*?<\/defs>/g, "");
+  let min = Infinity;
+  const attrRe = /(?:\by|cy|y1|y2)="(-?[\d.]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = attrRe.exec(scan))) min = Math.min(min, parseFloat(m[1]));
+  const pathRe = /\bd="([^"]+)"/g;
+  while ((m = pathRe.exec(scan))) {
+    const nums = m[1].match(/-?[\d.]+/g);
+    if (nums) {
+      for (let i = 1; i < nums.length; i += 2) {
+        min = Math.min(min, parseFloat(nums[i]));
+      }
+    }
+  }
+  return Number.isFinite(min) ? min : 0;
 }
 
 // ---------- helpers ----------
