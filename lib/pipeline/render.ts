@@ -234,7 +234,11 @@ export async function renderPanel(
     plan.visualType === "key_findings" ||
     plan.visualType === "definition_card"
   ) {
-    const svg = renderGenrePanel(plan);
+    const svg = renderGenrePanel(plan, {
+      heading,
+      source: chrome.source,
+      slide: chrome.slide,
+    });
     if (svg) {
       return {
         sectionId: plan.sectionId,

@@ -18,6 +18,20 @@ import type {
   QuoteCardPlan,
   SkillsMatrixPlan,
 } from "../shared/schemas";
+import { GRID, headingBlock, footerBlock } from "./system/panelChrome";
+
+/**
+ * Optional panel chrome threaded from the render pipeline so genre
+ * templates can draw the shared editorial envelope (curated heading,
+ * source attribution, slide position). Charts use this to match the
+ * rest of the deck; when absent (e.g. the audit harness) they fall back
+ * to the chart's own title and render without a footer.
+ */
+export interface GenreChrome {
+  heading?: string;
+  source?: string;
+  slide?: { index: number; total: number };
+}
 
 const FONT =
   "ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif";
@@ -56,7 +70,10 @@ const PALETTE_BY_NAME: Record<
 
 // ---------- Dispatcher ----------
 
-export function renderGenrePanel(plan: PanelPlan): string | null {
+export function renderGenrePanel(
+  plan: PanelPlan,
+  chrome?: GenreChrome
+): string | null {
   switch (plan.visualType) {
     case "profile_card":
       return plan.profileCard ? renderProfileCard(plan.profileCard) : null;
@@ -67,7 +84,7 @@ export function renderGenrePanel(plan: PanelPlan): string | null {
     case "skills_matrix":
       return plan.skillsMatrix ? renderSkillsMatrix(plan.skillsMatrix) : null;
     case "chart":
-      return plan.chart ? renderChart(plan.chart) : null;
+      return plan.chart ? renderChart(plan.chart, chrome) : null;
     case "quote_card":
       return plan.quoteCard ? renderQuoteCard(plan.quoteCard) : null;
     case "key_findings":
@@ -334,10 +351,10 @@ function renderSkillsMatrix(p: SkillsMatrixPlan): string {
 
 // ---------- chart ----------
 
-function renderChart(p: ChartPlan): string {
-  if (p.kind === "donut") return renderDonutChart(p);
-  if (p.kind === "line") return renderLineChart(p);
-  return renderBarChart(p);
+function renderChart(p: ChartPlan, chrome?: GenreChrome): string {
+  if (p.kind === "donut") return renderDonutChart(p, chrome);
+  if (p.kind === "line") return renderLineChart(p, chrome);
+  return renderBarChart(p, chrome);
 }
 
 function formatValue(v: number, unit: string | null | undefined): string {
@@ -346,14 +363,64 @@ function formatValue(v: number, unit: string | null | undefined): string {
   return s;
 }
 
-function chartHeaderEls(
-  title: string | null | undefined
-): { headerH: number; el: string } {
-  if (!title) return { headerH: 24, el: "" };
-  return {
-    headerH: 56,
-    el: `<text x="40" y="44" font-size="16" font-weight="500" fill="${C.ink}">${esc(title)}</text>`,
-  };
+// Single-series charts render in brand clay so the editorial chart reads
+// as a sibling of the clay-accented stat/finding panels rather than the
+// old corporate sky-blue. Multi-series charts fan out from clay through
+// the approved soft pastels.
+const CLAY_PAL = { fill: C.accentSoft, stroke: C.accent, text: C.accentDeep };
+
+/**
+ * Shared editorial chrome for a chart panel: clay eyebrow + curated
+ * heading (from the pipeline, falling back to the chart's own title) +
+ * a short clay tick. Returns the SVG and the Y the plot should start
+ * below. Mirrors the envelope on anthropicStat / key_findings so charts
+ * stop being the odd panel out.
+ */
+function chartHeading(
+  chrome: GenreChrome | undefined,
+  fallbackTitle: string | null | undefined,
+  fallbackHeading: string
+): { svg: string; bottomY: number } {
+  const heading =
+    (chrome?.heading && chrome.heading.trim()) ||
+    (fallbackTitle && fallbackTitle.trim()) ||
+    fallbackHeading;
+  const head = headingBlock({
+    heading,
+    kicker: "figure",
+    topY: GRID.PAD_TOP,
+    maxLines: 2,
+  });
+  const tickY = head.bottomY + 12;
+  const tick = `<line x1="${GRID.PAD_X}" y1="${tickY}" x2="${GRID.PAD_X + 56}" y2="${tickY}" stroke="${C.accent}" stroke-width="2" stroke-linecap="round"/>`;
+  return { svg: head.svg + tick, bottomY: tickY };
+}
+
+function chartFooter(
+  chrome: GenreChrome | undefined,
+  topY: number
+): { svg: string; bottomY: number } {
+  return footerBlock({
+    topY,
+    source: chrome?.source,
+    slide: chrome?.slide,
+    templateLabel: "chart",
+  });
+}
+
+/** Bar with only the two top corners rounded (grows up from baseline). */
+function topRoundedBar(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  fill: string,
+  stroke: string
+): string {
+  const rad = Math.min(r, w / 2, h);
+  const d = `M${x} ${y + h} L${x} ${y + rad} Q${x} ${y} ${x + rad} ${y} L${x + w - rad} ${y} Q${x + w} ${y} ${x + w} ${y + rad} L${x + w} ${y + h} Z`;
+  return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
 }
 
 function pickPaletteByIndex(
@@ -361,22 +428,22 @@ function pickPaletteByIndex(
   i: number
 ): { fill: string; stroke: string; text: string } {
   if (hint && PALETTE_BY_NAME[hint]) return PALETTE_BY_NAME[hint];
-  const order = [C.blue, C.teal, C.amber, C.purple, C.gray];
+  const order = [CLAY_PAL, C.blue, C.amber, C.purple, C.gray];
   return order[i % order.length];
 }
 
 // ----- bar -----
-function renderBarChart(p: ChartPlan): string {
-  const H = 420;
-  const { headerH, el: headerEl } = chartHeaderEls(p.title);
+function renderBarChart(p: ChartPlan, chrome?: GenreChrome): string {
+  const head = chartHeading(chrome, p.title, "Bar chart");
   const series = p.series[0];
   const points = series.points.slice(0, 12);
   const pal = pickPaletteByIndex(series.color ?? null, 0);
 
-  const left = 80;
-  const right = 640;
-  const top = headerH + 12;
-  const bottom = H - 60;
+  const left = 84;
+  const right = 624;
+  const top = head.bottomY + 28;
+  const PLOT_H = 250;
+  const bottom = top + PLOT_H;
   const innerW = right - left;
   const innerH = bottom - top;
 
@@ -390,8 +457,7 @@ function renderBarChart(p: ChartPlan): string {
   for (let i = 0; i <= tickCount; i++) {
     ticks.push(min + (range * i) / tickCount);
   }
-  const yToPx = (v: number) =>
-    bottom - ((v - min) / range) * innerH;
+  const yToPx = (v: number) => bottom - ((v - min) / range) * innerH;
 
   const gridEls = ticks
     .map((t) => {
@@ -413,8 +479,12 @@ function renderBarChart(p: ChartPlan): string {
       const y = yToPx(Math.max(pt.value, 0));
       const h = Math.max(2, Math.abs(yToPx(pt.value) - baselineY));
       const lab = pt.label.length > 12 ? pt.label.slice(0, 11) + "…" : pt.label;
+      const shape =
+        pt.value >= 0
+          ? topRoundedBar(x, y, barW, h, 6, pal.fill, pal.stroke)
+          : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" ry="3" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>`;
       return `
-        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" ry="3" fill="${pal.fill}" stroke="${pal.stroke}" stroke-width="1"/>
+        ${shape}
         <text x="${(x + barW / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="11" font-weight="500" fill="${pal.text}" text-anchor="middle">${esc(formatValue(pt.value, p.unit))}</text>
         <text x="${(x + barW / 2).toFixed(1)}" y="${bottom + 16}" font-size="11" fill="${C.inkSoft}" text-anchor="middle">${esc(lab)}</text>
       `;
@@ -422,34 +492,37 @@ function renderBarChart(p: ChartPlan): string {
     .join("");
 
   const yAxisLabel = p.yLabel
-    ? `<text x="${left - 48}" y="${(top + bottom) / 2}" font-size="11" fill="${C.inkMuted}" transform="rotate(-90 ${left - 48} ${(top + bottom) / 2})" text-anchor="middle">${esc(p.yLabel)}</text>`
+    ? `<text x="${left - 52}" y="${(top + bottom) / 2}" font-size="11" fill="${C.inkMuted}" transform="rotate(-90 ${left - 52} ${(top + bottom) / 2})" text-anchor="middle">${esc(p.yLabel)}</text>`
     : "";
   const xAxisLabel = p.xLabel
-    ? `<text x="${(left + right) / 2}" y="${H - 16}" font-size="11" fill="${C.inkMuted}" text-anchor="middle">${esc(p.xLabel)}</text>`
+    ? `<text x="${(left + right) / 2}" y="${bottom + 36}" font-size="11" fill="${C.inkMuted}" text-anchor="middle">${esc(p.xLabel)}</text>`
     : "";
+
+  const foot = chartFooter(chrome, bottom + (p.xLabel ? 54 : 44));
+  const H = foot.bottomY + 40;
 
   return svgWrap(
     H,
-    p.title || "Bar chart",
+    p.title || chrome?.heading || "Bar chart",
     points.map((pt) => `${pt.label}=${pt.value}`).join(", "),
-    `${headerEl}${gridEls}${barEls}${yAxisLabel}${xAxisLabel}<line x1="${left}" y1="${baselineY}" x2="${right}" y2="${baselineY}" stroke="${C.inkMuted}" stroke-width="1"/>`
+    `${head.svg}${gridEls}${barEls}${yAxisLabel}${xAxisLabel}<line x1="${left}" y1="${baselineY}" x2="${right}" y2="${baselineY}" stroke="${C.inkMuted}" stroke-width="1"/>${foot.svg}`
   );
 }
 
 // ----- donut -----
-function renderDonutChart(p: ChartPlan): string {
-  const H = 360;
-  const { headerH, el: headerEl } = chartHeaderEls(p.title);
+function renderDonutChart(p: ChartPlan, chrome?: GenreChrome): string {
+  const head = chartHeading(chrome, p.title, "Donut chart");
   const slices = p.series[0].points.slice(0, 6);
   const total = slices.reduce((a, b) => a + Math.max(0, b.value), 0) || 1;
 
+  const top = head.bottomY + 24;
   const cx = 220;
-  const cy = headerH + 130;
+  const cy = top + 120;
   const rOuter = 100;
   const rInner = 58;
 
   let startAngle = -Math.PI / 2; // start at 12 o'clock
-  const SLICE_COLORS = [C.blue, C.amber, C.teal, C.purple, C.gray];
+  const SLICE_COLORS = [CLAY_PAL, C.blue, C.amber, C.teal, C.purple, C.gray];
 
   function arcPath(cx: number, cy: number, r1: number, r2: number, a1: number, a2: number) {
     const large = a2 - a1 > Math.PI ? 1 : 0;
@@ -473,7 +546,7 @@ function renderDonutChart(p: ChartPlan): string {
   const sliceEls: string[] = [];
   const legendEls: string[] = [];
   const legendX = 360;
-  const legendStartY = headerH + 36;
+  const legendStartY = top + 30;
   const legendGap = 32;
 
   slices.forEach((s, i) => {
@@ -498,23 +571,30 @@ function renderDonutChart(p: ChartPlan): string {
     <text x="${cx}" y="${cy + 18}" font-size="22" font-weight="500" fill="${C.ink}" text-anchor="middle">${esc(formatValue(total, p.unit))}</text>
   `;
 
+  const contentBottom = Math.max(
+    cy + rOuter,
+    legendStartY + Math.max(0, slices.length - 1) * legendGap + 18
+  );
+  const foot = chartFooter(chrome, contentBottom + 32);
+  const H = foot.bottomY + 40;
+
   return svgWrap(
     H,
-    p.title || "Donut chart",
+    p.title || chrome?.heading || "Donut chart",
     slices.map((s) => `${s.label}=${s.value}`).join(", "),
-    `${headerEl}${sliceEls.join("")}${totalEl}${legendEls.join("")}`
+    `${head.svg}${sliceEls.join("")}${totalEl}${legendEls.join("")}${foot.svg}`
   );
 }
 
 // ----- line -----
-function renderLineChart(p: ChartPlan): string {
-  const H = 380;
-  const { headerH, el: headerEl } = chartHeaderEls(p.title);
+function renderLineChart(p: ChartPlan, chrome?: GenreChrome): string {
+  const head = chartHeading(chrome, p.title, "Line chart");
   const seriesList = p.series.slice(0, 3);
-  const left = 80;
-  const right = 640;
-  const top = headerH + 16;
-  const bottom = H - 60;
+  const left = 84;
+  const right = 624;
+  const top = head.bottomY + 40;
+  const PLOT_H = 230;
+  const bottom = top + PLOT_H;
   const innerW = right - left;
   const innerH = bottom - top;
 
@@ -570,31 +650,35 @@ function renderLineChart(p: ChartPlan): string {
       ${dots}
     `);
     if (series.name) {
+      const legendY = head.bottomY + 24;
       const lx = left + sIdx * 140;
       legendEls.push(`
-        <line x1="${lx}" y1="${headerH - 6}" x2="${lx + 18}" y2="${headerH - 6}" stroke="${pal.stroke}" stroke-width="2"/>
-        <text x="${lx + 24}" y="${headerH - 2}" font-size="11" fill="${C.inkSoft}">${esc(series.name)}</text>
+        <line x1="${lx}" y1="${legendY}" x2="${lx + 18}" y2="${legendY}" stroke="${pal.stroke}" stroke-width="2"/>
+        <text x="${lx + 24}" y="${legendY + 4}" font-size="11" fill="${C.inkSoft}">${esc(series.name)}</text>
       `);
     }
   });
 
   const yAxisLabel = p.yLabel
-    ? `<text x="${left - 48}" y="${(top + bottom) / 2}" font-size="11" fill="${C.inkMuted}" transform="rotate(-90 ${left - 48} ${(top + bottom) / 2})" text-anchor="middle">${esc(p.yLabel)}</text>`
+    ? `<text x="${left - 52}" y="${(top + bottom) / 2}" font-size="11" fill="${C.inkMuted}" transform="rotate(-90 ${left - 52} ${(top + bottom) / 2})" text-anchor="middle">${esc(p.yLabel)}</text>`
     : "";
   const xAxisLabel = p.xLabel
-    ? `<text x="${(left + right) / 2}" y="${H - 16}" font-size="11" fill="${C.inkMuted}" text-anchor="middle">${esc(p.xLabel)}</text>`
+    ? `<text x="${(left + right) / 2}" y="${bottom + 36}" font-size="11" fill="${C.inkMuted}" text-anchor="middle">${esc(p.xLabel)}</text>`
     : "";
+
+  const foot = chartFooter(chrome, bottom + (p.xLabel ? 54 : 44));
+  const H = foot.bottomY + 40;
 
   return svgWrap(
     H,
-    p.title || "Line chart",
+    p.title || chrome?.heading || "Line chart",
     seriesList
       .map(
         (s) =>
           `${s.name || "series"}: ${s.points.map((pt) => `${pt.label}=${pt.value}`).join(",")}`
       )
       .join(" | "),
-    `${headerEl}${legendEls.join("")}${gridEls}${seriesEls.join("")}${xLabels}${yAxisLabel}${xAxisLabel}`
+    `${head.svg}${legendEls.join("")}${gridEls}${seriesEls.join("")}${xLabels}${yAxisLabel}${xAxisLabel}${foot.svg}`
   );
 }
 
