@@ -14,19 +14,30 @@
 import { escapeXml } from "./panelChrome";
 import { FONT } from "./typography";
 
-// Clean palette — pinned hex pulled from the Style-3 design source.
+// Clean palette — a quiet technical look. The blue is deepened a touch
+// from the original primary #1B5FA8 to a more editorial slate so it
+// reads sophisticated rather than corporate-SaaS, while staying the
+// signature cool accent that distinguishes Clean from the warm
+// editorial/bold decks.
 export const CLEAN = {
   paper: "#FAFAF7",
   card: "#FFFFFF",
   ink: "#1A1A1A",
-  blue: "#1B5FA8",
-  blueDeep: "#16508F",
-  fill: "#E8F0FA",
+  blue: "#215681",
+  blueDeep: "#1A466B",
+  fill: "#EAF1F7",
   muted: "#9AA0A6",
   hairline: "#E4E2DB",
   border: "#D8D6CE",
   axis: "#C9D3DF",
 } as const;
+
+// Soft drop shadow so cards/boxes lift off the paper with depth instead
+// of reading as flat wireframe rects. Defined once per panel in
+// cleanWrap's <defs>; reference it via SHADOW_ATTR on any shape.
+const CLEAN_SHADOW_ID = "cleanCardShadow";
+const CLEAN_SHADOW_DEF = `<filter id="${CLEAN_SHADOW_ID}" x="-15%" y="-15%" width="130%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#1B2A3A" flood-opacity="0.10"/></filter>`;
+export const SHADOW_ATTR = `filter="url(#${CLEAN_SHADOW_ID})"`;
 
 export const CLEAN_GRID = {
   W: 680,
@@ -42,7 +53,7 @@ export function cleanWrap(body: string, title: string): string {
   const { W, H } = CLEAN_GRID;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img"><title>${escapeXml(
     title
-  )}</title><rect width="${W}" height="${H}" fill="${CLEAN.paper}"/>${body}</svg>`;
+  )}</title><defs>${CLEAN_SHADOW_DEF}</defs><rect width="${W}" height="${H}" fill="${CLEAN.paper}"/>${body}</svg>`;
 }
 
 /** Thin blue accent bar at top-left + a faint full-width hairline. */
@@ -58,7 +69,7 @@ export function topAccent(): string {
 export function cardFrame(): string {
   const { W, H } = CLEAN_GRID;
   const m = 28;
-  return `<rect x="${m}" y="${m}" width="${W - 2 * m}" height="${H - 2 * m}" rx="14" fill="${CLEAN.card}" stroke="${CLEAN.border}" stroke-width="1.5"/>`;
+  return `<rect x="${m}" y="${m}" width="${W - 2 * m}" height="${H - 2 * m}" rx="14" fill="${CLEAN.card}" stroke="${CLEAN.border}" stroke-width="1.5" ${SHADOW_ATTR}/>`;
 }
 
 /** Small tracked uppercase mono eyebrow, blue. "PANEL 02 · THE PATTERN". */

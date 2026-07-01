@@ -30,6 +30,7 @@ import {
   bodyLine,
   headingBlock,
   escapeXml,
+  SHADOW_ATTR,
   type HeadingSegment,
 } from "../system/cleanChrome";
 import { FONT, fitText, wrapToWidth } from "../system/typography";
@@ -80,6 +81,20 @@ function captionBlock(
     bodyLine(line, x, y + i * step, { anchor, size, color: CLEAN.ink })
   );
   return { svg: parts.join(""), lastBaseline: y + (lines.length - 1) * step };
+}
+
+/** A bar with only its top two corners rounded (premium chart detail). */
+function topRoundedBar(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  fill: string
+): string {
+  const rad = Math.min(r, w / 2, h);
+  const d = `M${x} ${y + h} L${x} ${y + rad} Q${x} ${y} ${x + rad} ${y} L${x + w - rad} ${y} Q${x + w} ${y} ${x + w} ${y + rad} L${x + w} ${y + h} Z`;
+  return `<path d="${d}" fill="${fill}"/>`;
 }
 
 // ------------------------------------------------------------------
@@ -324,10 +339,10 @@ export function renderCleanList(input: CleanListInput): RenderedPanel {
   const parts: string[] = [topAccent()];
   const x = PAD;
 
-  parts.push(kicker(kick, x, 200));
+  parts.push(kicker(kick, x, 232));
 
   const n = items.length;
-  const startY = 280;
+  const startY = 320;
   const step = Math.min(86, Math.floor((H - 140 - startY) / Math.max(n - 1, 1)));
   const r = 17;
   items.forEach((text, i) => {
@@ -385,7 +400,7 @@ export function renderCleanChart(input: CleanChartInput): RenderedPanel {
   const peak = values.length ? Math.max(...values, 1) : 1;
 
   parts.push(
-    `<rect x="${plotX}" y="${plotTop}" width="${plotW}" height="${plotH}" fill="${CLEAN.fill}" opacity="0.6"/>` +
+    `<rect x="${plotX}" y="${plotTop}" width="${plotW}" height="${plotH}" rx="10" fill="${CLEAN.fill}" stroke="${CLEAN.hairline}" stroke-width="1" ${SHADOW_ATTR}/>` +
       `<line x1="${plotX}" y1="${plotBottom}" x2="${plotX + plotW}" y2="${plotBottom}" stroke="${CLEAN.blue}" stroke-width="2"/>` +
       `<line x1="${plotX}" y1="${plotTop}" x2="${plotX}" y2="${plotBottom}" stroke="${CLEAN.blue}" stroke-width="2"/>`
   );
@@ -427,9 +442,7 @@ export function renderCleanChart(input: CleanChartInput): RenderedPanel {
       const bh = (v / peak) * (plotH - 30);
       const bx = plotX + gap + i * (barW + gap);
       const barTop = plotBottom - bh;
-      parts.push(
-        `<rect x="${bx}" y="${barTop}" width="${barW}" height="${bh}" fill="${CLEAN.blue}"/>`
-      );
+      parts.push(topRoundedBar(bx, barTop, barW, bh, 6, CLEAN.blue));
       // Value label above each bar.
       parts.push(
         bodyLine(String(v), bx + barW / 2, barTop - 8, {
@@ -491,7 +504,7 @@ export function renderCleanTwoConcept(input: CleanTwoConceptInput): RenderedPane
 
   // Left: white outlined box.
   parts.push(
-    `<rect x="${leftX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="${CLEAN.card}" stroke="${CLEAN.border}" stroke-width="1.5"/>` +
+    `<rect x="${leftX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="${CLEAN.card}" stroke="${CLEAN.border}" stroke-width="1.5" ${SHADOW_ATTR}/>` +
       bodyLine(left, leftX + boxW / 2, boxY + boxH / 2 + 6, {
         anchor: "middle",
         size: 18,
@@ -507,7 +520,7 @@ export function renderCleanTwoConcept(input: CleanTwoConceptInput): RenderedPane
 
   // Right: blue filled box.
   parts.push(
-    `<rect x="${rightX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="${CLEAN.blue}"/>` +
+    `<rect x="${rightX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="${CLEAN.blue}" ${SHADOW_ATTR}/>` +
       bodyLine(right, rightX + boxW / 2, boxY + boxH / 2 + 6, {
         anchor: "middle",
         size: 18,
@@ -555,7 +568,7 @@ export function renderCleanOutro(input: CleanOutroInput): RenderedPanel {
     const subFg = filled ? "#CFE0F2" : CLEAN.muted;
     const ty = b.sub ? boxY + boxH / 2 - 4 : boxY + boxH / 2 + 6;
     return (
-      `<rect x="${bx}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" fill="${filled ? CLEAN.blue : CLEAN.card}" stroke="${filled ? "none" : CLEAN.border}" stroke-width="1.5"/>` +
+      `<rect x="${bx}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" fill="${filled ? CLEAN.blue : CLEAN.card}" stroke="${filled ? "none" : CLEAN.border}" stroke-width="1.5" ${SHADOW_ATTR}/>` +
       bodyLine(b.title, bx + boxW / 2, ty, {
         anchor: "middle",
         size: 18,
