@@ -40,7 +40,14 @@ Return ONLY a JSON object with EXACTLY this shape (all fields required unless ma
     "hasRoles": boolean,
     "hasSkills": boolean,
     "hasFigures": boolean
-  }
+  },
+  "dataSeries": [
+    {
+      "name": "what the series measures, e.g. \"Quarterly revenue\"",
+      "unit": "optional suffix like \"$M\", \"%\", \"votes\"",
+      "points": [ { "label": "Q1 2023", "value": 2 }, { "label": "Q2 2023", "value": 4 } ]
+    }
+  ]
 }
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -89,6 +96,25 @@ CONTENT FEATURES — set each flag true ONLY when the document warrants it
                    a list (resume Skills section, "tech stack" list, etc.).
 • hasFigures     : visual artifacts the document leans on — screenshots,
                    diagrams, photographs, architecture sketches.
+
+═══════════════════════════════════════════════════════════════════════════
+DATA SERIES — extract chartable numbers into "dataSeries"
+═══════════════════════════════════════════════════════════════════════════
+
+When "hasNumericData" is true, extract every labeled numeric SERIES you can
+read from the body into "dataSeries" — a sequence of {label, value} points
+that share a dimension (revenue by quarter, votes by candidate, latency by
+version). Each series gets a "name" and, if there is one, a "unit".
+
+- Use ONLY real values that appear verbatim in the source (or are trivially
+  derivable, e.g. a stated total minus a stated part). NEVER interpolate
+  between two anchor numbers, and NEVER invent points to pad a series.
+- A series needs ≥2 real points to be worth including. Prefer series with 4+
+  points — those make the strongest charts downstream.
+- If the body only has isolated one-off numbers with no shared sequence,
+  leave "dataSeries" as [] and keep those figures in "keyClaims" as prose.
+- "value" MUST be a plain JSON number (2000000, not "$2M"). Strip currency
+  symbols, percent signs, and magnitude suffixes; put those in "unit".
 
 ═══════════════════════════════════════════════════════════════════════════
 CRITICAL RULES for the shape
@@ -252,7 +278,56 @@ function cleanComprehensionJson(
     hasFigures: cf.hasFigures === true,
   };
 
+  // dataSeries: coerce string values ("$2M", "45%") to numbers, drop points
+  // with unparseable values or empty labels, drop series with <2 valid points.
+  if (Array.isArray(out.dataSeries)) {
+    out.dataSeries = (out.dataSeries as unknown[])
+      .map((s) => {
+        if (!s || typeof s !== "object") return null;
+        const r = s as Record<string, unknown>;
+        const name = typeof r.name === "string" ? r.name.trim() : "";
+        if (!name) return null;
+        const unit =
+          typeof r.unit === "string" && r.unit.trim()
+            ? r.unit.trim()
+            : undefined;
+        const points = Array.isArray(r.points)
+          ? (r.points as unknown[])
+              .map((p) => {
+                if (!p || typeof p !== "object") return null;
+                const pr = p as Record<string, unknown>;
+                const label =
+                  typeof pr.label === "string" ? pr.label.trim() : "";
+                const value = coerceNumber(pr.value);
+                if (!label || value === null) return null;
+                return { label, value };
+              })
+              .filter(Boolean)
+          : [];
+        if (points.length < 2) return null;
+        return unit ? { name, unit, points } : { name, points };
+      })
+      .filter(Boolean)
+      .slice(0, 6);
+  } else {
+    out.dataSeries = [];
+  }
+
   return out;
+}
+
+// Parse a JSON number, or the leading number out of a decorated string
+// ("$2.5M" -> 2.5, "45%" -> 45, "1,200" -> 1200). We deliberately do NOT
+// apply magnitude multipliers: the prompt asks the model to strip suffixes
+// into "unit", so multiplying here would double-count when it complied and
+// silently break the chart's y-scale. Returns null if no number is present.
+function coerceNumber(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw !== "string") return null;
+  const m = raw.replace(/,/g, "").match(/-?\d*\.?\d+/);
+  if (!m) return null;
+  const n = parseFloat(m[0]);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function runComprehension(

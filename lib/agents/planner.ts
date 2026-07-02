@@ -80,7 +80,9 @@ FILL FIELDS BY VISUALTYPE
       points[] }. Points: 2–12 per series, each { label, value (number) }.
     - unit?: optional suffix shown on tick labels ("%", "k", "M", "$").
     Only emit numbers actually present in the source document or directly
-    derivable from it. Never fabricate data.
+    derivable from it. Never fabricate data. If a "Structured data available"
+    block is present below, prefer those exact values (labels and numbers) for
+    bar/line charts over anything paraphrased in the claims.
     A line chart needs ≥4 real data points to justify the format — a
     2–3 point "line" renders as a sparse, unconvincing stub. If the
     source only gives you 2–3 numbers, use a "bar" chart (reads as a
@@ -310,6 +312,18 @@ function userMessage(
     .map(([k]) => k)
     .join(", ");
 
+  const dataBlock =
+    comprehension.dataSeries.length > 0
+      ? [
+          "",
+          "Structured data available (use these REAL values for any bar/line chart — do not paraphrase or round):",
+          ...comprehension.dataSeries.map((s) => {
+            const pts = s.points.map((p) => `${p.label}=${p.value}`).join(", ");
+            return `  • ${s.name}${s.unit ? ` (${s.unit})` : ""}: ${pts}`;
+          }),
+        ].join("\n")
+      : null;
+
   return [
     `Audience level: ${audience}`,
     `Genre: ${comprehension.genre} (confidence: ${comprehension.genreConfidence})`,
@@ -333,6 +347,7 @@ function userMessage(
           .map((e) => `${e.name} (${e.kind})`)
           .join(", ")}`
       : null,
+    dataBlock,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");

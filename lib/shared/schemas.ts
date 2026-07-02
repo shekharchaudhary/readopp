@@ -208,6 +208,20 @@ export const ContentFeaturesSchema = z.object({
 });
 export type ContentFeatures = z.infer<typeof ContentFeaturesSchema>;
 
+// Raw numeric series pulled verbatim from the source at comprehension time.
+// Wider than ChartPlanSchema (more series/points) on purpose: the planner
+// gets the full picture and selects/trims down to a good chart. Values must
+// be real — Comprehension never interpolates or fabricates points.
+export const DataSeriesSchema = z.object({
+  name: z.string().min(1),
+  unit: z.string().optional(),
+  points: z
+    .array(z.object({ label: z.string().min(1), value: z.number() }))
+    .min(2)
+    .max(24),
+});
+export type DataSeries = z.infer<typeof DataSeriesSchema>;
+
 export const ComprehensionSchema = z.object({
   oneLineSummary: z.string().min(1).max(220),
   coreIdea: z.string().min(1),
@@ -229,6 +243,10 @@ export const ComprehensionSchema = z.object({
     hasSkills: false,
     hasFigures: false,
   }),
+  // Structured numeric data extracted from the body when hasNumericData is
+  // true. Empty when the source has no chartable series. Feeds the planner
+  // so line/bar charts can use real, dense data instead of prose anchors.
+  dataSeries: z.array(DataSeriesSchema).max(6).default([]),
 });
 export type Comprehension = z.infer<typeof ComprehensionSchema>;
 
