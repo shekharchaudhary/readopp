@@ -72,7 +72,7 @@ FILL FIELDS BY VISUALTYPE
         • bar    : compare a single dimension across 2–12 named items.
         • donut  : show parts of a whole, 2–6 slices.
         • line   : show change over a sequence (time, version, etc.),
-                   2–12 points; up to 3 series for comparison.
+                   4–12 points; up to 3 series for comparison.
     - title?: ≤80 chars, optional.
     - xLabel? / yLabel?: axis labels, ≤30 chars each.
     - series: 1–3 named series. Donut/bar use series[0]; line can render
@@ -81,6 +81,11 @@ FILL FIELDS BY VISUALTYPE
     - unit?: optional suffix shown on tick labels ("%", "k", "M", "$").
     Only emit numbers actually present in the source document or directly
     derivable from it. Never fabricate data.
+    A line chart needs ≥4 real data points to justify the format — a
+    2–3 point "line" renders as a sparse, unconvincing stub. If the
+    source only gives you 2–3 numbers, use a "bar" chart (reads as a
+    clean comparison) or a "stat_callout" instead; never draw a line
+    with fewer than 4 points.
 
 • quote_card -> "quoteCard" with:
     - text: the quote VERBATIM from the source (light trims with … allowed),
