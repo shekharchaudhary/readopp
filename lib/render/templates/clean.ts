@@ -368,20 +368,32 @@ export function renderCleanList(input: CleanListInput): RenderedPanel {
 // chart — sawtooth line chart OR vertical bars in a faint plot area
 // ------------------------------------------------------------------
 
+export interface CleanChartSeries {
+  /** Optional legend name; shown when a line chart has >1 series. */
+  name?: string;
+  values: number[];
+}
+
 export interface CleanChartInput extends Common {
   kicker?: string;
   headingText: string;
   kind: "line" | "bar";
-  values: number[];
-  /** Category labels, aligned with `values`; shown under bars. */
+  /** One or more series. Bars use the first; line charts draw them all. */
+  series: CleanChartSeries[];
+  /** Category labels, aligned with the first series; shown under bars. */
   labels?: string[];
   xLabel?: string;
   yLabel?: string;
   chartCaption?: string;
 }
 
+// Line-series colours: the signature Clean blue plus a warm clay contrast
+// and a muted steel, so a two- or three-line comparison stays legible
+// while keeping the cool editorial palette.
+const CLEAN_SERIES_COLORS = ["#215681", "#C7613D", "#6E86A6"] as const;
+
 export function renderCleanChart(input: CleanChartInput): RenderedPanel {
-  const { kind, values, labels, xLabel, yLabel, chartCaption } = input;
+  const { kind, series, labels, xLabel, yLabel, chartCaption } = input;
   const parts: string[] = [topAccent()];
   const x = PAD;
 
@@ -391,13 +403,36 @@ export function renderCleanChart(input: CleanChartInput): RenderedPanel {
   });
   parts.push(head.svg);
 
+  const values = series[0]?.values ?? [];
+  const allValues = series.flatMap((s) => s.values);
+  const peak = allValues.length ? Math.max(...allValues, 1) : 1;
+
+  // Legend above the plot for multi-series line charts.
+  const showLegend =
+    kind === "line" && series.length > 1 && series.some((s) => s.name);
+  const legendY = 284;
+  if (showLegend) {
+    let lx = PAD;
+    series.forEach((s, i) => {
+      const color = CLEAN_SERIES_COLORS[i % CLEAN_SERIES_COLORS.length];
+      const name = s.name ?? `Series ${i + 1}`;
+      parts.push(
+        `<line x1="${lx}" y1="${legendY - 4}" x2="${lx + 22}" y2="${legendY - 4}" stroke="${color}" stroke-width="3" stroke-linecap="round"/>` +
+          `<circle cx="${lx + 11}" cy="${legendY - 4}" r="3.5" fill="${color}"/>`
+      );
+      parts.push(
+        bodyLine(name, lx + 30, legendY, { size: 13, color: CLEAN.ink })
+      );
+      lx += 30 + name.length * 8 + 28;
+    });
+  }
+
   // Plot box.
   const plotX = PAD;
   const plotTop = 300;
   const plotBottom = 470;
   const plotW = CONTENT_W;
   const plotH = plotBottom - plotTop;
-  const peak = values.length ? Math.max(...values, 1) : 1;
 
   parts.push(
     `<rect x="${plotX}" y="${plotTop}" width="${plotW}" height="${plotH}" rx="10" fill="${CLEAN.fill}" stroke="${CLEAN.hairline}" stroke-width="1" ${SHADOW_ATTR}/>` +
@@ -418,22 +453,25 @@ export function renderCleanChart(input: CleanChartInput): RenderedPanel {
     );
 
   if (kind === "line") {
-    const n = values.length;
-    const stepX = n > 1 ? plotW / (n - 1) : 0;
-    const pts = values.map((v, i) => {
-      const px = plotX + i * stepX;
-      const py = plotBottom - (v / peak) * (plotH - 20) - 6;
-      return { px, py };
+    series.forEach((s, sIdx) => {
+      const color = CLEAN_SERIES_COLORS[sIdx % CLEAN_SERIES_COLORS.length];
+      const n = s.values.length;
+      const stepX = n > 1 ? plotW / (n - 1) : 0;
+      const pts = s.values.map((v, i) => {
+        const px = plotX + i * stepX;
+        const py = plotBottom - (v / peak) * (plotH - 20) - 6;
+        return { px, py };
+      });
+      const d = pts
+        .map((p, i) => `${i === 0 ? "M" : "L"}${p.px.toFixed(1)},${p.py.toFixed(1)}`)
+        .join(" ");
+      parts.push(
+        `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`
+      );
+      pts.forEach((p) =>
+        parts.push(`<circle cx="${p.px}" cy="${p.py}" r="4" fill="${color}"/>`)
+      );
     });
-    const d = pts
-      .map((p, i) => `${i === 0 ? "M" : "L"}${p.px.toFixed(1)},${p.py.toFixed(1)}`)
-      .join(" ");
-    parts.push(
-      `<path d="${d}" fill="none" stroke="${CLEAN.blue}" stroke-width="2.5" stroke-linejoin="round"/>`
-    );
-    pts.forEach((p) =>
-      parts.push(`<circle cx="${p.px}" cy="${p.py}" r="4" fill="${CLEAN.blue}"/>`)
-    );
   } else {
     const n = values.length;
     const gap = 20;
@@ -713,14 +751,20 @@ export function renderCleanPanel(plan: PanelPlan, ctx: CleanPanelCtx): RenderedP
     }
     case "chart": {
       if (plan.chart?.series[0]?.points.length) {
-        const points = plan.chart.series[0].points;
+        const isLine = plan.chart.kind === "line";
+        // Bars/donut collapse to the first series; a line chart draws
+        // every series so multi-line comparisons aren't silently dropped.
+        const seriesIn = isLine ? plan.chart.series : [plan.chart.series[0]];
         return renderCleanChart({
           ...common,
           kicker: eyebrow,
           headingText: plan.chart.title ?? ctx.heading,
-          kind: plan.chart.kind === "line" ? "line" : "bar",
-          values: points.map((p) => p.value),
-          labels: points.map((p) => p.label),
+          kind: isLine ? "line" : "bar",
+          series: seriesIn.map((s) => ({
+            name: s.name ?? undefined,
+            values: s.points.map((p) => p.value),
+          })),
+          labels: plan.chart.series[0].points.map((p) => p.label),
           xLabel: plan.chart.xLabel ?? undefined,
           yLabel: plan.chart.yLabel ?? undefined,
           chartCaption: ctx.caption,
