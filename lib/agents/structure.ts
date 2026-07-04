@@ -167,6 +167,14 @@ should compare or see a trend in. Examples:
 Don't pick chart for a single hero number — use stat_callout. Don't pick
 chart when the data is purely qualitative.
 
+IF the "Chartable data" block above lists any series with ≥4 points, you MUST
+give one section a "chart" panel built on that series — a real multi-point
+series is wasted as a lone stat_callout (a single number is a stat; a
+sequence or breakdown is a chart). Route the section whose intent matches
+that data to "chart", and prefer it over stat_callout for that section. This
+overrides the ladder ordering and the data-family rotation rule: one chart is
+worth breaking family variety for when the source genuinely carries the data.
+
 ═══════════════════════════════════════════════════════════════════════════
 (illustrative and structural still exist for back-compat — never pick them.)
 
@@ -194,6 +202,18 @@ function userMessage(c: Comprehension): string {
     .filter(([, v]) => v)
     .map(([k]) => k)
     .join(", ");
+  const dataBlock =
+    c.dataSeries.length > 0
+      ? [
+          "",
+          "Chartable data extracted from the source (real, multi-point series —",
+          "each of these is a strong candidate for a `chart` panel):",
+          ...c.dataSeries.map((s) => {
+            const unit = s.unit ? ` ${s.unit}` : "";
+            return `  - ${s.name} (${s.points.length} points${unit})`;
+          }),
+        ].join("\n")
+      : null;
   return [
     "Comprehension:",
     `- genre: ${c.genre} (confidence: ${c.genreConfidence})`,
@@ -202,6 +222,7 @@ function userMessage(c: Comprehension): string {
     `- narrative arc: ${c.narrativeArc}`,
     `- audience: ${c.audienceLevel}`,
     featureFlags ? `- content features: ${featureFlags}` : null,
+    dataBlock,
     "",
     "Key claims (use these indexes for sourceClaimIndexes):",
     claimsList,
