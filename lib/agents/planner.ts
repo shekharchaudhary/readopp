@@ -296,6 +296,20 @@ HARD RULES
 Respond with ONLY JSON matching the PanelPlan schema. No fences, no commentary.
 `.trim();
 
+/**
+ * Truncate an over-length string field in-place at a word boundary. No-op when
+ * the container/field is absent, non-string, or already within `max`.
+ */
+function clampField(container: unknown, field: string, max: number): void {
+  if (!container || typeof container !== "object") return;
+  const obj = container as Record<string, unknown>;
+  const raw = obj[field];
+  if (typeof raw !== "string" || raw.length <= max) return;
+  const cut = raw.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  obj[field] = (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd();
+}
+
 function userMessage(
   section: OutlineSection,
   comprehension: Comprehension,
@@ -388,6 +402,13 @@ export async function runPlanner(
     const parsed = JSON.parse(extractJson(text)) as Record<string, unknown>;
     parsed.sectionId = section.id;
     parsed.visualType = section.visualType;
+    // Soft prose fields the model routinely overruns by a handful of chars.
+    // The render side already truncates them (analogy wraps to 3×52 chars;
+    // subject is a short image-prompt noun phrase), so a clean word-boundary
+    // clamp here beats losing the whole panel to a validation failure the
+    // retry loop can't reliably talk the model out of.
+    clampField(parsed.definitionCard, "analogy", 160);
+    clampField(parsed.annotatedHero, "subject", 80);
     // parseWithFeedback throws an Error whose message is a flat
     // per-field instruction list ("Shorten this to ≤160 chars",
     // "Provide at least 2 items", etc.). withRetry feeds that back as
