@@ -283,6 +283,251 @@ export function renderBoldBars(input: BoldBarsInput): RenderedPanel {
 }
 
 // ------------------------------------------------------------------
+// chart — full bar / donut / line renderer in the Bold voice
+// ------------------------------------------------------------------
+
+type BoldChart = NonNullable<PanelPlan["chart"]>;
+
+export interface BoldChartInput extends Common {
+  bg: BoldBgLike;
+  headingLines: string[];
+  chart: BoldChart;
+}
+
+/** Two ramp endpoints that both stay legible on the given field. */
+function chartRamp(bg: BoldBgLike): [string, string] {
+  switch (bg) {
+    case "ink":
+      return [BOLD.amber, BOLD.red];
+    case "red":
+      return [BOLD.amber, BOLD.white];
+    case "amber":
+      return [BOLD.red, BOLD.ink];
+    default: // paper
+      return [BOLD.red, BOLD.ink];
+  }
+}
+
+/** Up-to-three distinct series colours for a multi-series line, per field. */
+function lineColorsFor(bg: BoldBgLike): string[] {
+  const [c0, c1] = chartRamp(bg);
+  return [c1, c0, lerpColor(c0, c1, 0.5)];
+}
+
+/** Format a value for a compact axis/legend label. */
+function fmtNum(v: number, unit?: string | null): string {
+  const n = Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10);
+  return unit ? `${n}${unit}` : n;
+}
+
+/** Truncate to roughly `width` px at `size` (Bold caps ≈0.58 ratio). */
+function truncateToWidth(text: string, width: number, size: number): string {
+  const max = Math.max(1, Math.floor(width / (size * 0.58)));
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
+}
+
+/**
+ * Wrap the FULL heading to fit both the width and a vertical budget, then
+ * paint it. Returns the y just below the block. Wrapping the whole string
+ * (rather than slicing pre-split lines) means a long heading shrinks a step
+ * instead of dropping its trailing words.
+ */
+function pushBoldChartHeading(
+  parts: string[],
+  heading: string,
+  bg: BoldBgLike
+): number {
+  const { lines, size } = fitDisplayLines(heading, {
+    width: CONTENT_W,
+    maxHeight: 150,
+    maxSize: 40,
+    minSize: 22,
+    lineStep: 1.05,
+  });
+  const step = Math.round(size * 1.05);
+  let y = 116;
+  for (const line of lines) {
+    parts.push(displayLine(line, PAD, y, size, fgOn(bg), { weight: 800 }));
+    y += step;
+  }
+  return y;
+}
+
+/** Annular sector (donut slice) path from angle a0→a1 (radians). */
+function annularSector(
+  cx: number,
+  cy: number,
+  rOuter: number,
+  rInner: number,
+  a0: number,
+  a1: number,
+  fill: string
+): string {
+  const pt = (r: number, a: number) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const d = `M${pt(rOuter, a0)} A${rOuter} ${rOuter} 0 ${large} 1 ${pt(rOuter, a1)} L${pt(rInner, a1)} A${rInner} ${rInner} 0 ${large} 0 ${pt(rInner, a0)} Z`;
+  return `<path d="${d}" fill="${fill}"/>`;
+}
+
+function renderBoldBarChart(input: BoldChartInput): RenderedPanel {
+  const { bg, headingLines, chart } = input;
+  const points = chart.series[0]?.points ?? [];
+  if (points.length === 0) return renderBoldFallback(input);
+  const parts: string[] = [topAccent(bg)];
+  const headBottom = pushBoldChartHeading(parts, input.heading ?? headingLines.join(" "), bg);
+  const [c0, c1] = chartRamp(bg);
+  const n = points.length;
+  const baseY = 566;
+  const topY = Math.max(headBottom + 44, 300);
+  const gap = n > 8 ? 10 : 18;
+  const barW = (CONTENT_W - gap * (n - 1)) / n;
+  const peak = Math.max(...points.map((p) => p.value), 0) || 1;
+  const maxBarH = baseY - topY;
+  parts.push(
+    `<line x1="${PAD}" y1="${baseY}" x2="${W - PAD}" y2="${baseY}" stroke="${mutedOn(bg)}" stroke-width="2"/>`
+  );
+  const vSize = Math.min(17, Math.max(11, Math.round(barW * 0.4)));
+  const lSize = Math.min(15, Math.max(10, Math.round(barW * 0.32)));
+  points.forEach((p, i) => {
+    const bh = Math.max(6, Math.round((Math.max(0, p.value) / peak) * maxBarH));
+    const x = PAD + i * (barW + gap);
+    const cx = x + barW / 2;
+    const t = n > 1 ? i / (n - 1) : 0;
+    parts.push(topRoundedBar(x, baseY - bh, barW, bh, 6, lerpColor(c0, c1, t)));
+    parts.push(
+      `<text x="${cx}" y="${baseY - bh - 10}" font-family="${FONT.sans}" font-size="${vSize}" font-weight="800" text-anchor="middle" fill="${fgOn(bg)}">${escapeXml(fmtNum(p.value, chart.unit))}</text>`
+    );
+    parts.push(
+      `<text x="${cx}" y="${baseY + 26}" font-family="${FONT.sans}" font-size="${lSize}" font-weight="600" text-anchor="middle" fill="${mutedOn(bg)}">${escapeXml(truncateToWidth(p.label, barW + gap, lSize))}</text>`
+    );
+  });
+  return panel(input, boldWrap(parts.join(""), bg, headingLines.join(" ")));
+}
+
+function renderBoldDonut(input: BoldChartInput): RenderedPanel {
+  const { bg, headingLines, chart } = input;
+  const points = (chart.series[0]?.points ?? []).filter((p) => p.value > 0);
+  if (points.length === 0) return renderBoldFallback(input);
+  const parts: string[] = [topAccent(bg)];
+  pushBoldChartHeading(parts, input.heading ?? headingLines.join(" "), bg);
+  const [c0, c1] = chartRamp(bg);
+  const total = points.reduce((s, p) => s + p.value, 0) || 1;
+  const cx = 206;
+  const cy = 424;
+  const rOuter = 130;
+  const rInner = 78;
+  let a = -Math.PI / 2;
+  points.forEach((p, i) => {
+    const frac = p.value / total;
+    const a1 = a + frac * Math.PI * 2;
+    const t = points.length > 1 ? i / (points.length - 1) : 0;
+    // A hair of gap between slices reads cleaner on the loud fields.
+    parts.push(annularSector(cx, cy, rOuter, rInner, a + 0.012, a1 - 0.012, lerpColor(c0, c1, t)));
+    a = a1;
+  });
+  parts.push(
+    `<text x="${cx}" y="${cy - 6}" font-family="${FONT.sans}" font-size="46" font-weight="800" text-anchor="middle" fill="${fgOn(bg)}">${points.length}</text>`,
+    `<text x="${cx}" y="${cy + 24}" font-family="${FONT.sans}" font-size="15" font-weight="700" letter-spacing="0.14em" text-anchor="middle" fill="${mutedOn(bg)}">PARTS</text>`
+  );
+  // Legend on the right — long category names fit here (unlike under bars).
+  const lx = 372;
+  const legendW = W - PAD - lx;
+  const rows = points.slice(0, 6);
+  const rowH = Math.min(48, Math.round(240 / rows.length));
+  let ly = cy - (rows.length * rowH) / 2 + rowH / 2;
+  rows.forEach((p, i) => {
+    const t = points.length > 1 ? i / (points.length - 1) : 0;
+    const col = lerpColor(c0, c1, t);
+    const pct = Math.round((p.value / total) * 100);
+    parts.push(`<rect x="${lx}" y="${ly - 13}" width="16" height="16" rx="3" fill="${col}"/>`);
+    parts.push(
+      `<text x="${lx + 26}" y="${ly}" font-family="${FONT.sans}" font-size="17" font-weight="700" fill="${fgOn(bg)}">${escapeXml(truncateToWidth(p.label, legendW - 84, 17))}</text>`
+    );
+    parts.push(
+      `<text x="${W - PAD}" y="${ly}" font-family="${FONT.sans}" font-size="17" font-weight="800" text-anchor="end" fill="${mutedOn(bg)}">${escapeXml(fmtNum(p.value, chart.unit))}</text>`
+    );
+    ly += rowH;
+  });
+  return panel(input, boldWrap(parts.join(""), bg, headingLines.join(" ")));
+}
+
+function renderBoldLine(input: BoldChartInput): RenderedPanel {
+  const { bg, headingLines, chart } = input;
+  const series = chart.series.filter((s) => s.points.length > 0);
+  const base = series[0]?.points ?? [];
+  if (base.length < 2) return renderBoldBarChart(input);
+  const parts: string[] = [topAccent(bg)];
+  const headBottom = pushBoldChartHeading(parts, input.heading ?? headingLines.join(" "), bg);
+  const cols = lineColorsFor(bg);
+  const named = series.length > 1 && series.some((s) => s.name);
+  const allVals = series.flatMap((s) => s.points.map((p) => p.value));
+  const peak = Math.max(...allVals);
+  const floor = Math.min(...allVals, 0);
+  const span = peak - floor || 1;
+  const left = PAD;
+  const right = W - PAD;
+  const topY = Math.max(headBottom + (named ? 64 : 40), 300);
+  const botY = 560;
+  const xAt = (i: number) => (base.length > 1 ? left + (right - left) * (i / (base.length - 1)) : left);
+  const yAt = (v: number) => botY - ((v - floor) / span) * (botY - topY);
+  parts.push(
+    `<line x1="${left}" y1="${botY}" x2="${right}" y2="${botY}" stroke="${mutedOn(bg)}" stroke-width="2"/>`
+  );
+  series.forEach((s, si) => {
+    const col = cols[si % cols.length];
+    const pts = s.points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`).join(" ");
+    parts.push(
+      `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`
+    );
+    s.points.forEach((p, i) =>
+      parts.push(`<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="6" fill="${col}"/>`)
+    );
+  });
+  // X labels: all if few, else first + last to avoid collisions.
+  const showAll = base.length <= 6;
+  base.forEach((p, i) => {
+    if (!showAll && i !== 0 && i !== base.length - 1) return;
+    const anchor = i === 0 ? "start" : i === base.length - 1 ? "end" : "middle";
+    parts.push(
+      `<text x="${xAt(i).toFixed(1)}" y="${botY + 26}" font-family="${FONT.sans}" font-size="14" font-weight="600" text-anchor="${anchor}" fill="${mutedOn(bg)}">${escapeXml(truncateToWidth(p.label, 100, 14))}</text>`
+    );
+  });
+  // Legend for named multi-series, just under the heading.
+  if (named) {
+    let lx = PAD;
+    const ly = topY - 26;
+    series.forEach((s, si) => {
+      const col = cols[si % cols.length];
+      const label = (s.name ?? `Series ${si + 1}`).toUpperCase();
+      parts.push(`<rect x="${lx}" y="${ly - 12}" width="22" height="8" rx="2" fill="${col}"/>`);
+      parts.push(
+        `<text x="${lx + 30}" y="${ly}" font-family="${FONT.sans}" font-size="14" font-weight="700" letter-spacing="0.04em" fill="${fgOn(bg)}">${escapeXml(label)}</text>`
+      );
+      lx += 30 + label.length * 8 + 34;
+    });
+  }
+  return panel(input, boldWrap(parts.join(""), bg, headingLines.join(" ")));
+}
+
+/** Data-free fallback — keep the heading as a statement rather than blank. */
+function renderBoldFallback(input: BoldChartInput): RenderedPanel {
+  const { bg, headingLines } = input;
+  return renderBoldStatement({
+    sectionId: input.sectionId,
+    heading: input.heading,
+    caption: input.caption,
+    bg,
+    lines: headingLines.map((t, i) => ({ text: t, color: i === headingLines.length - 1 ? "red" : "fg" })),
+  });
+}
+
+export function renderBoldChart(input: BoldChartInput): RenderedPanel {
+  if (input.chart.kind === "donut") return renderBoldDonut(input);
+  if (input.chart.kind === "line") return renderBoldLine(input);
+  return renderBoldBarChart(input);
+}
+
+// ------------------------------------------------------------------
 // list — amber kicker + numbered red items
 // ------------------------------------------------------------------
 
@@ -505,14 +750,12 @@ export function renderBoldPanel(plan: PanelPlan, ctx: BoldPanelCtx): RenderedPan
       break;
     }
     case "chart": {
-      if (plan.chart?.kind === "bar" && plan.chart.series[0]?.points.length) {
-        const points = plan.chart.series[0].points;
-        return renderBoldBars({
+      if (plan.chart?.series[0]?.points.length) {
+        return renderBoldChart({
           ...common,
           bg,
           headingLines: statementLines(ctx.heading, 12).map((l) => l.text),
-          values: points.map((p) => p.value),
-          barCaption: plan.chart.title ?? ctx.caption,
+          chart: plan.chart,
         });
       }
       break;
