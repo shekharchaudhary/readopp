@@ -10,6 +10,8 @@ import { getBrandKit, getExplainer } from "@/lib/store";
 import { getOrCreateUser } from "@/lib/supabase/server";
 import { DEFAULT_TEMPLATE_ID, getTemplate } from "@/lib/templates/registry";
 import type { BrandKit, Explainer } from "@/lib/shared/schemas";
+import { canUseTemplate, currentEntitlement, proRequired } from "@/lib/entitlements";
+import { trackProductEvent } from "@/lib/analytics";
 
 /**
  * Cache-buster token — bumps whenever a panel, the brand kit, OR the
@@ -76,6 +78,13 @@ export async function POST(
   }
 
   const { format, panelId } = parsed.data;
+  const entitlement = await currentEntitlement();
+  if (!canUseTemplate(entitlement.plan, explainer.template ?? DEFAULT_TEMPLATE_ID)) {
+    return NextResponse.json(proRequired("Exports with this premium template"), { status: 402 });
+  }
+  if (entitlement.plan !== "pro" && (format !== "square" || !panelId)) {
+    return NextResponse.json(proRequired(format !== "square" ? `${format} exports` : "Whole-carousel exports"), { status: 402 });
+  }
   if (!isExportFormat(format)) {
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
   }
@@ -116,6 +125,7 @@ export async function POST(
         cacheKeyParts: [explainer.id, panelId, format, versionTag(explainer, brand)],
         browser,
       });
+      void trackProductEvent({ name: "image_exported", properties: { format, scope: "panel", plan: entitlement.plan, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
       return NextResponse.json({
         url: result.url,
         format: result.format,
@@ -145,6 +155,7 @@ export async function POST(
         cacheKeyParts: [explainer.id, "all", format, versionTag(explainer, brand)],
         browser,
       });
+      void trackProductEvent({ name: "image_exported", properties: { format, scope: "stacked", plan: entitlement.plan, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
       return NextResponse.json({
         url: result.url,
         format: result.format,
@@ -278,6 +289,7 @@ export async function POST(
       cacheKeyParts: [explainer.id, format, versionTag(explainer, brand)],
       baseName: `readopp-${slug(explainer.title || explainer.id)}-${format}`,
     });
+    void trackProductEvent({ name: "image_exported", properties: { format, scope: "carousel", plan: entitlement.plan, template: explainer.template ?? DEFAULT_TEMPLATE_ID, panelCount: explainer.panels.length } });
     return NextResponse.json({
       format,
       images,

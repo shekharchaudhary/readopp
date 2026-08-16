@@ -6,6 +6,7 @@ import "@/lib/pipeline/registerRunner";
 import { isApiKeyConfigured } from "@/lib/anthropic";
 import { getOrCreateUser } from "@/lib/supabase/server";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
+import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { url, audienceLevel, style } = parsed.data;
+  const { url, audienceLevel, style, publishingGoal, voiceProfileId } = parsed.data;
 
   // Anonymous sign-in if needed. Every job has an owner from this point on,
   // even before the user signs in with a real identity.
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
   // Cache-key short-circuit (per-user): if this user has already generated
   // this exact (url + audience), reuse it without counting against the
   // free-tier quota.
-  const key = cacheKeyFor(url, audienceLevel, style);
+  const key = cacheKeyFor(url, audienceLevel, style, publishingGoal, voiceProfileId);
   const cached = await findCachedExplainer(userId, key);
 
   if (!cached) {
@@ -76,7 +77,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const job = await createJob({ url, audienceLevel, style, userId });
+  const job = await createJob({ url, audienceLevel, style, publishingGoal, voiceProfileId, userId });
+  void trackProductEvent({ userId, name: "job_started", properties: { audienceLevel, style, publishingGoal, cached: Boolean(cached), sourceType: "url" } });
 
   if (cached) {
     await completeJob(job.id, cached);

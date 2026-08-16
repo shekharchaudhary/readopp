@@ -104,6 +104,20 @@ function extractItems(input: PanelRenderInput, max = 5): { label: string; value:
   if (plan.stat?.value) {
     out.push({ label: (plan.stat.label || "key stat").toUpperCase(), value: plan.stat.value });
   }
+  if (out.length < max && plan.keyFindings?.findings?.length) {
+    for (const finding of plan.keyFindings.findings) {
+      const titleLooksLikeValue = /\d|%|×|x\b/i.test(finding.title);
+      out.push({
+        label: (titleLooksLikeValue ? finding.detail ?? "Finding" : finding.title)
+          .toUpperCase()
+          .slice(0, 34),
+        value: (titleLooksLikeValue ? finding.title : finding.detail ?? "CHECK")
+          .toUpperCase()
+          .slice(0, 16),
+      });
+      if (out.length >= max) break;
+    }
+  }
   if (plan.timeline?.length) {
     for (const t of plan.timeline) {
       out.push({ label: (t.what || "event").toUpperCase().slice(0, 26), value: t.when });

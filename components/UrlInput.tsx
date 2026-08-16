@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
-import type { AudienceLevel, BrandStyle } from "@/lib/shared/schemas";
+import type { AudienceLevel, BrandStyle, PublishingGoal, VoiceProfileId } from "@/lib/shared/schemas";
+import { VOICE_PROFILES } from "@/lib/voiceProfiles";
 import { GoogleLogo } from "./GoogleLogo";
 
 const AUDIENCE_OPTIONS: {
@@ -55,6 +56,14 @@ const STYLE_OPTIONS: {
   },
 ];
 
+const GOAL_OPTIONS: { value: PublishingGoal; label: string; hint: string }[] = [
+  { value: "teach", label: "Teach", hint: "Explain the idea clearly" },
+  { value: "key_findings", label: "Findings", hint: "Lead with evidence" },
+  { value: "make_argument", label: "Argue", hint: "Build a persuasive case" },
+  { value: "promote_source", label: "Promote", hint: "Drive readers to the source" },
+  { value: "start_discussion", label: "Discuss", hint: "Invite thoughtful responses" },
+];
+
 interface Quota {
   isAnonymous: boolean;
   used: number;
@@ -79,6 +88,8 @@ export function UrlInput() {
   const [url, setUrl] = useState("");
   const [audience, setAudience] = useState<AudienceLevel>("general");
   const [style, setStyle] = useState<BrandStyle>("editorial");
+  const [publishingGoal, setPublishingGoal] = useState<PublishingGoal>("teach");
+  const [voiceProfileId, setVoiceProfileId] = useState<VoiceProfileId>("clear_expert");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +131,8 @@ export function UrlInput() {
       form.append("file", file);
       form.append("audienceLevel", audience);
       form.append("style", style);
+      form.append("publishingGoal", publishingGoal);
+      form.append("voiceProfileId", voiceProfileId);
       const res = await fetch("/api/jobs/upload", { method: "POST", body: form });
       const data = await res.json();
       if (res.status === 402) {
@@ -151,7 +164,7 @@ export function UrlInput() {
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), audienceLevel: audience, style }),
+        body: JSON.stringify({ url: url.trim(), audienceLevel: audience, style, publishingGoal, voiceProfileId }),
       });
       const data = await res.json();
       if (res.status === 402) {
@@ -175,17 +188,17 @@ export function UrlInput() {
   const blocked = quota?.blocked === true;
 
   return (
-    <form onSubmit={submit} className="space-y-6">
+    <form onSubmit={submit} className="space-y-5">
       <div>
         <div className="mb-2 flex items-baseline justify-between gap-3">
-          <label htmlFor="url" className="block text-sm font-medium text-ink-soft">
-            Article URL
+          <label htmlFor="url" className="block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
+            Paste your source
           </label>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="text-xs font-medium text-accent transition-opacity hover:text-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
+            className="text-xs font-semibold text-sky-deep transition-opacity hover:text-sky disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? `Uploading ${uploading}…` : "or upload a PDF →"}
           </button>
@@ -206,16 +219,27 @@ export function UrlInput() {
           type="url"
           autoComplete="url"
           autoFocus
-          placeholder="https://example.com/some-article"
+          placeholder="Drop an article, newsletter, or paper URL…"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={submitting || !!uploading || blocked}
-          className="w-full rounded-md border border-paper-line bg-surface px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:bg-paper-soft"
+          className="w-full rounded-xl border border-paper-line bg-paper px-4 py-3.5 text-base text-ink outline-none transition placeholder:text-ink-faint focus:border-sky focus:ring-4 focus:ring-sky/10 disabled:cursor-not-allowed disabled:bg-paper-soft"
         />
       </div>
 
       <fieldset>
-        <legend className="mb-3 block text-sm font-medium text-ink-soft">
+        <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">What should this post do?</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {GOAL_OPTIONS.map((opt) => {
+            const selected = publishingGoal === opt.value;
+            return <button type="button" key={opt.value} title={opt.hint} aria-pressed={selected} disabled={submitting || !!uploading || blocked} onClick={() => setPublishingGoal(opt.value)} className={"rounded-xl border px-2 py-2.5 text-xs font-medium transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>{opt.label}</button>;
+          })}
+        </div>
+        <p className="mt-2 text-xs text-ink-muted">{GOAL_OPTIONS.find((o) => o.value === publishingGoal)?.hint}</p>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
           Audience level
         </legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -229,7 +253,7 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-md border px-3 py-2 text-sm transition-colors " +
+                  "rounded-full border px-3 py-2 text-xs font-medium transition-all " +
                   (selected
                     ? "border-sky bg-sky text-white"
                     : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
@@ -248,7 +272,7 @@ export function UrlInput() {
       </fieldset>
 
       <fieldset>
-        <legend className="mb-3 block text-sm font-medium text-ink-soft">
+        <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
           Visual style
         </legend>
         <div className="grid grid-cols-3 gap-2">
@@ -262,7 +286,7 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-md border px-3 py-2 text-sm transition-colors " +
+                  "rounded-xl border px-3 py-2.5 text-xs font-medium transition-all " +
                   (selected
                     ? "border-sky bg-sky text-white"
                     : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
@@ -278,6 +302,23 @@ export function UrlInput() {
         <p className="mt-2 text-xs text-ink-muted">
           {STYLE_OPTIONS.find((o) => o.value === style)?.hint}
         </p>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
+          Editorial voice
+        </legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {VOICE_PROFILES.map((profile) => {
+            const selected = voiceProfileId === profile.id;
+            return (
+              <button type="button" key={profile.id} onClick={() => setVoiceProfileId(profile.id)} disabled={submitting || !!uploading || blocked} title={profile.instruction} aria-pressed={selected} className={"rounded-xl border px-3 py-2.5 text-left transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>
+                <span className="block text-xs font-semibold">{profile.name}</span>
+                <span className={"mt-1 block text-[10px] leading-4 " + (selected ? "text-white/75" : "text-ink-muted")}>{profile.description}</span>
+              </button>
+            );
+          })}
+        </div>
       </fieldset>
 
       {error && (
@@ -299,9 +340,9 @@ export function UrlInput() {
         <button
           type="submit"
           disabled={!valid || submitting || !!uploading}
-          className="w-full rounded-md bg-sky px-4 py-3 text-base font-medium text-white shadow-[0_1px_0_rgba(13,87,134,0.3)] transition-[filter,background-color] hover:brightness-110 disabled:cursor-not-allowed disabled:bg-ink-faint disabled:shadow-none"
+          className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#111827] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_rgba(17,24,39,.7)] transition hover:-translate-y-0.5 hover:bg-sky-deep disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-ink-faint disabled:shadow-none"
         >
-          {submitting ? "Starting…" : "Explain"}
+          {submitting ? "Building your visual…" : <><span>Turn this into a visual post</span><span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>}
         </button>
       )}
 

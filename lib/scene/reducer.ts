@@ -4,6 +4,7 @@ import type {
   JobError,
   JobStatus,
   RenderedPanel,
+  EditorialBrief,
 } from "@/lib/shared/schemas";
 
 export type AgentNodeState = "pending" | "active" | "done";
@@ -40,6 +41,7 @@ export interface SceneState {
   panels: PanelSlot[];
   explainer?: Explainer;
   error?: JobError;
+  editorialBrief?: EditorialBrief;
   lastSeq: number;
   log: LogEntry[];
 }
@@ -94,6 +96,10 @@ export function applyEvent(prev: SceneState, ev: StreamEvent): SceneState {
   switch (ev.type) {
     case "job.status": {
       next.status = ev.data.status;
+      return next;
+    }
+    case "brief.ready": {
+      next.editorialBrief = ev.data.brief;
       return next;
     }
     case "agent.start": {

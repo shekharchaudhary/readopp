@@ -374,7 +374,7 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 function BentoPanel() {
   return (
-    <svg viewBox="0 0 300 300" role="img" className="block w-full" font-family="ui-sans-serif, system-ui">
+    <svg viewBox="0 0 300 300" role="img" className="block w-full" fontFamily="ui-sans-serif, system-ui">
       <title>Bento Board panel</title>
       <rect width="300" height="300" fill="#FFFDF8" />
       <rect x="24" y="24" width="24" height="4" rx="2" fill="#E85D2A" />
@@ -401,7 +401,7 @@ function BentoPanel() {
 
 function SpecPanel() {
   return (
-    <svg viewBox="0 0 300 300" role="img" className="block w-full" font-family={MONO}>
+    <svg viewBox="0 0 300 300" role="img" className="block w-full" fontFamily={MONO}>
       <title>Engineering Spec panel</title>
       <rect width="300" height="300" fill="#101010" />
       <text x="24" y="36" fontSize="10" fill="#ABA395" letterSpacing="2">SPEC-142 · RETRIEVAL PATH</text>
@@ -426,7 +426,7 @@ function SpecPanel() {
 
 function BroadsheetPanel() {
   return (
-    <svg viewBox="0 0 300 300" role="img" className="block w-full" font-family="ui-sans-serif, system-ui">
+    <svg viewBox="0 0 300 300" role="img" className="block w-full" fontFamily="ui-sans-serif, system-ui">
       <title>Editorial Broadsheet panel</title>
       <rect width="300" height="300" fill="#FFFDF8" />
       <text x="150" y="34" fontSize="9" fill="#857E72" textAnchor="middle" fontFamily={MONO} letterSpacing="3">THE SUNDAY ISSUE · NO. 48</text>
@@ -458,7 +458,7 @@ function BroadsheetPanel() {
 
 function IndexCardPanel() {
   return (
-    <svg viewBox="0 0 300 300" role="img" className="block w-full" font-family="ui-sans-serif, system-ui">
+    <svg viewBox="0 0 300 300" role="img" className="block w-full" fontFamily="ui-sans-serif, system-ui">
       <title>Index Card panel</title>
       <rect width="300" height="300" fill="#FFFDF8" />
       {[92, 122, 152, 182, 212, 242, 272].map((y) => (

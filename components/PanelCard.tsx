@@ -43,6 +43,7 @@ interface Props {
    * server reset endpoint and refresh the explainer in parent state.
    */
   onReset?: (sectionId: string) => Promise<void>;
+  onRegenerate?: (sectionId: string, hint: string) => Promise<void>;
   /**
    * Called when the user clicks the "Delete" button. Parent confirms +
    * persists. Omit to hide the button.
@@ -121,6 +122,7 @@ export function PanelCard({
   onExport,
   onEdit,
   onReset,
+  onRegenerate,
   onDelete,
   canDelete,
   onMoveUp,
@@ -145,6 +147,7 @@ export function PanelCard({
   const [themeOpen, setThemeOpen] = useState(false);
   const [themeBusy, setThemeBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+  const [regenerateBusy, setRegenerateBusy] = useState(false);
   const [editingCanvas, setEditingCanvas] = useState(false);
 
   async function handleReset() {
@@ -160,6 +163,16 @@ export function PanelCard({
     } finally {
       setResetBusy(false);
     }
+  }
+
+  async function handleRegenerate() {
+    if (!onRegenerate || regenerateBusy) return;
+    const hint = window.prompt("How should this panel change?\n\nExamples: Make it simpler · Lead with the statistic · Use a comparison · Shorten the copy");
+    if (!hint?.trim()) return;
+    setRegenerateBusy(true);
+    try { await onRegenerate(panel.sectionId, hint.trim()); }
+    catch (e) { window.alert((e as Error).message); }
+    finally { setRegenerateBusy(false); }
   }
 
   async function applyTheme(triple: ColorTriple) {
@@ -222,6 +235,11 @@ export function PanelCard({
           </h2>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {onRegenerate && panel.plan && (
+            <button type="button" onClick={handleRegenerate} disabled={regenerateBusy} className="rounded-md border border-sky/40 bg-sky-soft px-2.5 py-1 text-xs font-medium text-sky-deep hover:border-sky disabled:opacity-50">
+              {regenerateBusy ? "Reworking…" : "Regenerate"}
+            </button>
+          )}
           {canTheme && (
             <button
               type="button"

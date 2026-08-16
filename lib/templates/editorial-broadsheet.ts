@@ -14,9 +14,8 @@ import type {
  * pixels wide.
  *
  * Uses panel.heading as the headline, panel.caption as the body, and
- * (when present) plan.timeline/comparison/metaphor as a secondary
- * column. Panel SVGs are intentionally not used — this template's
- * whole point is the type, not illustration.
+ * structured plan data as a reported sidebar. SVG panels are framed as
+ * editorial figures so data-led slides still carry their evidence.
  */
 
 const PAPER = "#F6F2EA";
@@ -99,6 +98,13 @@ function extractDataPoints(input: PanelRenderInput, max = 3): string[] {
   const out: string[] = [];
   if (plan.stat?.value) {
     out.push(`${plan.stat.value} — ${plan.stat.label ?? ""}`.trim());
+  }
+  if (out.length < max && plan.keyFindings?.findings?.length) {
+    for (const finding of plan.keyFindings.findings) {
+      const line = [finding.title, finding.detail].filter(Boolean).join(" — ");
+      if (line) out.push(line);
+      if (out.length >= max) break;
+    }
   }
   if (plan.timeline?.length) {
     for (const t of plan.timeline) {
@@ -189,6 +195,35 @@ function baseCss(w: number, h: number, S: Sizes, headingScale = 1): string {
     flex-direction: column;
     overflow: hidden;
   }
+  .story-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+    gap: ${S.gap}px;
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .story-grid.no-figure { grid-template-columns: 1fr; }
+  .figure {
+    min-height: 0;
+    border-top: 1px solid ${RULE};
+    border-bottom: 1px solid ${RULE};
+    padding: ${Math.round(S.gap * .65)}px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .figure-label {
+    font-family: ${FONT_SANS};
+    color: ${ACCENT};
+    font-size: ${S.smallSize}px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    margin-bottom: ${Math.round(S.gap * .45)}px;
+  }
+  .figure-art { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: rgba(255,255,255,.3); }
+  .figure-art svg { width: 100%; height: 100%; max-height: 100%; }
+  .report { min-height: 0; display: flex; flex-direction: column; }
   .body p {
     font-size: ${S.bodySize}px;
     line-height: 1.5;
@@ -258,6 +293,7 @@ async function renderPanel(input: PanelRenderInput): Promise<string> {
   const data = extractDataPoints(input, format === "vertical" ? 4 : 3);
   const headingScale = headingScaleFor(headline.length);
   const sectionLabel = explainer.title.toUpperCase();
+  const hasFigure = panel.format === "svg" && panel.content.trim().startsWith("<svg");
 
   return `<!doctype html>
 <html lang="en">
@@ -282,22 +318,16 @@ async function renderPanel(input: PanelRenderInput): Promise<string> {
         : ""
     }
     <section class="body">
-      ${
-        // Use the summary as the longer body when no standfirst is set,
-        // and the standfirst+summary together when both exist. Adds the
-        // characteristic broadsheet "drop cap on first paragraph" feel.
-        standfirst
-          ? ""
-          : `<p>${escapeHtml(explainer.summary || "")}</p>`
-      }
-      ${
-        data.length
-          ? `<div class="data">
+      <div class="story-grid${hasFigure ? "" : " no-figure"}">
+        <div class="report">
+          ${!standfirst ? `<p>${escapeHtml(explainer.summary || "")}</p>` : ""}
+          ${data.length ? `<div class="data">
               <div class="label">Notes</div>
               <ul>${data.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>
-            </div>`
-          : ""
-      }
+            </div>` : ""}
+        </div>
+        ${hasFigure ? `<figure class="figure"><figcaption class="figure-label">Figure ${String(panelIndex).padStart(2, "0")} · Evidence</figcaption><div class="figure-art">${panel.content}</div></figure>` : ""}
+      </div>
     </section>
     <div class="footer">
       <span>${escapeHtml(sourceLabel(explainer.url))}</span>

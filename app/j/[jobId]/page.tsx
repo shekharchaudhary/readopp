@@ -11,6 +11,8 @@ import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
 import type { Job, TemplateId } from "@/lib/shared/schemas";
 import { sourceLabel } from "@/lib/shared/source";
+import { EditorialBriefReview } from "@/components/EditorialBriefReview";
+import { EvidenceInspector } from "@/components/EvidenceInspector";
 
 /**
  * Re-fetches the persisted job record. Initial fetch gets URL + audienceLevel
@@ -45,10 +47,11 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   const { scene, error: streamError } = useJobStream(params.jobId);
   const completed = scene.status === "completed";
   const failed = scene.status === "failed";
+  const awaitingApproval = scene.status === "awaiting_approval";
   // Re-fetch job meta once when terminal so we get the final usage tally.
   const { job, notFound } = useJobMeta(
     params.jobId,
-    completed || failed ? 1 : 0
+    completed || failed || awaitingApproval ? 1 : 0
   );
 
   const [exportOpen, setExportOpen] = useState(false);
@@ -191,7 +194,14 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         </div>
       )}
 
-      {!completed && <WorkingScene scene={scene} />}
+      {!completed && !awaitingApproval && <WorkingScene scene={scene} />}
+
+      {awaitingApproval && (scene.editorialBrief ?? job?.editorialBrief) && (
+        <EditorialBriefReview
+          jobId={params.jobId}
+          initialBrief={(scene.editorialBrief ?? job?.editorialBrief)!}
+        />
+      )}
 
       {failed && scene.error && (
         <FailureBlock
@@ -207,6 +217,10 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
         explainerId={scene.explainer?.id}
         template={templateOverride ?? scene.explainer?.template}
       />
+
+      {completed && scene.explainer?.evidenceMap && (
+        <EvidenceInspector evidence={scene.explainer.evidenceMap} />
+      )}
 
       {completed && job?.usage && job.usage.calls > 0 && (
         <UsageFooter

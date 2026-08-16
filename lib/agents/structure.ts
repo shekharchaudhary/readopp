@@ -194,7 +194,7 @@ Respond with ONLY JSON matching the ExplainerOutline schema:
 No fences, no commentary.
 `.trim();
 
-function userMessage(c: Comprehension): string {
+function userMessage(c: Comprehension, publishingGoal = "teach", editorialDirection?: string): string {
   const claimsList = c.keyClaims
     .map((claim, i) => `  [${i}] ${claim}`)
     .join("\n");
@@ -221,6 +221,9 @@ function userMessage(c: Comprehension): string {
     `- core idea: ${c.coreIdea}`,
     `- narrative arc: ${c.narrativeArc}`,
     `- audience: ${c.audienceLevel}`,
+    `- publishing goal: ${publishingGoal}`,
+    editorialDirection ? `- approved editorial direction: ${editorialDirection}` : null,
+    "- shape the narrative for that goal: teach=clarity, key_findings=evidence first, make_argument=claim→proof→conclusion, promote_source=tease value without replacing the source, start_discussion=surface tension and end with an open question",
     featureFlags ? `- content features: ${featureFlags}` : null,
     dataBlock,
     "",
@@ -243,7 +246,9 @@ function userMessage(c: Comprehension): string {
 
 export async function runStructure(
   comprehension: Comprehension,
-  jobId?: string
+  jobId?: string,
+  publishingGoal = "teach",
+  editorialDirection?: string
 ): Promise<ExplainerOutline> {
   return withRetry("structure", async (retryHint) => {
     const messages = [
@@ -252,7 +257,7 @@ export async function runStructure(
         content:
           (retryHint
             ? `${retryHint}\n\nReturn the COMPLETE corrected ExplainerOutline JSON. No fences, no commentary.\n\n---\n\n`
-            : "") + userMessage(comprehension),
+            : "") + userMessage(comprehension, publishingGoal, editorialDirection),
       },
     ];
     const res = await callMessages(

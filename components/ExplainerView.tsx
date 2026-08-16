@@ -48,6 +48,13 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
     if (data.explainer) setExplainer(data.explainer as Explainer);
   }
 
+  async function regeneratePanel(sectionId: string, hint: string) {
+    const res = await fetch(`/api/explainers/${explainer.id}/panels/${sectionId}/reset`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hint }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `Regeneration failed (${res.status})`);
+    if (data.explainer) setExplainer(data.explainer as Explainer);
+  }
+
   /**
    * Optimistically commit a panel reorder and persist via the API. On
    * server failure, revert to the previous order so the UI never drifts
@@ -248,6 +255,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
                 onExport={canExport ? openExportPanel : undefined}
                 onEdit={canExport ? patchPanel : undefined}
                 onReset={canExport ? resetPanel : undefined}
+                onRegenerate={canExport ? regeneratePanel : undefined}
                 onDelete={canExport ? deletePanel : undefined}
                 canDelete={canExport && explainer.panels.length > 1}
                 onMoveUp={

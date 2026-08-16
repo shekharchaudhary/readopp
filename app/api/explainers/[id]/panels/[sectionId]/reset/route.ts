@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { renderPanel } from "@/lib/pipeline/render";
 import { getExplainer } from "@/lib/store";
 import { getOrCreateUser, getServerSupabase } from "@/lib/supabase/server";
+import { z } from "zod";
+import { regeneratePanelPlan } from "@/lib/agents/regeneratePanel";
+import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +18,13 @@ export const dynamic = "force-dynamic";
  * (we'd need to re-run the whole pipeline, which is out of scope).
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string; sectionId: string } }
 ) {
+  let body: unknown = {};
+  try { const text = await req.text(); if (text.trim()) body = JSON.parse(text); } catch { return NextResponse.json({ error: "Body must be JSON." }, { status: 400 }); }
+  const parsedBody = z.object({ hint: z.string().trim().min(3).max(280).optional() }).safeParse(body);
+  if (!parsedBody.success) return NextResponse.json({ error: parsedBody.error.issues[0]?.message ?? "Invalid guidance." }, { status: 400 });
   // Ownership check up-front. Without this, non-owners would still trigger a
   // full re-render (cost) before RLS denied the UPDATE — and would see a
   // generic 500 instead of a clean 403.
@@ -67,9 +74,13 @@ export async function POST(
   }
 
   let next;
+  let nextPlan = panel.plan;
   try {
+    if (parsedBody.data.hint) {
+      nextPlan = await regeneratePanelPlan({ plan: panel.plan, heading: panel.heading || `Panel ${i + 1}`, hint: parsedBody.data.hint, publishingGoal: explainer.publishingGoal });
+    }
     next = await renderPanel(
-      panel.plan,
+      nextPlan,
       explainer.audienceLevel,
       panel.heading || `Panel ${i + 1}`,
       // No jobId — reset is an ad-hoc operation; usage attribution skipped.
@@ -91,20 +102,25 @@ export async function POST(
     fallback: next.fallback,
     validated: next.validated,
     edited: false,
+    plan: nextPlan,
   };
   const { data: updatedRow, error } = await supabase
     .from("explainers")
     .update({ panels: nextPanels })
     .eq("id", params.id)
+    // Do not overwrite an edit/reorder that landed while the model was
+    // regenerating this panel (the call can take several seconds).
+    .eq("updated_at", explainer.updatedAt ?? explainer.createdAt)
     .select("*")
     .maybeSingle();
   if (error || !updatedRow) {
     return NextResponse.json(
-      { error: error?.message || "Failed to save reset panel." },
-      { status: 500 }
+      { error: error?.message || "This explainer changed while the panel was regenerating. Review the latest version and try again." },
+      { status: error ? 500 : 409 }
     );
   }
   // Re-fetch to return a clean Explainer shape via the existing helper.
   const refreshed = await getExplainer(params.id);
+  if (parsedBody.data.hint) void trackProductEvent({ userId, name: "panel_regenerated", properties: { visualType: nextPlan.visualType, publishingGoal: explainer.publishingGoal } });
   return NextResponse.json({ explainer: refreshed });
 }

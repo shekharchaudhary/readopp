@@ -7,25 +7,20 @@ export function TemplateGallery() {
   return (
     <section
       id="templates"
-      className="section-amb amb-coral border-b border-paper-line bg-surface"
+      className="section-amb border-b border-paper-line bg-surface"
     >
       <div className="mx-auto max-w-5xl px-6 py-24 sm:py-32">
-        <Reveal>
-          <SectionLabel title="The template library" tone="coral" />
-        </Reveal>
-        <Reveal delayMs={60}>
-          <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            Nineteen templates, six categories &mdash; pick one that already
-            feels like <Squiggle>you</Squiggle>.
-          </h2>
-        </Reveal>
-        <Reveal delayMs={120}>
-          <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">
-            Each template commits to a real format &mdash; a magazine cover, a
-            receipt, a terminal session &mdash; so the carousel looks borrowed
-            from somewhere your audience already trusts.
-          </p>
-        </Reveal>
+        <div className="grid gap-7 lg:grid-cols-[.7fr_1.3fr] lg:items-end">
+          <Reveal><SectionLabel title="Visual identity library" tone="sky" /></Reveal>
+          <div>
+            <Reveal delayMs={60}>
+              <h2 className="font-display text-4xl font-medium leading-[1.02] tracking-[-.035em] text-ink sm:text-5xl">One idea. Twenty ways to make it <Squiggle>unmistakable</Squiggle>.</h2>
+            </Reveal>
+            <Reveal delayMs={120}>
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">Not skins. Publishing systems. Each identity reshapes type, rhythm, framing, metadata, and attribution around a medium people already recognize.</p>
+            </Reveal>
+          </div>
+        </div>
 
         <Reveal delayMs={180}>
           <TemplateLibraryShowcase />

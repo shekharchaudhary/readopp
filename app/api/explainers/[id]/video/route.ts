@@ -6,6 +6,8 @@ import { getBrandKit, getExplainer } from "@/lib/store";
 import { getOrCreateUser } from "@/lib/supabase/server";
 import { DEFAULT_TEMPLATE_ID, getTemplate } from "@/lib/templates/registry";
 import type { BrandKit } from "@/lib/shared/schemas";
+import { currentEntitlement, proRequired } from "@/lib/entitlements";
+import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +21,7 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  if ((await currentEntitlement()).plan !== "pro") return NextResponse.json(proRequired("Video exports"), { status: 402 });
   let body: unknown;
   try {
     body = await req.json();
@@ -81,6 +84,7 @@ export async function POST(
         explainer.template ?? DEFAULT_TEMPLATE_ID,
       ],
     });
+    void trackProductEvent({ name: "video_exported", properties: { format, panelCount: panelsShown, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
     return NextResponse.json({
       url: result.url,
       format: result.format,

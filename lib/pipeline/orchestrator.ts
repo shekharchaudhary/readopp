@@ -15,6 +15,7 @@ import {
   findCachedExplainer,
   getJob,
   setJobStatus,
+  updateJob,
 } from "../store";
 import { drainPendingPdf, drainPreIngested } from "./preIngested";
 import { extractPdfArticle, extractResumeDoc } from "../pdf/extract";
@@ -26,6 +27,10 @@ import type {
   JobStatus,
   RenderedPanel,
 } from "../shared/schemas";
+import { trackProductEvent } from "../analytics";
+import { buildEditorialBrief } from "../editorialBrief";
+import { voiceInstruction } from "../voiceProfiles";
+import type { CleanArticle, Comprehension } from "../shared/schemas";
 
 function toJobError(e: unknown): JobError {
   if (e instanceof IngestError) return e.error;
@@ -102,12 +107,22 @@ export async function runJob(jobId: string): Promise<void> {
   }
 
   try {
+    let article: CleanArticle;
+    let comprehension: Comprehension;
+    let pendingPdf: ReturnType<typeof drainPendingPdf> = null;
+
+    if (job.briefApproved && job.pipelineState) {
+      // Durable resume: approval starts a fresh runner invocation, but source
+      // extraction and comprehension are restored from Postgres.
+      article = job.pipelineState.article;
+      comprehension = job.pipelineState.comprehension;
+      await appendProgress(jobId, "Editorial direction approved — resuming production");
+    } else {
     // 1. Ingest
     await emitStatus(jobId, "ingesting");
     await emitAgentStart(jobId, "ingest");
     const preIngested = drainPreIngested(jobId);
-    const pendingPdf = preIngested ? null : drainPendingPdf(jobId);
-    let article;
+    pendingPdf = preIngested ? null : drainPendingPdf(jobId);
     if (preIngested) {
       // Article was already extracted before the orchestrator started.
       await emitAgentProgress(jobId, "ingest", "Reading prepared document…");
@@ -158,7 +173,7 @@ export async function runJob(jobId: string): Promise<void> {
     await emitStatus(jobId, "comprehending");
     await emitAgentStart(jobId, "comprehension");
     await emitAgentProgress(jobId, "comprehension", "Reading for the core idea…");
-    const comprehension = await runComprehension(
+    comprehension = await runComprehension(
       article,
       job.audienceLevel,
       jobId
@@ -168,6 +183,30 @@ export async function runJob(jobId: string): Promise<void> {
       "comprehension",
       summarizeComprehension(comprehension)
     );
+
+    // Résumés need their in-memory PDF buffer for structured extraction, so
+    // they retain the existing fast path. All other documents pause here.
+    if (comprehension.genre !== "resume") {
+      const brief = buildEditorialBrief({
+        article,
+        comprehension,
+        audience: job.audienceLevel,
+        publishingGoal: job.publishingGoal,
+      });
+      await updateJob(jobId, {
+        status: "awaiting_approval",
+        editorialBrief: brief,
+        pipelineState: { article, comprehension },
+        briefApproved: false,
+      });
+      await emitEvent(jobId, {
+        type: "job.status",
+        data: { status: "awaiting_approval" },
+      });
+      await emitEvent(jobId, { type: "brief.ready", data: { brief } });
+      return;
+    }
+    }
 
     // Résumé fast path: when the document is a resume AND we still hold the
     // uploaded PDF buffer, parse it into a structured ResumeDoc and draw a
@@ -234,7 +273,18 @@ export async function runJob(jobId: string): Promise<void> {
       await emitStatus(jobId, "structuring");
       await emitAgentStart(jobId, "structure");
       await emitAgentProgress(jobId, "structure", "Choosing panel types…");
-      outline = await runStructure(comprehension, jobId);
+      const selectedDirection = job.editorialBrief?.directions.find(
+        (direction) => direction.id === job.editorialBrief?.selectedDirectionId
+      );
+      const directionPrompt = selectedDirection
+        ? `${selectedDirection.name}. Hook: ${selectedDirection.hook}. Angle: ${selectedDirection.angle}. Desired outcome: ${selectedDirection.outcome}`
+        : undefined;
+      outline = await runStructure(
+        comprehension,
+        jobId,
+        job.publishingGoal,
+        directionPrompt
+      );
       await emitAgentDone(jobId, "structure", summarizeOutline(outline));
 
       // 4. Planner — one call per section, sequential is fine and cheaper to debug.
@@ -256,7 +306,9 @@ export async function runJob(jobId: string): Promise<void> {
             section,
             comprehension,
             job.audienceLevel,
-            jobId
+            jobId,
+            job.publishingGoal,
+            voiceInstruction(job.voiceProfileId)
           );
           plans.push(plan);
         } catch (e) {
@@ -313,6 +365,8 @@ export async function runJob(jobId: string): Promise<void> {
       jobId,
       url: job.url,
       audienceLevel: job.audienceLevel,
+      publishingGoal: job.publishingGoal,
+      voiceProfileId: job.voiceProfileId,
       outline,
       comprehension,
       panels,
@@ -331,7 +385,8 @@ export async function runJob(jobId: string): Promise<void> {
       const socialPack = await runSocialPack(
         baseExplainer,
         comprehension,
-        jobId
+        jobId,
+        { voiceInstruction: voiceInstruction(job.voiceProfileId) }
       );
       explainer = { ...baseExplainer, socialPack };
       await emitAgentDone(
@@ -356,11 +411,13 @@ export async function runJob(jobId: string): Promise<void> {
     }
 
     await completeJob(jobId, explainer);
+    void trackProductEvent({ userId: job.userId, name: "job_completed", properties: { audienceLevel: job.audienceLevel, publishingGoal: job.publishingGoal, panelCount: explainer.panels.length } });
     await emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {
     const err = toJobError(e);
     await appendProgress(jobId, `Failed: ${err.message}`);
     await failJob(jobId, err);
+    void trackProductEvent({ userId: job.userId, name: "job_failed", properties: { reason: err.reason } });
     await emitEvent(jobId, { type: "job.failed", data: { error: err } });
     // eslint-disable-next-line no-console
     console.error(

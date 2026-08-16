@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type {
   AudienceLevel,
+  PublishingGoal,
   Comprehension,
   Explainer,
   ExplainerOutline,
   RenderedPanel,
   ResumeDoc,
+  VoiceProfileId,
 } from "../shared/schemas";
 
 /**
@@ -16,6 +18,8 @@ export function runAssembly(input: {
   jobId: string;
   url: string;
   audienceLevel: AudienceLevel;
+  publishingGoal: PublishingGoal;
+  voiceProfileId: VoiceProfileId;
   outline: ExplainerOutline;
   comprehension: Comprehension;
   panels: RenderedPanel[];
@@ -30,6 +34,29 @@ export function runAssembly(input: {
     const bi = orderById.get(b.sectionId) ?? 999;
     return ai - bi;
   });
+  const usedClaimIndexes = new Set<number>();
+  const evidencePanels = input.outline.sections.map((section) => {
+    const claims = section.sourceClaimIndexes
+      .map((index) => {
+        const claim = input.comprehension.keyClaims[index];
+        if (claim) usedClaimIndexes.add(index);
+        return claim;
+      })
+      .filter((claim): claim is string => Boolean(claim));
+    return {
+      sectionId: section.id,
+      heading: section.heading,
+      claims,
+      grounded: claims.length > 0,
+    };
+  });
+  const claimCount = input.comprehension.keyClaims.length;
+  const evidenceMap = {
+    claimCount,
+    coveredClaimCount: usedClaimIndexes.size,
+    coveragePercent: claimCount > 0 ? Math.round((usedClaimIndexes.size / claimCount) * 100) : 100,
+    panels: evidencePanels,
+  };
 
   return {
     id: randomUUID(),
@@ -38,7 +65,10 @@ export function runAssembly(input: {
     title: input.outline.title,
     summary: input.comprehension.oneLineSummary,
     audienceLevel: input.audienceLevel,
+    publishingGoal: input.publishingGoal,
+    voiceProfileId: input.voiceProfileId,
     panels: ordered,
+    ...(!input.resumeDoc ? { evidenceMap } : {}),
     createdAt: new Date().toISOString(),
     ...(input.resumeDoc ? { resumeDoc: input.resumeDoc } : {}),
   };

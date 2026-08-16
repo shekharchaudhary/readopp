@@ -5,13 +5,14 @@ import { enqueueJob } from "@/lib/pipeline/runner";
 import "@/lib/pipeline/registerRunner";
 import { stashPendingPdf } from "@/lib/pipeline/preIngested";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
-import { AudienceLevelSchema, BrandStyleSchema } from "@/lib/shared/schemas";
+import { AudienceLevelSchema, BrandStyleSchema, PublishingGoalSchema, VoiceProfileIdSchema } from "@/lib/shared/schemas";
 import {
   completeJob,
   createJob,
   findCachedExplainer,
 } from "@/lib/store";
 import { getOrCreateUser } from "@/lib/supabase/server";
+import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,8 @@ export async function POST(req: Request) {
   const file = form.get("file");
   const audienceRaw = (form.get("audienceLevel") as string | null) ?? "general";
   const styleRaw = (form.get("style") as string | null) ?? "editorial";
+  const goalRaw = (form.get("publishingGoal") as string | null) ?? "teach";
+  const voiceRaw = (form.get("voiceProfileId") as string | null) ?? "clear_expert";
 
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -82,6 +85,10 @@ export async function POST(req: Request) {
   if (!style.success) {
     return NextResponse.json({ error: "Invalid style." }, { status: 400 });
   }
+  const goal = PublishingGoalSchema.safeParse(goalRaw);
+  if (!goal.success) return NextResponse.json({ error: "Invalid publishingGoal." }, { status: 400 });
+  const voice = VoiceProfileIdSchema.safeParse(voiceRaw);
+  if (!voice.success) return NextResponse.json({ error: "Invalid voiceProfileId." }, { status: 400 });
 
   let userId: string;
   let isAnonymous: boolean;
@@ -101,7 +108,7 @@ export async function POST(req: Request) {
   const fakeUrl = `upload://${filename}`;
   // Cache key is file-content based, so re-uploading the same PDF at the same
   // audience level + style hits the cache regardless of filename.
-  const cacheKey = `pdf:${hash}:${audience.data}:${style.data}`;
+  const cacheKey = `pdf:${hash}:${audience.data}:${style.data}:${goal.data}:${voice.data}`;
 
   // Cache short-circuit (same per-user as URL flow).
   const cached = await findCachedExplainer(userId, cacheKey);
@@ -124,9 +131,12 @@ export async function POST(req: Request) {
     url: fakeUrl,
     audienceLevel: audience.data,
     style: style.data,
+    publishingGoal: goal.data,
+    voiceProfileId: voice.data,
     userId,
     cacheKey,
   });
+  void trackProductEvent({ userId, name: "job_started", properties: { audienceLevel: audience.data, style: style.data, publishingGoal: goal.data, cached: Boolean(cached), sourceType: "pdf" } });
 
   if (cached) {
     await completeJob(job.id, cached);
