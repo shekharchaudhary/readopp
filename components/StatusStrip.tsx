@@ -15,6 +15,7 @@ const ORDER: Record<JobStatus, number> = {
   queued: 0,
   ingesting: 1,
   comprehending: 2,
+  awaiting_approval: 2,
   structuring: 2,
   planning: 2,
   rendering: 3,

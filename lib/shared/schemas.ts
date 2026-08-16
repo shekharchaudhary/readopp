@@ -14,6 +14,26 @@ export const AudienceLevelSchema = z.enum([
 ]);
 export type AudienceLevel = z.infer<typeof AudienceLevelSchema>;
 
+export const PublishingGoalSchema = z.enum([
+  "teach",
+  "key_findings",
+  "make_argument",
+  "promote_source",
+  "start_discussion",
+]);
+export type PublishingGoal = z.infer<typeof PublishingGoalSchema>;
+
+export const VoiceProfileIdSchema = z.enum([
+  "clear_expert",
+  "executive",
+  "educator",
+  "analyst",
+  "founder",
+  "technical",
+  "bold_creator",
+]);
+export type VoiceProfileId = z.infer<typeof VoiceProfileIdSchema>;
+
 // Visual voice for the rendered deck. "editorial" is the calm serif-on-
 // paper default; "bold" re-skins the whole deck in the loud full-bleed
 // carousel family (lib/render/templates/bold.ts).
@@ -24,6 +44,7 @@ export const JobStatusSchema = z.enum([
   "queued",
   "ingesting",
   "comprehending",
+  "awaiting_approval",
   "structuring",
   "planning",
   "rendering",
@@ -51,6 +72,26 @@ export const JobErrorSchema = z.object({
   message: z.string(),
 });
 export type JobError = z.infer<typeof JobErrorSchema>;
+
+export const EditorialDirectionSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(80),
+  hook: z.string().min(1).max(220),
+  angle: z.string().min(1).max(500),
+  outcome: z.string().min(1).max(240),
+});
+export type EditorialDirection = z.infer<typeof EditorialDirectionSchema>;
+
+export const EditorialBriefSchema = z.object({
+  sourceTitle: z.string(),
+  sourceSummary: z.string(),
+  audience: AudienceLevelSchema,
+  publishingGoal: PublishingGoalSchema,
+  directions: z.array(EditorialDirectionSchema).min(1).max(3),
+  selectedDirectionId: z.string(),
+  approvedAt: z.string().optional(),
+});
+export type EditorialBrief = z.infer<typeof EditorialBriefSchema>;
 
 // ---------- Agent 1: Ingest ----------
 
@@ -766,6 +807,19 @@ export type TemplateId = z.infer<typeof TemplateIdSchema>;
 
 // ---------- Agent 6: Assembly ----------
 
+export const EvidenceMapSchema = z.object({
+  claimCount: z.number().int().nonnegative(),
+  coveredClaimCount: z.number().int().nonnegative(),
+  coveragePercent: z.number().min(0).max(100),
+  panels: z.array(z.object({
+    sectionId: z.string(),
+    heading: z.string(),
+    claims: z.array(z.string()),
+    grounded: z.boolean(),
+  })),
+});
+export type EvidenceMap = z.infer<typeof EvidenceMapSchema>;
+
 export const ExplainerSchema = z.object({
   id: z.string(),
   jobId: z.string(),
@@ -773,6 +827,8 @@ export const ExplainerSchema = z.object({
   title: z.string(),
   summary: z.string(),
   audienceLevel: AudienceLevelSchema,
+  publishingGoal: PublishingGoalSchema.default("teach"),
+  voiceProfileId: VoiceProfileIdSchema.default("clear_expert"),
   panels: z.array(RenderedPanelSchema).min(1),
   createdAt: z.string(),
   // Bumped on every edit; used as a cache-buster for PNG/MP4 exports.
@@ -785,6 +841,9 @@ export const ExplainerSchema = z.object({
   // Structured résumé source, kept only for resume explainers so the
   // single-page résumé PDF can be re-rendered on demand. Absent otherwise.
   resumeDoc: ResumeDocSchema.nullish(),
+  // Traceability from every narrative panel back to claims extracted from
+  // the source. Optional so existing persisted explainers remain valid.
+  evidenceMap: EvidenceMapSchema.optional(),
 });
 export type Explainer = z.infer<typeof ExplainerSchema>;
 
@@ -838,11 +897,19 @@ export const JobSchema = z.object({
   audienceLevel: AudienceLevelSchema,
   // Visual voice for the deck. Older jobs predate the field → default.
   style: BrandStyleSchema.default("editorial"),
+  publishingGoal: PublishingGoalSchema.default("teach"),
+  voiceProfileId: VoiceProfileIdSchema.default("clear_expert"),
   status: JobStatusSchema,
   cacheKey: z.string(),
   explainerId: z.string().optional(),
   explainer: ExplainerSchema.optional(),
   error: JobErrorSchema.optional(),
+  editorialBrief: EditorialBriefSchema.optional(),
+  pipelineState: z.object({
+    article: CleanArticleSchema,
+    comprehension: ComprehensionSchema,
+  }).optional(),
+  briefApproved: z.boolean().default(false),
   progress: z
     .array(z.object({ ts: z.string(), note: z.string() }))
     .default([]),
@@ -858,5 +925,7 @@ export const CreateJobRequestSchema = z.object({
   url: z.string().url(),
   audienceLevel: AudienceLevelSchema.default("general"),
   style: BrandStyleSchema.default("editorial"),
+  publishingGoal: PublishingGoalSchema.default("teach"),
+  voiceProfileId: VoiceProfileIdSchema.default("clear_expert"),
 });
 export type CreateJobRequest = z.infer<typeof CreateJobRequestSchema>;

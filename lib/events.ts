@@ -3,6 +3,7 @@ import type {
   JobError,
   JobStatus,
   RenderedPanel,
+  EditorialBrief,
 } from "./shared/schemas";
 
 export type AgentName =
@@ -22,6 +23,7 @@ export type StreamEventInput =
   | { type: "job.status"; data: { status: JobStatus } }
   | { type: "job.completed"; data: { explainer: Explainer } }
   | { type: "job.failed"; data: { error: JobError } }
+  | { type: "brief.ready"; data: { brief: EditorialBrief } }
   | {
       type: "agent.start";
       data: { agent: AgentName; index: number };

@@ -16,22 +16,26 @@ create table if not exists public.brand_kits (
 -- Owner-only read / write.
 alter table public.brand_kits enable row level security;
 
+drop policy if exists "brand_kits_select_own" on public.brand_kits;
 create policy "brand_kits_select_own"
   on public.brand_kits
   for select
   using (auth.uid() = user_id);
 
+drop policy if exists "brand_kits_insert_own" on public.brand_kits;
 create policy "brand_kits_insert_own"
   on public.brand_kits
   for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "brand_kits_update_own" on public.brand_kits;
 create policy "brand_kits_update_own"
   on public.brand_kits
   for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "brand_kits_delete_own" on public.brand_kits;
 create policy "brand_kits_delete_own"
   on public.brand_kits
   for delete
@@ -39,6 +43,7 @@ create policy "brand_kits_delete_own"
 
 -- Touch updated_at on row update so exports invalidate their cache when
 -- the user changes their brand.
+drop trigger if exists brand_kits_set_updated_at on public.brand_kits;
 create trigger brand_kits_set_updated_at
   before update on public.brand_kits
   for each row execute function public.set_updated_at();

@@ -313,7 +313,9 @@ function clampField(container: unknown, field: string, max: number): void {
 function userMessage(
   section: OutlineSection,
   comprehension: Comprehension,
-  audience: AudienceLevel
+  audience: AudienceLevel,
+  publishingGoal = "teach",
+  voice?: string
 ): string {
   const sourceClaims = section.sourceClaimIndexes
     .map((i) => comprehension.keyClaims[i])
@@ -340,6 +342,8 @@ function userMessage(
 
   return [
     `Audience level: ${audience}`,
+    `Publishing goal: ${publishingGoal}`,
+    voice ? `Editorial voice: ${voice}` : null,
     `Genre: ${comprehension.genre} (confidence: ${comprehension.genreConfidence})`,
     featureFlags ? `Content features: ${featureFlags}` : null,
     "",
@@ -371,7 +375,9 @@ export async function runPlanner(
   section: OutlineSection,
   comprehension: Comprehension,
   audience: AudienceLevel,
-  jobId?: string
+  jobId?: string,
+  publishingGoal = "teach",
+  voice?: string
 ): Promise<PanelPlan> {
   return withRetry(`planner[${section.id}]`, async (retryHint) => {
     const messages = [
@@ -380,7 +386,7 @@ export async function runPlanner(
         content:
           (retryHint
             ? `${retryHint}\n\nReturn the COMPLETE corrected PanelPlan JSON (not just the fixed fields). No fences, no commentary.\n\n---\n\n`
-            : "") + userMessage(section, comprehension, audience),
+            : "") + userMessage(section, comprehension, audience, publishingGoal, voice),
       },
     ];
     const res = await callMessages(

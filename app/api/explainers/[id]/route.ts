@@ -3,6 +3,8 @@ import { z } from "zod";
 import { TemplateIdSchema } from "@/lib/shared/schemas";
 import { deleteExplainer, setExplainerTemplate } from "@/lib/store";
 import { templateExists } from "@/lib/templates/registry";
+import { canUseTemplate, currentEntitlement, proRequired } from "@/lib/entitlements";
+import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,10 +55,13 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    const entitlement = await currentEntitlement();
+    if (!canUseTemplate(entitlement.plan, template)) return NextResponse.json(proRequired("This premium template"), { status: 402 });
     const updated = await setExplainerTemplate(params.id, template);
     if (!updated) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    void trackProductEvent({ name: "template_selected", properties: { template, plan: entitlement.plan } });
     return NextResponse.json({ explainer: updated });
   }
 

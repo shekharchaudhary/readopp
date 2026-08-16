@@ -3,11 +3,16 @@ import {
   ExplainerSchema,
   type AudienceLevel,
   type BrandStyle,
+  type PublishingGoal,
   type BrandKit,
   type Explainer,
   type Job,
   type JobError,
   type JobStatus,
+  type EditorialBrief,
+  type CleanArticle,
+  type Comprehension,
+  type VoiceProfileId,
   type TokenUsage,
 } from "./shared/schemas";
 import type { StreamEvent, StreamEventInput } from "./events";
@@ -23,10 +28,12 @@ import { getAdminSupabase, getServerSupabase } from "./supabase/server";
 export function cacheKeyFor(
   url: string,
   audienceLevel: AudienceLevel,
-  style: BrandStyle = "editorial"
+  style: BrandStyle = "editorial",
+  publishingGoal: PublishingGoal = "teach",
+  voiceProfileId: VoiceProfileId = "clear_expert"
 ): string {
   return createHash("sha256")
-    .update(`${url}::${audienceLevel}::${style}`)
+    .update(`${url}::${audienceLevel}::${style}::${publishingGoal}::${voiceProfileId}`)
     .digest("hex")
     .slice(0, 16);
 }
@@ -38,6 +45,8 @@ interface JobRow {
   user_id: string;
   url: string;
   audience_level: string;
+  publishing_goal?: string | null;
+  voice_profile_id?: string | null;
   status: string;
   style?: string | null;
   cache_key: string;
@@ -46,6 +55,9 @@ interface JobRow {
   error: unknown;
   explainer_id: string | null;
   explainer: unknown;
+  editorial_brief?: unknown;
+  pipeline_state?: unknown;
+  brief_approved?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -56,6 +68,8 @@ function rowToJob(row: JobRow): Job & { userId: string } {
     url: row.url,
     audienceLevel: row.audience_level as AudienceLevel,
     style: (row.style as BrandStyle | null) ?? "editorial",
+    publishingGoal: (row.publishing_goal as PublishingGoal | null) ?? "teach",
+    voiceProfileId: (row.voice_profile_id as VoiceProfileId | null) ?? "clear_expert",
     status: row.status as JobStatus,
     cacheKey: row.cache_key,
     progress:
@@ -64,6 +78,9 @@ function rowToJob(row: JobRow): Job & { userId: string } {
     error: (row.error as JobError | null) ?? undefined,
     explainerId: row.explainer_id ?? undefined,
     explainer: (row.explainer as Explainer | null) ?? undefined,
+    editorialBrief: (row.editorial_brief as EditorialBrief | null) ?? undefined,
+    pipelineState: (row.pipeline_state as { article: CleanArticle; comprehension: Comprehension } | null) ?? undefined,
+    briefApproved: row.brief_approved ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     userId: row.user_id,
@@ -76,19 +93,25 @@ export async function createJob(input: {
   userId: string;
   /** Deck-level visual style; defaults to editorial. */
   style?: BrandStyle;
+  publishingGoal?: PublishingGoal;
+  voiceProfileId?: VoiceProfileId;
   /** Optional explicit cache key (e.g. file-hash for PDF uploads). Defaults to url+audience+style hash. */
   cacheKey?: string;
 }): Promise<Job & { userId: string }> {
   const admin = getAdminSupabase();
   const style = input.style ?? "editorial";
+  const publishingGoal = input.publishingGoal ?? "teach";
+  const voiceProfileId = input.voiceProfileId ?? "clear_expert";
   const row = {
     user_id: input.userId,
     url: input.url,
     audience_level: input.audienceLevel,
     style,
+    publishing_goal: publishingGoal,
+    voice_profile_id: voiceProfileId,
     status: "queued",
     cache_key:
-      input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel, style),
+      input.cacheKey ?? cacheKeyFor(input.url, input.audienceLevel, style, publishingGoal, voiceProfileId),
     progress: [],
     usage: { inputTokens: 0, outputTokens: 0, calls: 0 },
   } as unknown as never;
@@ -128,6 +151,9 @@ export async function updateJob(
   if (patch.error !== undefined) row.error = patch.error;
   if (patch.explainerId !== undefined) row.explainer_id = patch.explainerId;
   if (patch.explainer !== undefined) row.explainer = patch.explainer;
+  if (patch.editorialBrief !== undefined) row.editorial_brief = patch.editorialBrief;
+  if (patch.pipelineState !== undefined) row.pipeline_state = patch.pipelineState;
+  if (patch.briefApproved !== undefined) row.brief_approved = patch.briefApproved;
   // updated_at is bumped by the row-level trigger.
   const { data, error } = await admin
     .from("jobs")
@@ -299,6 +325,8 @@ interface ExplainerRow {
   job_id: string;
   url: string;
   audience_level: string;
+  publishing_goal?: string | null;
+  voice_profile_id?: string | null;
   cache_key: string;
   title: string;
   summary: string;
@@ -307,6 +335,7 @@ interface ExplainerRow {
   social_pack: unknown;
   template: string | null;
   resume_doc: unknown;
+  evidence_map?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -319,12 +348,15 @@ function rowToExplainer(row: ExplainerRow): Explainer {
     title: row.title,
     summary: row.summary,
     audienceLevel: row.audience_level,
+    publishingGoal: row.publishing_goal ?? "teach",
+    voiceProfileId: (row.voice_profile_id as VoiceProfileId | null) ?? "clear_expert",
     panels: row.panels,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     socialPack: row.social_pack ?? undefined,
     template: row.template ?? undefined,
     resumeDoc: row.resume_doc ?? undefined,
+    evidenceMap: row.evidence_map ?? undefined,
   });
   if (!parsed.success) {
     throw new Error(
@@ -348,6 +380,8 @@ async function insertExplainer(
     job_id: meta.jobId,
     url: explainer.url,
     audience_level: explainer.audienceLevel,
+    publishing_goal: explainer.publishingGoal,
+    voice_profile_id: explainer.voiceProfileId,
     cache_key: meta.cacheKey,
     title: explainer.title,
     summary: explainer.summary,
@@ -355,6 +389,7 @@ async function insertExplainer(
     social_pack: explainer.socialPack ?? null,
     template: explainer.template ?? null,
     resume_doc: explainer.resumeDoc ?? null,
+    evidence_map: explainer.evidenceMap ?? null,
   } as unknown as never;
   // Upsert (not insert) so the cache-hit path works: when a user
   // re-submits a URL they already have an explainer for, completeJob

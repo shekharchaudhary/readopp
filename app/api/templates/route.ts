@@ -4,6 +4,9 @@ import {
   templateExists,
   getTemplate,
 } from "@/lib/templates/registry";
+import { getExplainer } from "@/lib/store";
+import { recommendTemplates } from "@/lib/templates/recommend";
+import { canUseTemplate, currentEntitlement } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +16,12 @@ export const dynamic = "force-dynamic";
  * picker UI. Unimplemented templates come back with available: false
  * so the gallery can show them as "coming soon" placeholders.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const entitlement = await currentEntitlement().catch(() => ({ plan: "free" as const, isAnonymous: true }));
+  const explainerId = new URL(req.url).searchParams.get("explainerId");
+  const explainer = explainerId ? await getExplainer(explainerId) : undefined;
+  const recommendations = explainer ? recommendTemplates(explainer) : [];
+  const recommendedById = new Map(recommendations.map((r, index) => [r.id, { ...r, rank: index + 1 }]));
   const templates = listAllTemplateIds().map((id) => {
     const available = templateExists(id);
     // getTemplate falls back to the default for missing ids, so for the
@@ -28,10 +36,12 @@ export async function GET() {
           audience: def.audience,
           preview: def.preview,
           available: true,
+          locked: !canUseTemplate(entitlement.plan, def.id),
+          recommendation: recommendedById.get(def.id) ?? null,
         }
       : placeholderFor(id);
   });
-  return NextResponse.json({ templates });
+  return NextResponse.json({ templates, entitlement });
 }
 
 function placeholderFor(id: string) {

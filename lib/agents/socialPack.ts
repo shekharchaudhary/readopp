@@ -75,6 +75,8 @@ function userMessage(input: {
     `Source: ${sourceLabel(explainer.url)}`,
     `Title: ${explainer.title}`,
     `Audience level: ${explainer.audienceLevel}`,
+    `Publishing goal: ${explainer.publishingGoal}`,
+    "Match the caption CTA to the publishing goal; do not use a generic engagement question unless the goal is start_discussion.",
     `Genre: ${comprehension.genre}`,
     `One-line summary: ${comprehension.oneLineSummary}`,
     `Core idea: ${comprehension.coreIdea}`,
@@ -94,6 +96,7 @@ export interface SocialPackOptions {
    *  endpoint so the user can steer the caption ("shorter", "more
    *  skeptical", "lead with the stat", "no questions"). */
   hint?: string;
+  voiceInstruction?: string;
 }
 
 export async function runSocialPack(
@@ -122,6 +125,9 @@ export async function runSocialPack(
                 : "") +
               (hint
                 ? `EXTRA GUIDANCE FROM THE USER (apply this on top of the system rules):\n  ${hint}\n\n---\n\n`
+                : "") +
+              (opts.voiceInstruction
+                ? `EDITORIAL VOICE (apply to caption wording):\n  ${opts.voiceInstruction}\n\n---\n\n`
                 : "") +
               userMessage({ explainer, comprehension }),
           },
