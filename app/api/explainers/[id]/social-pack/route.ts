@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { runComprehension } from "@/lib/agents/comprehension";
 import { runSocialPack } from "@/lib/agents/socialPack";
 import { getExplainer } from "@/lib/store";
 import { getOrCreateUser, getServerSupabase } from "@/lib/supabase/server";
+import type { Comprehension, Explainer } from "@/lib/shared/schemas";
 
 const PostBodySchema = z
   .object({
@@ -20,6 +20,7 @@ const PatchBodySchema = z.object({
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
  * POST /api/explainers/[id]/social-pack
@@ -59,7 +60,7 @@ export async function POST(
 
   let comprehension;
   try {
-    comprehension = await rebuildComprehensionFromExplainer(explainer);
+    comprehension = rebuildComprehensionFromExplainer(explainer);
   } catch (e) {
     return NextResponse.json(
       { error: `Could not re-comprehend source: ${(e as Error).message}` },
@@ -219,30 +220,30 @@ async function requireOwner(
  * re-comprehension call. This is only used by the regeneration endpoint;
  * the live pipeline already has the real Comprehension in memory.
  */
-async function rebuildComprehensionFromExplainer(
-  explainer: Awaited<ReturnType<typeof getExplainer>>
-) {
-  if (!explainer) throw new Error("explainer is null");
-  // The cheapest path: synthesize a tiny CleanArticle from the explainer's
-  // title + summary + panel headings, run the existing comprehension agent
-  // against it. Genre + features get inferred from the available content.
-  const fakeText = [
-    explainer.title,
-    explainer.summary,
-    "",
-    ...explainer.panels.map(
-      (p) => `${p.heading}\n${p.caption || ""}`
-    ),
-  ].join("\n");
-  return runComprehension(
-    {
-      url: explainer.url,
-      title: explainer.title,
-      text: fakeText,
-      codeBlocks: [],
-      imageUrls: [],
-      wordCount: fakeText.split(/\s+/).length,
+function rebuildComprehensionFromExplainer(explainer: Explainer): Comprehension {
+  const evidenceClaims = explainer.evidenceMap?.panels.flatMap((panel) => panel.claims) ?? [];
+  const panelClaims = explainer.panels.map((panel) => panel.caption).filter(Boolean);
+  const keyClaims = [...new Set([...evidenceClaims, ...panelClaims])].slice(0, 10);
+  const fallback = explainer.summary || explainer.title;
+  return {
+    oneLineSummary: fallback.slice(0, 220),
+    coreIdea: fallback,
+    keyClaims: keyClaims.length ? keyClaims : [fallback],
+    entities: [],
+    jargon: [],
+    narrativeArc: explainer.panels.map((panel) => panel.heading).filter(Boolean).join(" → "),
+    audienceLevel: explainer.audienceLevel,
+    genre: "article",
+    genreConfidence: "medium",
+    contentFeatures: {
+      hasNumericData: false,
+      hasDates: false,
+      hasCharts: false,
+      hasCode: false,
+      hasRoles: false,
+      hasSkills: false,
+      hasFigures: false,
     },
-    explainer.audienceLevel
-  );
+    dataSeries: [],
+  };
 }

@@ -8,7 +8,16 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "templates:lab": "node scripts/template-quality-lab.mjs"
+    "templates:lab": "node scripts/template-quality-lab.mjs",
+    "harness:all": "node scripts/agent-harness.mjs all",
+    "harness:ingest": "node scripts/agent-harness.mjs ingest",
+    "harness:comprehension": "node scripts/agent-harness.mjs comprehension",
+    "harness:structure": "node scripts/agent-harness.mjs structure",
+    "harness:planner": "node scripts/agent-harness.mjs planner",
+    "harness:render": "node scripts/agent-harness.mjs render",
+    "harness:assembly": "node scripts/agent-harness.mjs assembly",
+    "harness:social": "node scripts/agent-harness.mjs social",
+    "harness:regenerate": "node scripts/agent-harness.mjs regenerate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

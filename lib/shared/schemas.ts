@@ -760,6 +760,59 @@ export const SocialPackSchema = z.object({
     )
     .default([]),
   sourceAttribution: z.string().max(200).default(""),
+  poll: z.object({
+    question: z.string().min(1).max(140),
+    options: z.array(z.string().min(1).max(30)).min(2).max(4),
+    intro: z.string().min(1).max(600),
+    followUp: z.string().min(1).max(800),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+  }).optional(),
+  documentAd: z.object({
+    documentTitle: z.string().min(1).max(70),
+    adIntro: z.string().min(1).max(600),
+    headline: z.string().min(1).max(200),
+    description: z.string().min(1).max(300),
+    formHeadline: z.string().min(1).max(60),
+    formDetails: z.string().min(1).max(160),
+    cta: z.enum(["download", "learn_more", "sign_up", "get_quote"]),
+    thankYouMessage: z.string().min(1).max(300),
+    followUpMessage: z.string().min(1).max(800),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+  }).optional(),
+  conversationAd: z.object({
+    openingMessage: z.string().min(1).max(500),
+    senderGuidance: z.string().min(1).max(300),
+    branches: z.array(z.object({
+      id: z.string().min(1).max(30),
+      choice: z.string().min(1).max(40),
+      response: z.string().min(1).max(500),
+      nextStep: z.string().min(1).max(220),
+      cta: z.preprocess(
+        (value) => value === "view_story" ? "read_explainer" : value,
+        z.enum(["read_explainer", "download_document", "read_source", "start_conversation"])
+      ),
+    })).min(2).max(4),
+    noResponseFollowUp: z.string().min(1).max(500),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(4),
+  }).optional(),
+  newsletterSeries: z.object({
+    seriesTitle: z.string().min(1).max(80),
+    positioning: z.string().min(1).max(300),
+    cadence: z.enum(["three_days", "weekly", "biweekly"]),
+    issues: z.array(z.object({
+      issueNumber: z.number().int().min(1).max(3),
+      subject: z.string().min(1).max(100),
+      previewText: z.string().min(1).max(140),
+      headline: z.string().min(1).max(120),
+      opening: z.string().min(1).max(500),
+      sections: z.array(z.object({
+        heading: z.string().min(1).max(80),
+        takeaway: z.string().min(1).max(400),
+      })).min(2).max(4),
+      cta: z.string().min(1).max(160),
+      sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+    })).length(3),
+  }).optional(),
 });
 export type SocialPack = z.infer<typeof SocialPackSchema>;
 
