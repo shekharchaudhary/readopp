@@ -1,0 +1,24 @@
+import { ComprehensionSchema, CleanArticleSchema, ExplainerOutlineSchema, ExplainerSchema, PanelPlanSchema, RenderedPanelSchema, SocialPackSchema } from "../shared/schemas";
+
+export type HarnessAgent = "ingest" | "comprehension" | "structure" | "planner" | "render" | "assembly" | "social" | "regenerate";
+export const HARNESS_AGENTS: HarnessAgent[] = ["ingest", "comprehension", "structure", "planner", "render", "assembly", "social", "regenerate"];
+export interface Check { name: string; pass: boolean; detail?: string }
+export interface AgentResult { agent: HarnessAgent; pass: boolean; checks: Check[]; durationMs: number }
+
+function check(name: string, pass: unknown, detail?: string): Check { return { name, pass: Boolean(pass), ...(detail ? { detail } : {}) }; }
+function schemaCheck(name: string, result: { success: boolean; error?: { issues?: { message: string }[] } }): Check {
+  return check(name, result.success, result.success ? undefined : result.error?.issues?.[0]?.message);
+}
+
+export function evaluate(agent: HarnessAgent, output: unknown, context: Record<string, unknown> = {}): Check[] {
+  switch (agent) {
+    case "ingest": { const p = CleanArticleSchema.safeParse(output); return [schemaCheck("valid CleanArticle", p), check("meaningful body", p.success && p.data.wordCount >= 20 && p.data.text.length >= 100), check("http source retained", p.success && /^https?:\/\//.test(p.data.url))]; }
+    case "comprehension": { const p = ComprehensionSchema.safeParse(output); return [schemaCheck("valid Comprehension", p), check("specific claims", p.success && p.data.keyClaims.length >= 3 && p.data.keyClaims.every((v) => v.length >= 20)), check("summary is concise", p.success && p.data.oneLineSummary.length <= 220), check("numeric flag agrees with data", p.success && (!p.data.contentFeatures.hasNumericData || p.data.dataSeries.length > 0))]; }
+    case "structure": { const p = ExplainerOutlineSchema.safeParse(output); const max = (context.claimCount as number | undefined) ?? 0; return [schemaCheck("valid ExplainerOutline", p), check("publishable panel count", p.success && p.data.sections.length >= 3 && p.data.sections.length <= 6), check("unique section ids", p.success && new Set(p.data.sections.map((s) => s.id)).size === p.data.sections.length), check("claim references exist", p.success && p.data.sections.every((s) => s.sourceClaimIndexes.every((i) => i < max)))]; }
+    case "planner":
+    case "regenerate": { const p = PanelPlanSchema.safeParse(output); const expected = context.sectionId as string | undefined; return [schemaCheck("valid PanelPlan", p), check("section identity preserved", p.success && (!expected || p.data.sectionId === expected)), check("caption is useful", p.success && p.data.caption.length >= 20), check("selection rationale present", p.success && p.data.narrativeReason.length >= 20)]; }
+    case "render": { const p = RenderedPanelSchema.safeParse(output); const safe = p.success && !/<script\b|javascript:|<foreignObject\b/i.test(p.data.content); return [schemaCheck("valid RenderedPanel", p), check("validated output", p.success && p.data.validated), check("safe self-contained markup", safe), check("plan attached", p.success && Boolean(p.data.plan))]; }
+    case "assembly": { const p = ExplainerSchema.safeParse(output); return [schemaCheck("valid Explainer", p), check("panels retained", p.success && p.data.panels.length > 0), check("evidence map present", p.success && Boolean(p.data.evidenceMap)), check("all panels grounded", p.success && Boolean(p.data.evidenceMap?.panels.every((v) => v.grounded)))]; }
+    case "social": { const p = SocialPackSchema.safeParse(output); const ids = new Set((context.panelIds as string[] | undefined) ?? []); return [schemaCheck("valid SocialPack", p), check("caption within channel limit", p.success && p.data.caption.length <= 600), check("hashtags normalized", p.success && p.data.hashtags.every((v) => !v.includes("#") && !/\s/.test(v))), check("alt text covers every panel", p.success && ids.size > 0 && [...ids].every((id) => p.data.altTexts.some((a) => a.sectionId === id))), check("poll is source-grounded", p.success && Boolean(p.data.poll?.sourceClaimIndexes.length) && Boolean(p.data.poll?.options.length && p.data.poll.options.length <= 4)), check("document ad is campaign-ready", p.success && Boolean(p.data.documentAd?.sourceClaimIndexes.length) && Boolean(p.data.documentAd?.formHeadline && p.data.documentAd?.followUpMessage)), check("conversation ad has distinct branches", p.success && Boolean(p.data.conversationAd?.sourceClaimIndexes.length) && new Set(p.data.conversationAd?.branches.map((b) => b.choice)).size === p.data.conversationAd?.branches.length), check("newsletter forms a three-issue arc", p.success && p.data.newsletterSeries?.issues.length === 3 && new Set(p.data.newsletterSeries.issues.map((i) => i.subject)).size === 3)]; }
+  }
+}

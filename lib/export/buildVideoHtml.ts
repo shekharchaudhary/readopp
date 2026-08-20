@@ -1,17 +1,18 @@
 import QRCode from "qrcode";
-import type { BrandKit, Explainer } from "../shared/schemas";
+import type { BrandKit, Explainer, PublishingGoal } from "../shared/schemas";
 import { sourceLabel } from "../shared/source";
 import type { TemplateDef } from "../templates/types";
 
 /** Per-format dimensions and typography for video output. */
 export type VideoFormat = "vertical" | "square";
+export type VideoPreset = "native" | "cinematic";
 
 export const VIDEO_DIMENSIONS: Record<
   VideoFormat,
   { w: number; h: number; label: string }
 > = {
-  vertical: { w: 1080, h: 1920, label: "TikTok / Reels / Shorts" },
-  square: { w: 1080, h: 1080, label: "Instagram feed" },
+  vertical: { w: 1080, h: 1920, label: "LinkedIn / Reels / Shorts" },
+  square: { w: 1080, h: 1080, label: "LinkedIn / Instagram feed" },
 };
 
 export function isVideoFormat(s: string): s is VideoFormat {
@@ -21,11 +22,10 @@ export function isVideoFormat(s: string): s is VideoFormat {
 // Max panels in a video. More than this becomes too long for short-form feeds.
 const MAX_PANELS = 6;
 
-// Timing — all milliseconds.
-const INTRO_MS = 2400;
-const SCENE_MS = 4200; // per-panel scene
-const CROSSFADE_MS = 500; // overlap between scenes
-const OUTRO_MS = 3200;
+const VIDEO_TIMING: Record<VideoPreset, { intro: number; scene: number; crossfade: number; outro: number }> = {
+  native: { intro: 1800, scene: 3300, crossfade: 400, outro: 2600 },
+  cinematic: { intro: 2400, scene: 4200, crossfade: 500, outro: 3200 },
+};
 
 function escapeHtml(s: string): string {
   return s
@@ -91,6 +91,7 @@ interface VideoBuild {
 interface BuildInput {
   explainer: Explainer;
   format: VideoFormat;
+  preset?: VideoPreset;
   /** Visual identity to render panel scenes with — same contract as the
    *  image export, so the video always matches what the user picked. */
   template: TemplateDef;
@@ -108,7 +109,8 @@ interface BuildInput {
  * document load, so scenes must already be settled by then.
  */
 export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
-  const { explainer, format, template, brand } = input;
+  const { explainer, format, template, brand, preset = "native" } = input;
+  const timing = VIDEO_TIMING[preset];
   const dims = VIDEO_DIMENSIONS[format];
   const L = layoutFor(format);
   const panels = explainer.panels.slice(0, MAX_PANELS);
@@ -117,6 +119,8 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   const domain = sourceLabel(explainer.url);
   const shareUrl = `${siteUrl()}/e/${explainer.id}`;
   const qr = await qrSvg(shareUrl, L.qrSize);
+  const { hook, cta, ctaEyebrow } = videoCopy(explainer);
+  const showCaptions = preset === "native";
 
   // Theme the intro/outro chrome from the template's identity so the video
   // reads as one piece, even though those scenes are video-specific.
@@ -145,14 +149,14 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   );
 
   // Scene timing: each scene starts staggered by (SCENE_MS - CROSSFADE_MS).
-  const stepMs = SCENE_MS - CROSSFADE_MS;
+  const stepMs = timing.scene - timing.crossfade;
   const introStart = 0;
-  const firstSceneStart = INTRO_MS - CROSSFADE_MS;
+  const firstSceneStart = timing.intro - timing.crossfade;
   const outroStart = firstSceneStart + shown * stepMs;
-  const totalMs = outroStart + OUTRO_MS;
+  const totalMs = outroStart + timing.outro;
 
   const sceneHtml = slides
-    .map((slide, i) => renderScene(slide, i, shown, firstSceneStart, stepMs))
+    .map((slide, i) => renderScene(slide, panels[i]?.heading || panels[i]?.caption || "", i, shown, firstSceneStart, stepMs, timing.scene, showCaptions))
     .join("\n");
 
   return {
@@ -176,6 +180,10 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
     height: ${dims.h}px;
     background: ${BG};
   }
+  .timeline { position: absolute; z-index: 20; top: 0; left: 0; height: 8px; width: 100%; background: ${LINE}; }
+  .timeline-fill { height: 100%; width: 0; background: ${ACCENT}; animation: timeline ${totalMs}ms linear forwards; animation-play-state: paused; }
+  body.go .timeline-fill { animation-play-state: running; }
+  @keyframes timeline { to { width: 100%; } }
 
   .scene {
     position: absolute;
@@ -242,7 +250,7 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   .panel-zoom {
     position: absolute; inset: 0;
     transform-origin: 50% 50%;
-    animation: panel-zoom ${SCENE_MS}ms linear both;
+    animation: panel-zoom ${timing.scene}ms linear both;
     animation-play-state: paused;
   }
   body.go .panel-zoom { animation-play-state: running; }
@@ -254,6 +262,8 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
     display: block; width: ${dims.w}px; height: ${dims.h}px;
     border: 0; pointer-events: none; background: ${BG};
   }
+  .scene-count { position: absolute; z-index: 6; top: ${format === "vertical" ? 58 : 42}px; right: ${format === "vertical" ? 54 : 42}px; padding: 10px 16px; border-radius: 999px; background: rgba(10,10,10,.72); color: white; font: 600 ${L.metaSize}px/1 ${FONT}; letter-spacing: .08em; backdrop-filter: blur(12px); }
+  .scene-caption { position: absolute; z-index: 5; left: ${L.padding}px; right: ${L.padding}px; bottom: ${format === "vertical" ? 82 : 54}px; padding: 24px 28px; border-radius: 20px; background: rgba(10,10,10,.82); color: white; font: 600 ${L.captionSize}px/1.25 ${FONT}; letter-spacing: -.01em; box-shadow: 0 12px 40px rgba(0,0,0,.22); backdrop-filter: blur(16px); }
 
   @keyframes rise {
     to { opacity: 1; transform: translateY(0); }
@@ -300,10 +310,11 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
 </head>
 <body>
   <div class="stage">
+    <div class="timeline"><div class="timeline-fill"></div></div>
 
     <!-- Intro scene -->
-    <section class="scene scene-intro" style="animation: scene-show ${INTRO_MS}ms ease ${introStart}ms both;">
-      <div class="intro-eyebrow">An explainer</div>
+    <section class="scene scene-intro" style="animation: scene-show ${timing.intro}ms ease ${introStart}ms both;">
+      <div class="intro-eyebrow">${escapeHtml(hook)}</div>
       <h1 class="intro-title">${escapeHtml(explainer.title)}</h1>
       ${
         explainer.summary
@@ -319,10 +330,10 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
     ${sceneHtml}
 
     <!-- Outro scene -->
-    <section class="scene scene-outro" style="animation: scene-show-hold ${OUTRO_MS}ms ease ${outroStart}ms both;">
+    <section class="scene scene-outro" style="animation: scene-show-hold ${timing.outro}ms ease ${outroStart}ms both;">
       <div class="outro-block">
-        <div class="outro-eyebrow">Read the full explainer</div>
-        <div class="outro-title">${escapeHtml(explainer.title)}</div>
+        <div class="outro-eyebrow">${escapeHtml(ctaEyebrow)}</div>
+        <div class="outro-title">${escapeHtml(cta)}</div>
         <div class="outro-qr">${qr}</div>
         <div class="outro-meta">
           <span class="accent">Readopp</span>
@@ -362,15 +373,18 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
 
 function renderScene(
   slideHtml: string,
+  caption: string,
   i: number,
   shown: number,
   firstStart: number,
-  stepMs: number
+  stepMs: number,
+  sceneMs: number,
+  showCaption: boolean
 ): string {
   const sceneStart = firstStart + i * stepMs;
   const isLast = i === shown - 1;
   // Last scene holds slightly so it doesn't fade out before the outro fades in.
-  const dur = isLast ? SCENE_MS + 200 : SCENE_MS;
+  const dur = isLast ? sceneMs + 200 : sceneMs;
 
   return `<section class="scene scene-panel" data-i="${i}" style="animation: ${
     isLast ? "scene-show-hold" : "scene-show"
@@ -380,7 +394,34 @@ function renderScene(
       slideHtml
     )}"></iframe>
   </div>
+  <div class="scene-count">${String(i + 1).padStart(2, "0")} / ${String(shown).padStart(2, "0")}</div>
+  ${showCaption && caption ? `<div class="scene-caption">${escapeHtml(truncate(caption, 120))}</div>` : ""}
 </section>`;
+}
+
+function videoCopy(explainer: Explainer): { hook: string; cta: string; ctaEyebrow: string } {
+  const goal: PublishingGoal = explainer.publishingGoal;
+  const hooks: Record<PublishingGoal, string> = {
+    teach: "Understand this in seconds",
+    key_findings: "The finding worth knowing",
+    make_argument: "The case, made clearly",
+    promote_source: "Before you read this",
+    start_discussion: "A question worth debating",
+  };
+  const ctas: Record<PublishingGoal, [string, string]> = {
+    teach: ["Keep learning", "Save this explainer"],
+    key_findings: ["Go deeper", "Explore the evidence"],
+    make_argument: ["Your turn", "Do you agree?"],
+    promote_source: ["Continue reading", "Read the full source"],
+    start_discussion: ["Join the conversation", "Add your perspective"],
+  };
+  const [ctaEyebrow, cta] = ctas[goal];
+  return { hook: hooks[goal], cta, ctaEyebrow };
+}
+
+function truncate(s: string, max: number): string {
+  const clean = s.replace(/\s+/g, " ").trim();
+  return clean.length <= max ? clean : `${clean.slice(0, max - 1).trimEnd()}…`;
 }
 
 function stripScheme(u: string): string {
