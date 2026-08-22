@@ -19,61 +19,51 @@ export function Nav() {
     <nav
       aria-label="Primary"
       className={
-        "sticky top-0 z-40 w-full bg-paper/88 backdrop-blur-xl transition-colors " +
+        "force-light sticky top-0 z-40 w-full bg-white/95 transition-colors " +
         (scrolled
           ? "border-b border-paper-line"
           : "border-b border-transparent")
       }
     >
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12">
         <Link
           href="/"
-          className="inline-flex items-center gap-2.5 font-display text-xl font-semibold tracking-[-0.03em] text-ink"
+          className="inline-flex items-center gap-2.5 font-sans text-xl font-bold tracking-[-0.04em] text-[#484848]"
           aria-label="Readopp — home"
         >
-          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-sky text-[10px] font-sans font-bold text-white">R</span>
+          <span aria-hidden className="grid h-8 w-8 rotate-[-8deg] place-items-center rounded-xl bg-[#cce68a] text-sm text-[#484848]">R</span>
           Readopp
         </Link>
         <div className="flex items-center gap-1 text-sm">
           <a
-            href="#templates"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            href="#try"
+            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
           >
-            Templates
+            Make a post
           </a>
           <a
             href="#how-it-works"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
           >
             How it works
           </a>
           <a
-            href="#use-cases"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
-          >
-            For
-          </a>
-          <a
             href="#pricing"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] lg:inline-block"
           >
             Pricing
           </a>
           <a
-            href="#faq"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
-          >
-            Questions
-          </a>
-          <a
             href="#try"
-            className="ml-2 rounded-full bg-sky px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-sky-deep"
+            className="ml-2 rounded-xl bg-[#484848] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#333]"
           >
-            Try it
+            Try it free
           </a>
-          <span aria-hidden className="mx-1 h-5 w-px bg-paper-line" />
-          <ThemeToggle />
-          <AuthMenu />
+          <span className="hidden items-center sm:flex">
+            <span aria-hidden className="mx-1 h-5 w-px bg-[#e5e5e5]" />
+            <ThemeToggle />
+            <AuthMenu />
+          </span>
         </div>
       </div>
     </nav>

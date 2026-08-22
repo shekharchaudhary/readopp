@@ -32,10 +32,9 @@ export const metadata: Metadata = {
   },
 };
 
-// Runs before paint so the theme never flashes. The brand look is dark
-// (black + ivory + bronze), so dark is the default unless the visitor
-// explicitly switched to light via the toggle.
-const themeInit = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.classList.toggle("dark",t!=="light")}catch(e){}})()`;
+// Runs before paint so an explicitly chosen dark theme never flashes.
+// The default stays light: the landing page is designed as a reading surface.
+const themeInit = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.classList.toggle("dark",t==="dark")}catch(e){}})()`;
 
 export default function RootLayout({
   children,

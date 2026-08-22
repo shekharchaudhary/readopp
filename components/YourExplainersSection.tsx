@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { ExampleGallery } from "./ExampleGallery";
-import { Reveal } from "./marketing/Reveal";
-import { SectionLabel } from "./marketing/SectionLabel";
 
 /**
  * Personalised "Your explainers" / "What others have made" section.
@@ -41,34 +39,26 @@ export function YourExplainersSection() {
 
   const isSamples = !hasItems;
 
-  // Sage is a deliberate one-off: the user asked for this section to break
-  // from the site palette entirely, so the island is pinned light and green
-  // in both themes.
   return (
-    <section className="border-b border-paper-line bg-paper">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-        <div className="force-light rounded-3xl bg-sage-soft px-6 py-16 sm:px-12 sm:py-20">
-          <Reveal>
-            <SectionLabel
-              title={isSamples ? "What others have made" : "Your explainers"}
-              tone="sage"
-            />
-          </Reveal>
-          <Reveal delayMs={60}>
-            <h2 className="mt-6 max-w-3xl font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
+    <section id="library" className="force-light border-b border-[#e8e8e8] bg-white">
+      <div className="mx-auto max-w-[1320px] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
+        <div className="grid gap-10 lg:grid-cols-[.65fr_1.35fr] lg:gap-20">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-[#7eae3f]">
+              {isSamples ? "From the reading room" : "Your reading room"}
+            </p>
+            <h2 className="mt-5 max-w-lg font-sans text-5xl font-bold leading-[.98] tracking-[-.05em] text-[#484848]">
               {isSamples
-                ? "Real explainers, real articles. Click any to flip through."
-                : "Everything you’ve made with Readopp."}
+                ? <>Made from writing<br /><em>worth revisiting.</em></>
+                : <>Your saved<br /><em>visual notes.</em></>}
             </h2>
-          </Reveal>
-          <Reveal delayMs={120}>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-soft">
+            <p className="mt-6 max-w-sm text-base leading-7 text-[#686868]">
               {isSamples
-                ? "Each card below was generated from a single URL by the same pipeline that will design your post."
+                ? "Open an example to read the complete sequence and see how the original source holds together."
                 : "Sign in with Google to keep them attached across devices. Click any to revisit, edit, or re-export."}
             </p>
-          </Reveal>
-          <div className="mt-12">
+          </div>
+          <div>
             <ExampleGallery
               source={
                 isSamples ? "/api/explainers/samples" : "/api/explainers"

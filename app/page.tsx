@@ -1,112 +1,99 @@
 import { UrlInput } from "@/components/UrlInput";
-import { YourExplainersSection } from "@/components/YourExplainersSection";
-import { FAQ } from "@/components/marketing/FAQ";
-import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { Footer } from "@/components/marketing/Footer";
-import { HeroPostMockup } from "@/components/marketing/HeroPostMockup";
-import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { Nav } from "@/components/marketing/Nav";
-import { PlatformsStrip } from "@/components/marketing/PlatformsStrip";
-import { Pricing } from "@/components/marketing/Pricing";
-import { Reveal } from "@/components/marketing/Reveal";
-import { TemplateGallery } from "@/components/marketing/TemplateGallery";
-import { UseCases } from "@/components/marketing/UseCases";
 
 export default function HomePage() {
   return (
-    <>
+    <div className="force-light bg-white text-[#484848]">
       <Nav />
-
       <main>
-        <section className="studio-hero relative overflow-hidden border-b border-paper-line bg-paper">
-          <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-16 lg:px-12">
-            <div className="grid gap-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(380px,.88fr)] lg:items-start lg:gap-16">
-              <div className="relative z-10">
-                <Reveal delayMs={60}>
-                  <div className="mb-8 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-deep">
-                    <span className="h-px w-10 bg-sky" />
-                    AI visual publishing studio
-                  </div>
-                </Reveal>
+        <section className="napkin-grid border-b border-[#e8e8e8] bg-white">
+          <div className="mx-auto max-w-[1080px] px-5 pb-20 pt-16 text-center sm:px-8 sm:pb-24 sm:pt-24 lg:px-12">
+            <p className="mx-auto w-fit rounded-full border border-[#d9d9d9] bg-white px-4 py-2 text-xs font-semibold text-[#666]">
+              For articles, papers, newsletters, and PDFs
+            </p>
+            <h1 className="mx-auto mt-7 max-w-[900px] font-sans text-[48px] font-bold leading-[1.01] tracking-[-.058em] text-[#484848] sm:text-[72px] lg:text-[86px]">
+              Turn a good read into a
+              <span className="relative mx-auto block w-fit text-[#7eae3f]">
+                post worth saving
+                <svg aria-hidden className="absolute -bottom-3 left-0 h-4 w-full" viewBox="0 0 500 20" preserveAspectRatio="none">
+                  <path d="M5 12 C95 2, 165 18, 250 9 S405 4, 495 12" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                </svg>
+              </span>
+            </h1>
+            <p className="mx-auto mt-10 max-w-2xl text-lg leading-8 text-[#626262] sm:text-xl">
+              Readopp finds the argument and evidence in your source, then turns
+              them into a clear, sourced visual story for LinkedIn or X.
+            </p>
 
-                <Reveal delayMs={120}>
-                  <h1 className="max-w-[820px] font-display text-[52px] font-medium leading-[0.96] tracking-[-0.045em] text-ink sm:text-[72px] lg:text-[82px] xl:text-[92px]">
-                    Your best reads,
-                    <span className="block italic text-sky-deep">made visible.</span>
-                  </h1>
-                </Reveal>
-
-                <Reveal delayMs={180}>
-                  <div className="mt-8 grid max-w-2xl gap-5 border-l border-sky/40 pl-5 sm:grid-cols-[1fr_auto] sm:items-end sm:pl-7">
-                    <p className="text-base leading-7 text-ink-soft sm:text-lg">
-                      Turn articles, papers, and PDFs into thoughtful visual
-                      carousels—structured, sourced, and ready to publish.
-                    </p>
-                    <div className="hidden pb-1 text-right font-mono text-[10px] uppercase leading-5 tracking-[0.16em] text-ink-muted sm:block">
-                      Read · distill<br />design · publish
-                    </div>
-                  </div>
-                </Reveal>
-
-                <Reveal delayMs={240}>
-                  <div id="try" className="studio-console mt-10 max-w-2xl overflow-hidden rounded-[24px] border border-paper-line bg-surface shadow-[0_30px_80px_-40px_rgba(20,32,60,.35)]">
-                    <div className="flex items-center justify-between border-b border-paper-line bg-paper-soft/70 px-5 py-3">
-                      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted">
-                        <span className="h-2 w-2 rounded-full bg-sky" />
-                        New visual brief
-                      </div>
-                      <span className="font-mono text-[10px] text-ink-faint">01 / CREATE</span>
-                    </div>
-                    <div className="p-5 sm:p-7"><UrlInput /></div>
-                  </div>
-                </Reveal>
-
-                <Reveal delayMs={290}>
-                  <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
-                    <span>03 free generations</span><span>No card required</span><span>PDF up to 25 MB</span>
-                  </div>
-                </Reveal>
+            <div id="try" className="mx-auto mt-10 max-w-[760px] rounded-[24px] border border-[#dcdcdc] bg-white p-5 text-left shadow-[0_24px_70px_-42px_rgba(72,72,72,.4)] sm:p-8">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#7eae3f]">Start with the source</p>
+                  <h2 className="mt-2 text-2xl font-bold tracking-[-.035em] text-[#484848]">What did you read?</h2>
+                </div>
+                <span className="hidden text-xs text-[#999] sm:block">3 free stories · no card</span>
               </div>
-
-              <Reveal delayMs={260}>
-                <aside className="relative mx-auto w-full max-w-[520px] lg:sticky lg:top-28">
-                  <div className="absolute -left-5 -top-5 hidden h-24 w-24 border-l border-t border-sky/40 sm:block" />
-                  <div className="absolute -bottom-4 -right-4 hidden font-display text-8xl italic leading-none text-sky/10 sm:block">R</div>
-                  <div className="relative rounded-[28px] bg-[#111827] p-3 shadow-[0_40px_90px_-35px_rgba(8,15,30,.65)] sm:p-5">
-                    <div className="mb-4 flex items-center justify-between px-1 text-[10px] uppercase tracking-[0.18em] text-white/55">
-                      <span>Live output preview</span><span className="flex items-center gap-2"><i className="h-1.5 w-1.5 rounded-full bg-[#6ee7b7]" /> Ready</span>
-                    </div>
-                    <div className="force-light overflow-hidden rounded-2xl"><HeroPostMockup /></div>
-                  </div>
-                  <div className="mt-5 flex items-start justify-between gap-5 border-t border-paper-line pt-4">
-                    <p className="max-w-xs text-xs leading-5 text-ink-muted">A long-form article becomes an editable, source-aware carousel in minutes.</p>
-                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-sky-deep">Actual output ↗</span>
-                  </div>
-                </aside>
-              </Reveal>
+              <UrlInput />
             </div>
           </div>
         </section>
 
-        <PlatformsStrip />
+        <section id="how-it-works" className="border-b border-[#e8e8e8] bg-[#f8f6f0]">
+          <div className="mx-auto max-w-[1080px] px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+            <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:gap-20">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.15em] text-[#7eae3f]">How it works</p>
+                <h2 className="mt-4 text-4xl font-bold leading-none tracking-[-.05em] text-[#484848] sm:text-5xl">From reading<br />to publishing.</h2>
+              </div>
+              <ol className="divide-y divide-[#d8d4ca] border-y border-[#d8d4ca]">
+                <ProcessStep number="01" title="Bring the source" body="Paste a link or upload the PDF." />
+                <ProcessStep number="02" title="Readopp finds the story" body="It identifies the claim, evidence, sequence, and useful tension." />
+                <ProcessStep number="03" title="Edit and publish" body="Refine the result, then export it for LinkedIn or X." />
+              </ol>
+            </div>
+          </div>
+        </section>
 
-        <TemplateGallery />
-
-        <HowItWorks />
-
-        <UseCases />
-
-        {/* Personalised — only renders once the user has at least one explainer. */}
-        <YourExplainersSection />
-
-        <Pricing />
-
-        <FAQ />
-
-        <FinalCTA />
+        <section id="pricing" className="bg-[#f2ebf7]">
+          <div className="mx-auto max-w-[1080px] px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+            <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-start lg:gap-16">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-[#9b64b5]">Pricing</p>
+                <h2 className="mt-4 text-4xl font-bold tracking-[-.05em] text-[#484848] sm:text-5xl">Start free.<br />Pay when it sticks.</h2>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Plan name="Reader" price="$0" note="3 visual stories each month" features={["Swiss Social", "PNG export"]} cta="Start free" />
+                <Plan name="Author" price="$9.99" suffix="/ month" note="For a weekly publishing practice" features={["60 stories each month", "Every export format", "No watermark"]} cta="Choose Author" featured />
+              </div>
+            </div>
+          </div>
+        </section>
 
         <Footer />
       </main>
-    </>
+    </div>
+  );
+}
+
+function ProcessStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <li className="grid gap-2 py-6 sm:grid-cols-[48px_1fr_1.25fr] sm:items-baseline sm:gap-5">
+      <span className="text-xs font-bold text-[#7eae3f]">{number}</span>
+      <h3 className="text-lg font-bold tracking-[-.025em] text-[#484848]">{title}</h3>
+      <p className="text-sm leading-6 text-[#6d6a64]">{body}</p>
+    </li>
+  );
+}
+
+function Plan({ name, price, suffix, note, features, cta, featured = false }: { name: string; price: string; suffix?: string; note: string; features: string[]; cta: string; featured?: boolean }) {
+  return (
+    <article className={`rounded-[22px] border p-6 ${featured ? "border-[#484848] bg-[#484848] text-white" : "border-black/10 bg-white text-[#484848]"}`}>
+      <h3 className="text-xl font-bold">{name}</h3>
+      <p className={`mt-1 min-h-10 text-sm leading-5 ${featured ? "text-white/60" : "text-[#777]"}`}>{note}</p>
+      <p className="mt-5 text-3xl font-bold tracking-[-.04em]">{price}<span className={`ml-1 text-xs font-normal ${featured ? "text-white/60" : "text-[#777]"}`}>{suffix}</span></p>
+      <ul className={`my-5 space-y-2 border-t pt-5 text-sm ${featured ? "border-white/15 text-white/75" : "border-black/10 text-[#666]"}`}>{features.map((feature) => <li key={feature}>✓ &nbsp;{feature}</li>)}</ul>
+      <a href="#try" className={`block rounded-xl px-5 py-3 text-center text-sm font-bold ${featured ? "bg-[#cce68a] text-[#484848]" : "bg-[#484848] text-white"}`}>{cta} →</a>
+    </article>
   );
 }

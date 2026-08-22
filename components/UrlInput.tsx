@@ -198,7 +198,7 @@ export function UrlInput() {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="text-xs font-semibold text-sky-deep transition-opacity hover:text-sky disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-b border-ink/40 pb-0.5 text-xs font-medium text-ink transition-opacity hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? `Uploading ${uploading}…` : "or upload a PDF →"}
           </button>
@@ -218,21 +218,26 @@ export function UrlInput() {
           id="url"
           type="url"
           autoComplete="url"
-          autoFocus
           placeholder="Drop an article, newsletter, or paper URL…"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={submitting || !!uploading || blocked}
-          className="w-full rounded-xl border border-paper-line bg-paper px-4 py-3.5 text-base text-ink outline-none transition placeholder:text-ink-faint focus:border-sky focus:ring-4 focus:ring-sky/10 disabled:cursor-not-allowed disabled:bg-paper-soft"
+          className="w-full border-0 border-b border-ink bg-transparent px-0 py-4 text-lg text-ink outline-none transition placeholder:text-ink-faint focus:border-ink-soft disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
+      <details className="group border-y border-paper-line py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-medium text-ink-soft">
+          <span>Adjust the brief <span className="font-normal text-ink-muted">— optional</span></span>
+          <span aria-hidden className="text-base transition-transform group-open:rotate-45">+</span>
+        </summary>
+        <div className="space-y-6 pt-6">
       <fieldset>
         <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">What should this post do?</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {GOAL_OPTIONS.map((opt) => {
             const selected = publishingGoal === opt.value;
-            return <button type="button" key={opt.value} title={opt.hint} aria-pressed={selected} disabled={submitting || !!uploading || blocked} onClick={() => setPublishingGoal(opt.value)} className={"rounded-xl border px-2 py-2.5 text-xs font-medium transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>{opt.label}</button>;
+            return <button type="button" key={opt.value} title={opt.hint} aria-pressed={selected} disabled={submitting || !!uploading || blocked} onClick={() => setPublishingGoal(opt.value)} className={"border-b px-2 py-2 text-xs font-medium transition-colors " + (selected ? "border-ink text-ink" : "border-paper-line text-ink-muted hover:text-ink") + " disabled:opacity-60"}>{opt.label}</button>;
           })}
         </div>
         <p className="mt-2 text-xs text-ink-muted">{GOAL_OPTIONS.find((o) => o.value === publishingGoal)?.hint}</p>
@@ -253,10 +258,10 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-full border px-3 py-2 text-xs font-medium transition-all " +
+                  "border-b px-3 py-2 text-xs font-medium transition-colors " +
                   (selected
-                    ? "border-sky bg-sky text-white"
-                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
+                    ? "border-ink text-ink"
+                    : "border-paper-line text-ink-muted hover:text-ink") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
                 aria-pressed={selected}
@@ -286,10 +291,10 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-xl border px-3 py-2.5 text-xs font-medium transition-all " +
+                  "border-b px-3 py-2.5 text-xs font-medium transition-colors " +
                   (selected
-                    ? "border-sky bg-sky text-white"
-                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
+                    ? "border-ink text-ink"
+                    : "border-paper-line text-ink-muted hover:text-ink") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
                 aria-pressed={selected}
@@ -312,14 +317,16 @@ export function UrlInput() {
           {VOICE_PROFILES.map((profile) => {
             const selected = voiceProfileId === profile.id;
             return (
-              <button type="button" key={profile.id} onClick={() => setVoiceProfileId(profile.id)} disabled={submitting || !!uploading || blocked} title={profile.instruction} aria-pressed={selected} className={"rounded-xl border px-3 py-2.5 text-left transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>
+              <button type="button" key={profile.id} onClick={() => setVoiceProfileId(profile.id)} disabled={submitting || !!uploading || blocked} title={profile.instruction} aria-pressed={selected} className={"border-l px-3 py-2.5 text-left transition-colors " + (selected ? "border-ink text-ink" : "border-paper-line text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>
                 <span className="block text-xs font-semibold">{profile.name}</span>
-                <span className={"mt-1 block text-[10px] leading-4 " + (selected ? "text-white/75" : "text-ink-muted")}>{profile.description}</span>
+                <span className="mt-1 block text-[10px] leading-4 text-ink-muted">{profile.description}</span>
               </button>
             );
           })}
         </div>
       </fieldset>
+        </div>
+      </details>
 
       {error && (
         <div
@@ -340,7 +347,7 @@ export function UrlInput() {
         <button
           type="submit"
           disabled={!valid || submitting || !!uploading}
-          className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#111827] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_rgba(17,24,39,.7)] transition hover:-translate-y-0.5 hover:bg-sky-deep disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-ink-faint disabled:shadow-none"
+          className="group flex w-full items-center justify-between gap-3 bg-ink px-5 py-4 text-sm font-semibold text-paper transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:bg-ink-faint"
         >
           {submitting ? "Building your visual…" : <><span>Turn this into a visual post</span><span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>}
         </button>

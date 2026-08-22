@@ -44,6 +44,38 @@ const explainer: Explainer = {
   createdAt: "2026-08-15T12:00:00.000Z",
 };
 
+function fixtureFor(mode: string | null): RenderedPanel {
+  const plan = panel.plan!;
+  if (mode === "stat") return {
+    ...panel,
+    heading: "The cost of recovering your attention",
+    plan: { ...plan, visualType: "stat_callout", keyFindings: null, stat: { value: "23 min", label: "Average time to regain focus after one interruption" } },
+  };
+  if (mode === "quote") return {
+    ...panel,
+    heading: "What deep work actually requires",
+    plan: { ...plan, visualType: "quote_card", keyFindings: null, quoteCard: { text: "Clarity about what matters provides clarity about what does not.", attribution: "Cal Newport", context: "Deep Work" } },
+  };
+  if (mode === "framework") return {
+    ...panel,
+    heading: "A practical rhythm for protected attention",
+    plan: { ...plan, visualType: "framework", keyFindings: null, framework: { label: "The focus loop", steps: [
+      { name: "Choose", description: "Name the one outcome that matters." },
+      { name: "Protect", description: "Remove competing inputs." },
+      { name: "Work", description: "Stay with the problem long enough." },
+      { name: "Recover", description: "Pause before beginning again." },
+    ] } },
+  };
+  if (mode === "chart") return {
+    ...panel,
+    heading: "More switching, less useful work",
+    plan: { ...plan, visualType: "chart", keyFindings: null, chart: { kind: "bar", title: "Productive capacity", unit: "%", series: [{ name: "Capacity", points: [
+      { label: "No switching", value: 100 }, { label: "Light switching", value: 82 }, { label: "Heavy switching", value: 60 },
+    ] }] } },
+  };
+  return panel;
+}
+
 export async function GET(request: Request, { params }: { params: { template: string; format: string } }) {
   if (process.env.NODE_ENV === "production") return new Response("Not found", { status: 404 });
   const id = TemplateIdSchema.safeParse(params.template);
@@ -54,7 +86,8 @@ export async function GET(request: Request, { params }: { params: { template: st
   const query = new URL(request.url).searchParams;
   const source = BENCHMARK_SOURCES.find((item) => item.id === query.get("source"));
   const goal = query.get("goal");
-  const fixturePanel = source ? { ...panel, heading: source.heading, caption: source.caption } : panel;
+  const modePanel = fixtureFor(query.get("mode"));
+  const fixturePanel = source ? { ...modePanel, heading: source.heading, caption: source.caption } : modePanel;
   const fixtureExplainer = source ? { ...explainer, title: source.title, publishingGoal: goal || "teach", panels: [fixturePanel] } as Explainer : explainer;
   let html = await template.renderPanel({ explainer: fixtureExplainer, panel: fixturePanel, format: params.format, panelIndex: 1, totalPanels: 5, brand: null });
   const dims = EXPORT_DIMENSIONS[params.format];

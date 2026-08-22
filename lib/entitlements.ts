@@ -4,7 +4,10 @@ import { getOrCreateUser, getServerSupabase } from "./supabase/server";
 export type ProductPlan = "free" | "pro";
 export interface Entitlement { plan: ProductPlan; isAnonymous: boolean; }
 
-export const FREE_TEMPLATES = new Set<TemplateId>(["tachyon", "sticky-notes", "highlighter-reader"]);
+// The strongest social-native system must be available in the core product;
+// visual quality is not an upsell. Legacy starter looks remain accessible for
+// existing explainers and experimentation.
+export const FREE_TEMPLATES = new Set<TemplateId>(["swiss-poster", "tachyon", "sticky-notes", "highlighter-reader"]);
 
 export async function currentEntitlement(): Promise<Entitlement> {
   const { userId, isAnonymous } = await getOrCreateUser();

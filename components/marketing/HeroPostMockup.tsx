@@ -128,8 +128,11 @@ function truncate(s: string, max: number): string {
 }
 
 // One-shot intro demo: plays once on load, then hands off to the post.
-const DEMO_MS = 8200;
-const DEMO_END_MS = 8900;
+// The landing page leads with the finished artifact, not a simulated
+// background process. Keeping these at zero also avoids an agent-dashboard
+// first impression while preserving the carousel interaction.
+const DEMO_MS = 0;
+const DEMO_END_MS = 0;
 
 export function HeroPostMockup() {
   const [t, setT] = useState(0);
@@ -203,7 +206,7 @@ export function HeroPostMockup() {
   return (
     <div
       ref={rootRef}
-      className="relative rotate-[1.2deg] transition-transform duration-500 ease-out hover:rotate-0 motion-reduce:rotate-0"
+      className="relative"
     >
       <div
         className={

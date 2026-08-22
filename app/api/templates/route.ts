@@ -20,7 +20,10 @@ export async function GET(req: Request) {
   const entitlement = await currentEntitlement().catch(() => ({ plan: "free" as const, isAnonymous: true }));
   const explainerId = new URL(req.url).searchParams.get("explainerId");
   const explainer = explainerId ? await getExplainer(explainerId) : undefined;
-  const recommendations = explainer ? recommendTemplates(explainer) : [];
+  // Only the strongest three are recommendations. The scorer returns the
+  // full ranking so the design director can make constrained choices, but
+  // marking every card as "recommended" would make the picker meaningless.
+  const recommendations = explainer ? recommendTemplates(explainer).slice(0, 3) : [];
   const recommendedById = new Map(recommendations.map((r, index) => [r.id, { ...r, rank: index + 1 }]));
   const templates = listAllTemplateIds().map((id) => {
     const available = templateExists(id);

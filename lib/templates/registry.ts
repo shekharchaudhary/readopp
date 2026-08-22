@@ -26,8 +26,8 @@ import { terminalBrutalistTemplate } from "./terminal-brutalist";
  * register themselves here; the export route looks up by id at render
  * time.
  *
- * `tachyon` is the implicit default — every explainer created before the
- * picker shipped renders with this look unless the user changes it.
+ * Swiss Social is the publishing default. Older explainers that explicitly
+ * stored another template continue to render with that identity.
  */
 const TEMPLATES: Record<TemplateId, TemplateDef | undefined> = {
   // Default
@@ -59,7 +59,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef | undefined> = {
   "swiss-poster": swissPosterTemplate,
 };
 
-export const DEFAULT_TEMPLATE_ID: TemplateId = "tachyon";
+export const DEFAULT_TEMPLATE_ID: TemplateId = "swiss-poster";
 
 export function getTemplate(id?: TemplateId | null): TemplateDef {
   const resolved = id ?? DEFAULT_TEMPLATE_ID;

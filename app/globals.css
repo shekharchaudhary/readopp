@@ -143,6 +143,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Soft ruled canvas used by the new Readopp landing hero. It borrows the
+   clarity of a working document without turning the page into a dashboard. */
+.napkin-grid {
+  background-image:
+    linear-gradient(rgb(72 72 72 / 0.065) 1px, transparent 1px),
+    radial-gradient(circle at 50% 25%, rgb(204 230 138 / 0.17), transparent 34%);
+  background-size: 100% 45px, auto;
+  background-position: 0 22px, center;
+}
+
 /* Landing hero: a quiet editorial grid makes the creation console feel like
    a real working surface rather than another card floating on a gradient. */
 .studio-hero {

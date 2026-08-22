@@ -1,4 +1,5 @@
 import { runAssembly } from "../agents/assembly";
+import { runDesignDirector } from "../agents/designDirector";
 import { runComprehension, summarizeComprehension } from "../agents/comprehension";
 import { IngestError, runIngest } from "../agents/ingest";
 import { runPlanner } from "../agents/planner";
@@ -361,7 +362,7 @@ export async function runJob(jobId: string): Promise<void> {
     // 6. Assembly
     await emitStatus(jobId, "assembling");
     await emitAgentStart(jobId, "assembly");
-    const baseExplainer: Explainer = runAssembly({
+    const assembledExplainer: Explainer = runAssembly({
       jobId,
       url: job.url,
       audienceLevel: job.audienceLevel,
@@ -372,7 +373,20 @@ export async function runJob(jobId: string): Promise<void> {
       panels,
       resumeDoc: resumeDoc ?? undefined,
     });
-    await emitAgentDone(jobId, "assembly", "Assembled explainer");
+    const designDirection = runDesignDirector({
+      explainer: assembledExplainer,
+      comprehension,
+      requestedStyle: job.style,
+    });
+    const baseExplainer: Explainer = {
+      ...assembledExplainer,
+      template: designDirection.template,
+    };
+    await emitAgentDone(
+      jobId,
+      "assembly",
+      `Assembled explainer · chose ${designDirection.name}: ${designDirection.reason}`
+    );
 
     // 7. Social pack — caption + hashtags + alt-texts, so the explainer
     //    is ready to actually POST, not just look at. Failure here is
@@ -411,7 +425,16 @@ export async function runJob(jobId: string): Promise<void> {
     }
 
     await completeJob(jobId, explainer);
-    void trackProductEvent({ userId: job.userId, name: "job_completed", properties: { audienceLevel: job.audienceLevel, publishingGoal: job.publishingGoal, panelCount: explainer.panels.length } });
+    void trackProductEvent({
+      userId: job.userId,
+      name: "job_completed",
+      properties: {
+        audienceLevel: job.audienceLevel,
+        publishingGoal: job.publishingGoal,
+        panelCount: explainer.panels.length,
+        template: explainer.template ?? "swiss-poster",
+      },
+    });
     await emitEvent(jobId, { type: "job.completed", data: { explainer } });
   } catch (e) {
     const err = toJobError(e);

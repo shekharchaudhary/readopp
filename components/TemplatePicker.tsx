@@ -19,7 +19,7 @@ export interface TemplateOption {
   };
   available: boolean;
   locked?: boolean;
-  recommendation?: { reason: string; rank: number } | null;
+  recommendation?: { reason: string; rank: number; score: number } | null;
 }
 
 interface Props {
@@ -81,7 +81,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
 
   const currentLabel =
     options?.find((o) => o.id === current)?.name ??
-    (current ? current : "Tachyon");
+    (current ? current : "Swiss Social");
   const visible = useMemo(
     () =>
       options
@@ -114,9 +114,9 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
             <div className="sticky top-0 z-10 border-b border-paper-line bg-paper/95 px-5 py-5 backdrop-blur-xl sm:px-8 sm:py-6">
               <div className="flex items-start justify-between gap-6">
                 <div>
-                  <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-deep">Visual identity library</div>
-                  <h2 className="font-display text-3xl font-medium tracking-[-0.03em] text-ink sm:text-4xl">Choose how the idea feels.</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">Every template is a complete publishing system—not a color filter. Pick a visual language your audience already understands.</p>
+                  <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-deep">Design direction</div>
+                  <h2 className="font-display text-3xl font-medium tracking-[-0.03em] text-ink sm:text-4xl">One system, shaped by the story.</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">Swiss Social is the publishing default. Its composition changes with the evidence, framework, quote, or argument—not with decorative template roulette.</p>
                 </div>
               <button
                 type="button"
@@ -160,7 +160,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
                         </div>
                         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                           {items.map((opt) => (
-                            <TemplateCard key={opt.id} option={opt} isCurrent={opt.id === (current ?? "tachyon")} isSaving={saving === opt.id} onPick={() => opt.locked ? window.alert("This identity is part of Readopp Pro. Checkout will be connected in the billing phase.") : opt.available && pick(opt.id)} />
+                            <TemplateCard key={opt.id} option={opt} isCurrent={opt.id === (current ?? "swiss-poster")} isSaving={saving === opt.id} onPick={() => opt.locked ? window.alert("This identity is part of Readopp Pro. Checkout will be connected in the billing phase.") : opt.available && pick(opt.id)} />
                           ))}
                         </div>
                       </section>
@@ -172,7 +172,7 @@ export function TemplatePicker({ explainerId, current, onChange }: Props) {
                         <TemplateCard
                           key={opt.id}
                           option={opt}
-                          isCurrent={opt.id === (current ?? "tachyon")}
+                          isCurrent={opt.id === (current ?? "swiss-poster")}
                           isSaving={saving === opt.id}
                           onPick={() => opt.locked ? window.alert("This identity is part of Readopp Pro. Checkout will be connected in the billing phase.") : opt.available && pick(opt.id)}
                         />
@@ -254,7 +254,7 @@ function TemplateCard({
         }}
       >
         <div aria-hidden className="absolute inset-0 opacity-80" style={{ background: `linear-gradient(135deg, transparent 48%, ${option.preview.accent}22 48%, ${option.preview.accent}22 52%, transparent 52%)` }} />
-        {option.recommendation && <div className="absolute left-4 top-4 z-[1] rounded-full bg-[#111827] px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-white">Recommended #{option.recommendation.rank}</div>}
+        {option.recommendation && <div className="absolute left-4 top-4 z-[1] rounded-full bg-[#111827] px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-white">{option.recommendation.rank === 1 ? "Best fit" : `Also fits · ${option.recommendation.rank}`}</div>}
         {option.locked && <div className="absolute right-4 top-4 z-[1] rounded-full bg-surface px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-ink shadow-sm">Pro</div>}
         <div aria-hidden className="absolute right-5 top-5 font-mono text-[9px] uppercase tracking-[.18em] opacity-60">{specimenLabel(option.category)}</div>
         <div className="relative max-w-[90%] space-y-3">
