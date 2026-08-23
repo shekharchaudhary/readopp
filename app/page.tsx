@@ -62,8 +62,7 @@ export default function HomePage() {
                 <p className="text-xs font-bold uppercase tracking-[.14em] text-[#9b64b5]">Pricing</p>
                 <h2 className="mt-4 text-4xl font-bold tracking-[-.05em] text-[#484848] sm:text-5xl">Start free.<br />Pay when it sticks.</h2>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Plan name="Reader" price="$0" note="3 visual stories each month" features={["Swiss Social", "PNG export"]} cta="Start free" />
+              <div className="w-full max-w-[440px] lg:ml-auto">
                 <Plan name="Author" price="$9.99" suffix="/ month" note="For a weekly publishing practice" features={["60 stories each month", "Every export format", "No watermark"]} cta="Choose Author" featured />
               </div>
             </div>
