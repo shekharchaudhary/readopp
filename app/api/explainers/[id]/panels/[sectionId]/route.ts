@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 
 const MAX_HEADING = 140;
 const MAX_CAPTION = 600;
-const MAX_CONTENT = 50_000; // 50 KB cap on inline SVG / HTML edits
+// Excalidraw exports can be larger than the original generated SVG because
+// every editable element carries its own vector metadata. Keep the request
+// bounded while leaving enough room for a genuinely customized panel.
+const MAX_CONTENT = 750_000;
 
 const PatchSchema = z
   .object({

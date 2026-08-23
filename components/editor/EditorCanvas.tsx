@@ -82,6 +82,8 @@ interface Props {
    * the Excalidraw scene to panel_scenes for crash-recovery / resume.
    */
   onCommit?: (svgString: string) => Promise<void>;
+  /** Navigate here after Done successfully saves the scene and panel. */
+  returnHref?: string;
 }
 
 const SEED_FILE_ID = "readopp-panel-base";
@@ -96,6 +98,7 @@ export function EditorCanvas({
   height,
   onDone,
   onCommit,
+  returnHref,
 }: Props) {
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,9 +111,9 @@ export function EditorCanvas({
   const [saving, setSaving] = useState<SaveState>({ kind: "idle" });
   const [exporting, setExporting] = useState(false);
   const [initialData, setInitialData] = useState<unknown | null>(null);
-  // Skip the first onChange Excalidraw fires after hydration so we don't
-  // mark the panel dirty before the user has touched anything.
-  const settled = useRef(false);
+  // Excalidraw fires onChange for viewport/tool changes too. Keep a compact
+  // element signature so only real canvas mutations schedule persistence.
+  const lastSceneSignature = useRef<string | null>(null);
   // Library import runs silently on every mount — the merge-replace path
   // inside handleLoadLibrary strips prior `readopp-*` items and prepends
   // the fresh set, so updates to lib/editor/library.ts always propagate
@@ -309,17 +312,40 @@ export function EditorCanvas({
    * Save button bypasses the debounce. The first onChange after hydration is
    * ignored so opening the editor doesn't mark the panel dirty.
    */
-  const scheduleSave = useCallback(() => {
-    if (!settled.current) {
-      settled.current = true;
+  const scheduleSave = useCallback((elements: readonly unknown[], _appState: unknown, files: Record<string, unknown>) => {
+    const signature = sceneChangeSignature(elements, files);
+    if (lastSceneSignature.current === null) {
+      lastSceneSignature.current = signature;
       return;
     }
+    if (signature === lastSceneSignature.current) return;
+    lastSceneSignature.current = signature;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaving({ kind: "dirty" });
     saveTimer.current = setTimeout(() => {
       void flushSave();
     }, 1500);
   }, [flushSave]);
+
+  useEffect(() => {
+    const hasPendingChanges =
+      saving.kind === "dirty" || saving.kind === "saving";
+    if (!hasPendingChanges) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [saving.kind]);
+
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    []
+  );
 
   /**
    * Export the current canvas to an SVG string. Excalidraw natively emits
@@ -348,6 +374,39 @@ export function EditorCanvas({
   }, []);
 
   /**
+   * Commit the rendered canvas to the panel shown everywhere else. Inline
+   * mode supplies onCommit so its parent state updates immediately; the
+   * standalone editor uses the same panel PATCH endpoint directly.
+   */
+  const commitPanelSvg = useCallback(
+    async (svg: string) => {
+      if (onCommit) {
+        await onCommit(svg);
+        return;
+      }
+      const res = await fetch(
+        `/api/explainers/${explainerId}/panels/${sectionId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ content: svg }),
+        }
+      );
+      if (!res.ok) {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) detail = body.error;
+        } catch {
+          // Keep the status fallback when the response is not JSON.
+        }
+        throw new Error(detail);
+      }
+    },
+    [explainerId, sectionId, onCommit]
+  );
+
+  /**
    * Save scene to panel_scenes AND commit the rendered SVG back to the
    * panel content via onCommit. Used by the explicit Save button and by
    * Done. Reports a single combined save state so the pill stays accurate.
@@ -358,7 +417,6 @@ export function EditorCanvas({
     // not applied yet), still try to commit the SVG so the user sees their
     // edits in the static panel view. The user can always re-edit later.
     const sceneOk = await flushSave();
-    if (!onCommit) return sceneOk;
     const svg = await exportSceneAsSvg();
     if (!svg) {
       if (!sceneOk) return false;
@@ -366,8 +424,16 @@ export function EditorCanvas({
       return false;
     }
     try {
-      await onCommit(svg);
-      setSaving({ kind: "saved", at: Date.now() });
+      setSaving({ kind: "saving" });
+      await commitPanelSvg(svg);
+      setSaving(
+        sceneOk
+          ? { kind: "saved", at: Date.now() }
+          : {
+              kind: "error",
+              message: "Panel saved, but canvas recovery could not be saved",
+            }
+      );
       return true;
     } catch (e) {
       setSaving({
@@ -376,14 +442,14 @@ export function EditorCanvas({
       });
       return false;
     }
-  }, [flushSave, exportSceneAsSvg, onCommit]);
+  }, [flushSave, exportSceneAsSvg, commitPanelSvg]);
 
   const handleDone = useCallback(async () => {
-    // Best-effort: save + commit before closing. Even if either fails, still
-    // close so the user isn't trapped — the Save-failed pill stays visible.
-    await handleSave();
-    onDone?.();
-  }, [handleSave, onDone]);
+    const committed = await handleSave();
+    if (!committed) return;
+    if (onDone) onDone();
+    else if (returnHref) window.location.assign(returnHref);
+  }, [handleSave, onDone, returnHref]);
 
   /**
    * Escape hatch when the canvas opens blank or stuck. Wipes the saved
@@ -420,9 +486,9 @@ export function EditorCanvas({
       (seed as { elements?: unknown[] }).elements?.length ?? 0,
       "elements"
     );
-    // Reset the dirty/settled tracking so the reseeded scene doesn't
+    // Reset the dirty/signature tracking so the reseeded scene doesn't
     // immediately count as an edit.
-    settled.current = false;
+    lastSceneSignature.current = null;
     setSaving({ kind: "idle" });
     setInitialData(seed);
     setSeedKey((k) => k + 1);
@@ -468,27 +534,31 @@ export function EditorCanvas({
     <div className="flex h-full w-full flex-col">
       {/* Sticky action strip above the canvas so it can't collide with
           Excalidraw's own top toolbar. */}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-paper-line bg-surface px-4 py-2">
+      <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-paper-line bg-surface px-3 py-2 sm:justify-end sm:px-4">
+        <span className="mr-auto hidden shrink-0 text-xs text-ink-muted lg:inline">
+          Double-click text to rewrite it. Select any shape to move or restyle it.
+        </span>
         <span
+          aria-live="polite"
           className={
-            "rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider " +
+            "shrink-0 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider " +
             (saving.kind === "error"
               ? "bg-rose/15 text-rose-deep"
               : "bg-paper text-ink-muted")
           }
           title={saving.kind === "error" ? saving.message : undefined}
         >
-          {saving.kind === "idle" && "Auto-save on"}
+          {saving.kind === "idle" && "Draft auto-save on"}
           {saving.kind === "dirty" && "Edited — saves in 1.5s"}
           {saving.kind === "saving" && "Saving…"}
-          {saving.kind === "saved" && "Saved"}
-          {saving.kind === "error" && `Save failed · ${saving.message.slice(0, 60)}`}
+          {saving.kind === "saved" && "Saved to panel"}
+          {saving.kind === "error" && `Needs attention · ${saving.message.slice(0, 60)}`}
         </span>
         <button
           type="button"
           onClick={() => void handleRestoreFromPanel()}
           title="Discard canvas edits and restore the original panel"
-          className="rounded-full border border-paper-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink"
+          className="shrink-0 rounded-full border border-paper-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink"
         >
           Restore from panel
         </button>
@@ -496,23 +566,31 @@ export function EditorCanvas({
           type="button"
           onClick={() => void handleSave()}
           disabled={saving.kind === "saving"}
-          className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted disabled:opacity-60"
+          className="shrink-0 rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted disabled:opacity-60"
         >
           Save
         </button>
+        {onDone ? (
+          <a
+            href={`/edit/${explainerId}/${sectionId}`}
+            className="shrink-0 rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted"
+          >
+            Full screen
+          </a>
+        ) : null}
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper transition hover:bg-ink/90 disabled:opacity-60"
+          className="shrink-0 rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper transition hover:bg-ink/90 disabled:opacity-60"
         >
           {exporting ? "Exporting…" : "Export PNG"}
         </button>
-        {onDone && (
+        {(onDone || returnHref) && (
           <button
             type="button"
             onClick={() => void handleDone()}
-            className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted"
+            className="shrink-0 rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted"
           >
             Done
           </button>
@@ -590,11 +668,9 @@ async function buildSeedScene(
   // the scene after mount.
   const SEED_OFFSET_X = 120;
   const SEED_OFFSET_Y = 80;
-  const SEED_GROUP_ID = "readopp-seed-panel";
   const converted = svgToExcalidrawElements(panelContent, {
     offsetX: SEED_OFFSET_X,
     offsetY: SEED_OFFSET_Y,
-    groupId: SEED_GROUP_ID,
   });
   if (converted && converted.elements.length > 0) {
     return {
@@ -782,6 +858,31 @@ function textElement(args: {
     autoResize: true,
     lineHeight: 1.25,
   } as const;
+}
+
+/**
+ * Excalidraw's onChange also fires for zoom, tool, and selection changes.
+ * Element versions are incremented for actual content mutations, giving us
+ * a small stable fingerprint without serializing the complete scene on every
+ * pointer movement.
+ */
+function sceneChangeSignature(
+  elements: readonly unknown[],
+  files: Record<string, unknown>
+): string {
+  const elementPart = elements
+    .map((value) => {
+      const element = value as {
+        id?: string;
+        version?: number;
+        versionNonce?: number;
+        isDeleted?: boolean;
+      };
+      return `${element.id ?? "?"}:${element.version ?? 0}:${element.versionNonce ?? 0}:${element.isDeleted ? 1 : 0}`;
+    })
+    .join("|");
+  const filePart = Object.keys(files).sort().join("|");
+  return `${elementPart}::${filePart}`;
 }
 
 // Trim fields that don't belong in persisted scenes (collaborators, theme,

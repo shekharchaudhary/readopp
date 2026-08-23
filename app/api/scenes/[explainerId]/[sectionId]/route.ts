@@ -6,12 +6,12 @@ import {
   getPanelScene,
   savePanelScene,
 } from "@/lib/store";
-import { getOrCreateUserId } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_SCENE_BYTES = 200_000;
+const MAX_SCENE_BYTES = 2_000_000;
 
 interface RouteParams {
   params: { explainerId: string; sectionId: string };
@@ -24,6 +24,14 @@ interface RouteParams {
  */
 export async function GET(_req: Request, { params }: RouteParams) {
   const { explainerId, sectionId } = params;
+  const userId = await getCurrentUserId();
+  const ownerId = await getExplainerOwner(explainerId);
+  if (!userId || !ownerId || ownerId !== userId) {
+    return NextResponse.json(
+      { error: "Not allowed to view this canvas." },
+      { status: userId ? 403 : 401 }
+    );
+  }
   const saved = await getPanelScene(explainerId, sectionId);
   return NextResponse.json({
     scene: saved?.scene ?? null,
@@ -71,15 +79,12 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // Ownership check — getOrCreateUserId resolves to the anon user when the
-  // visitor hasn't signed in, which is fine since explainers are created
-  // under the anon identity.
-  const userId = await getOrCreateUserId();
+  const userId = await getCurrentUserId();
   const ownerId = await getExplainerOwner(explainerId);
-  if (!ownerId || ownerId !== userId) {
+  if (!userId || !ownerId || ownerId !== userId) {
     return NextResponse.json(
       { error: "Not allowed to edit this panel." },
-      { status: 403 }
+      { status: userId ? 403 : 401 }
     );
   }
 
@@ -110,12 +115,12 @@ export async function POST(req: Request, { params }: RouteParams) {
  */
 export async function DELETE(_req: Request, { params }: RouteParams) {
   const { explainerId, sectionId } = params;
-  const userId = await getOrCreateUserId();
+  const userId = await getCurrentUserId();
   const ownerId = await getExplainerOwner(explainerId);
-  if (!ownerId || ownerId !== userId) {
+  if (!userId || !ownerId || ownerId !== userId) {
     return NextResponse.json(
       { error: "Not allowed to edit this panel." },
-      { status: 403 }
+      { status: userId ? 403 : 401 }
     );
   }
   try {

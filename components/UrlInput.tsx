@@ -142,8 +142,12 @@ export function UrlInput() {
     }
   }
 
-  function previewConnector(provider: "Google Docs" | "Notion") {
+  function previewConnector(provider: "Google Docs" | "Notion" | "Journal") {
     setError(null);
+    if (provider === "Journal") {
+      setConnectorNotice("Journal import is coming soon. For now, export an entry as a PDF and upload it here.");
+      return;
+    }
     setConnectorNotice(`${provider} is ready for OAuth setup. Add the provider credentials to enable document selection.`);
   }
 
@@ -162,7 +166,7 @@ export function UrlInput() {
           <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block">Private by default</span>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <button
             type="button"
             onClick={() => previewConnector("Google Docs")}
@@ -185,6 +189,19 @@ export function UrlInput() {
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#d9d9d9] bg-white font-serif text-sm font-bold text-[#333]">N</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
               <span><b className="block text-sm text-ink">Notion</b><small className="mt-1 block text-[11px] text-ink-muted">Select a page</small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => previewConnector("Journal")}
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <JournalLogo />
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink">Journal</b><small className="mt-1 block text-[11px] text-ink-muted">Import an entry</small></span>
               <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
             </span>
           </button>
@@ -359,6 +376,41 @@ export function UrlInput() {
         </p>
       )}
     </form>
+  );
+}
+
+function JournalLogo() {
+  return (
+    <span
+      aria-hidden
+      className="grid h-8 w-8 place-items-center overflow-hidden rounded-[9px] border border-[#54566f] bg-[#25273d] shadow-[inset_0_1px_0_rgba(255,255,255,.16),0_2px_5px_rgba(37,39,61,.18)]"
+    >
+      <svg width="25" height="25" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="journal-purple" x1="5" y1="5" x2="17" y2="18" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#B05BFF" />
+            <stop offset="1" stopColor="#5E4BE8" />
+          </linearGradient>
+          <linearGradient id="journal-blue" x1="6" y1="25" x2="17" y2="15" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#326DDC" />
+            <stop offset="1" stopColor="#6D4CF4" />
+          </linearGradient>
+          <linearGradient id="journal-pink" x1="17" y1="15" x2="28" y2="5" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#FF6F9C" />
+            <stop offset="1" stopColor="#FF9A99" />
+          </linearGradient>
+          <linearGradient id="journal-red" x1="17" y1="16" x2="27" y2="27" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#F85A82" />
+            <stop offset="1" stopColor="#D82C67" />
+          </linearGradient>
+        </defs>
+        <path d="M15.8 7.2C12.8 4.4 9.6 3.1 6.5 2.8c-.9-.1-1.6.6-1.6 1.5v8.1c0 1 .5 1.8 1.4 2.2l9.5 4.1V7.2Z" fill="url(#journal-purple)" />
+        <path d="M15.8 18.7 7.2 15c-1.1-.5-2.3.3-2.3 1.5v10.2c0 1 .9 1.7 1.8 1.5 3.6-.7 6.6-2.4 9.1-5.2v-4.3Z" fill="url(#journal-blue)" />
+        <path d="M16.2 7.2c3-2.8 6.2-4.1 9.3-4.4.9-.1 1.6.6 1.6 1.5v8.1c0 1-.5 1.8-1.4 2.2l-9.5 4.1V7.2Z" fill="url(#journal-pink)" />
+        <path d="m16.2 18.7 8.6-3.7c1.1-.5 2.3.3 2.3 1.5v10.2c0 1-.9 1.7-1.8 1.5-3.6-.7-6.6-2.4-9.1-5.2v-4.3Z" fill="url(#journal-red)" />
+        <path d="M16 6.8v16.6" stroke="#FFD7C4" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }
 

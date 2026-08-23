@@ -4,15 +4,39 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AuthMenu } from "@/components/AuthMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getBrowserSupabase } from "@/lib/supabase/client";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const supabase = getBrowserSupabase();
+    let cancelled = false;
+
+    async function refreshAuth() {
+      const { data } = await supabase.auth.getUser();
+      if (!cancelled) {
+        setSignedIn(!!data.user && data.user.is_anonymous !== true);
+      }
+    }
+
+    void refreshAuth();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void refreshAuth();
+    });
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -36,25 +60,33 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-1 text-sm">
           <a
-            href="#try"
+            href="/#try"
             className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
           >
             Make a post
           </a>
           <a
-            href="#how-it-works"
+            href="/#how-it-works"
             className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
           >
             How it works
           </a>
-          <a
-            href="#pricing"
+          <Link
+            href="/pricing"
             className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] lg:inline-block"
           >
             Pricing
-          </a>
+          </Link>
+          {signedIn && (
+            <Link
+              href="/library"
+              className="rounded-md px-2 py-1.5 font-semibold text-[#666] transition-colors hover:text-[#333] sm:px-3"
+            >
+              Library
+            </Link>
+          )}
           <a
-            href="#try"
+            href="/#try"
             className="ml-2 hidden rounded-xl bg-[#484848] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#333] sm:inline-block"
           >
             Try it free

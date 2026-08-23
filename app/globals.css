@@ -197,6 +197,29 @@ body {
   border-color: rgb(126 174 63 / 0.55);
   box-shadow: 0 30px 80px -42px rgb(72 72 72 / 0.55);
 }
+.library-hero {
+  background-image:
+    linear-gradient(rgb(72 72 72 / 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 82% 15%, rgb(204 230 138 / 0.3), transparent 28%);
+  background-size: 100% 44px, auto;
+}
+.library-card {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: library-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--library-index) * 55ms);
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}
+.library-card:hover {
+  transform: translateY(-5px);
+  border-color: rgb(126 174 63 / 0.55);
+  box-shadow: 0 26px 60px -40px rgb(72 72 72 / 0.55);
+}
+@keyframes library-card-enter {
+  to { opacity: 1; transform: translateY(0); }
+}
 .process-step {
   position: relative;
   border: 0;
@@ -1238,6 +1261,7 @@ a:hover > .brand-mark {
   .template-editor-poster__grid p,
   .template-selection-handle,
   .template-scene,
+  .library-card,
   .pricing-stage::before,
   .pricing-card::before,
   .cadence-progress,
@@ -1253,6 +1277,7 @@ a:hover > .brand-mark {
   .template-editor-poster__grid p { color: #e9563f; }
   .template-selection-handle { background: #e9563f; }
   .landing-enter { opacity: 1; }
+  .library-card { opacity: 1; transform: none; }
   .hero-squiggle path { stroke-dashoffset: 0; }
   .hero-composer:hover,
   .hero-composer:focus-within,

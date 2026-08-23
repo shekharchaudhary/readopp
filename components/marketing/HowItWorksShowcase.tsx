@@ -16,7 +16,7 @@ const WORKFLOW_STEPS: Array<{
     id: 1,
     number: "01",
     title: "Bring the source",
-    body: "Connect Google Docs or Notion, or upload a PDF.",
+    body: "Bring a Google Doc, Notion page, journal entry, or PDF.",
   },
   {
     id: 2,

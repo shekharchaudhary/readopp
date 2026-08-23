@@ -11,8 +11,8 @@ export function Footer() {
             <span className="hidden text-sm text-paper-line/60 sm:inline">Good reads, made visible.</span>
           </div>
           <nav aria-label="Footer" className="flex items-center gap-5 text-sm">
-            <a href="#try" className="text-paper-line/75 hover:text-paper">Make a post</a>
-            <a href="#pricing" className="text-paper-line/75 hover:text-paper">Pricing</a>
+            <Link href="/#try" className="text-paper-line/75 hover:text-paper">Make a post</Link>
+            <Link href="/pricing" className="text-paper-line/75 hover:text-paper">Pricing</Link>
             <a href="https://github.com/shekharchaudhary/readopp" target="_blank" rel="noopener noreferrer" className="text-paper-line/75 hover:text-paper">GitHub</a>
           </nav>
         </div>

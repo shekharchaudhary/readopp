@@ -149,6 +149,11 @@ export function PanelCard({
   const [resetBusy, setResetBusy] = useState(false);
   const [regenerateBusy, setRegenerateBusy] = useState(false);
   const [editingCanvas, setEditingCanvas] = useState(false);
+  const canCustomizeCanvas =
+    Boolean(explainerId) &&
+    !editingCanvas &&
+    canEditContent &&
+    panel.format === "svg";
 
   async function handleReset() {
     if (!onReset) return;
@@ -234,7 +239,7 @@ export function PanelCard({
             )}
           </h2>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {onRegenerate && panel.plan && (
             <button type="button" onClick={handleRegenerate} disabled={regenerateBusy} className="rounded-md border border-sky/40 bg-sky-soft px-2.5 py-1 text-xs font-medium text-sky-deep hover:border-sky disabled:opacity-50">
               {regenerateBusy ? "Reworking…" : "Regenerate"}
@@ -257,21 +262,15 @@ export function PanelCard({
               Theme
             </button>
           )}
-          {explainerId && (
+          {canCustomizeCanvas ? (
             <button
               type="button"
-              onClick={() => setEditingCanvas((v) => !v)}
-              aria-pressed={editingCanvas}
-              className={
-                "rounded-md border px-2.5 py-1 text-xs transition-colors " +
-                (editingCanvas
-                  ? "border-accent bg-accent-soft text-accent-deep"
-                  : "border-paper-line bg-paper text-ink-soft hover:border-ink-muted")
-              }
+              onClick={() => setEditingCanvas(true)}
+              className="rounded-md border border-paper-line bg-paper px-2.5 py-1 text-xs text-ink-soft transition-colors hover:border-ink-muted"
             >
-              {editingCanvas ? "Close canvas" : "Edit on canvas"}
+              Customize canvas
             </button>
-          )}
+          ) : null}
           {onExport && (
             <button
               type="button"
