@@ -31,7 +31,7 @@ export function Nav() {
           className="inline-flex items-center gap-2.5 font-sans text-xl font-bold tracking-[-0.04em] text-[#484848]"
           aria-label="Readopp — home"
         >
-          <span aria-hidden className="grid h-8 w-8 rotate-[-8deg] place-items-center rounded-xl bg-[#cce68a] text-sm text-[#484848]">R</span>
+          <span aria-hidden className="brand-mark grid h-8 w-8 rotate-[-8deg] place-items-center rounded-xl bg-[#cce68a] text-sm text-[#484848]">R</span>
           Readopp
         </Link>
         <div className="flex items-center gap-1 text-sm">

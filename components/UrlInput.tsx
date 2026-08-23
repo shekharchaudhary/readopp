@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
 import type { AudienceLevel, BrandStyle, PublishingGoal, VoiceProfileId } from "@/lib/shared/schemas";
 import { VOICE_PROFILES } from "@/lib/voiceProfiles";
@@ -72,31 +72,20 @@ interface Quota {
   blocked: boolean;
 }
 
-function looksLikeUrl(s: string): boolean {
-  try {
-    const u = new URL(s.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB — matches /api/jobs/upload cap
 
 export function UrlInput() {
   const router = useRouter();
-  const [url, setUrl] = useState("");
   const [audience, setAudience] = useState<AudienceLevel>("general");
   const [style, setStyle] = useState<BrandStyle>("editorial");
   const [publishingGoal, setPublishingGoal] = useState<PublishingGoal>("teach");
   const [voiceProfileId, setVoiceProfileId] = useState<VoiceProfileId>("clear_expert");
-  const [submitting, setSubmitting] = useState(false);
+  const submitting = false;
   const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
+  const [connectorNotice, setConnectorNotice] = useState<string | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-
-  const valid = useMemo(() => looksLikeUrl(url), [url]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +104,7 @@ export function UrlInput() {
 
   async function uploadFile(file: File) {
     setError(null);
+    setConnectorNotice(null);
     if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
       setError("Only PDF files are supported.");
       return;
@@ -152,78 +142,84 @@ export function UrlInput() {
     }
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function previewConnector(provider: "Google Docs" | "Notion") {
     setError(null);
-    if (!valid) {
-      setError("Please paste a valid http or https URL.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), audienceLevel: audience, style, publishingGoal, voiceProfileId }),
-      });
-      const data = await res.json();
-      if (res.status === 402) {
-        // Free-limit reached — flip into blocked state.
-        setQuota(data?.quota ?? null);
-        setSubmitting(false);
-        return;
-      }
-      if (!res.ok) {
-        setError(data?.error || `Request failed (${res.status})`);
-        setSubmitting(false);
-        return;
-      }
-      router.push(`/j/${data.jobId}`);
-    } catch (e) {
-      setError((e as Error).message || "Network error");
-      setSubmitting(false);
-    }
+    setConnectorNotice(`${provider} is ready for OAuth setup. Add the provider credentials to enable document selection.`);
   }
 
   const blocked = quota?.blocked === true;
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={(event) => event.preventDefault()} className="space-y-5">
       <div>
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <label htmlFor="url" className="block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
-            Paste your source
-          </label>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
+              Choose your source
+            </p>
+            <p className="mt-1 text-sm text-ink-soft">Connect a workspace or upload your document.</p>
+          </div>
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block">Private by default</span>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => previewConnector("Google Docs")}
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#e4e4e4] bg-[#fafafa] text-sm font-bold text-[#4285f4]">G</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink">Google Docs</b><small className="mt-1 block text-[11px] text-ink-muted">Choose from Drive</small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => previewConnector("Notion")}
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#d9d9d9] bg-white font-serif text-sm font-bold text-[#333]">N</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink">Notion</b><small className="mt-1 block text-[11px] text-ink-muted">Select a page</small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="border-b border-ink/40 pb-0.5 text-xs font-medium text-ink transition-opacity hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {uploading ? `Uploading ${uploading}…` : "or upload a PDF →"}
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef6df] text-base font-bold text-[#648e2e]">↑</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink">Upload document</b><small className="mt-1 block text-[11px] text-ink-muted">{uploading ? `Uploading ${uploading}…` : "PDF · up to 25 MB"}</small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:-translate-y-0.5">↑</span>
+            </span>
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void uploadFile(f);
-              e.target.value = ""; // allow re-selecting the same file
-            }}
-          />
         </div>
+
         <input
-          id="url"
-          type="url"
-          autoComplete="url"
-          placeholder="Drop an article, newsletter, or paper URL…"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          disabled={submitting || !!uploading || blocked}
-          className="w-full border-0 border-b border-ink bg-transparent px-0 py-4 text-lg text-ink outline-none transition placeholder:text-ink-faint focus:border-ink-soft disabled:cursor-not-allowed disabled:opacity-50"
+          ref={fileRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void uploadFile(file);
+            event.target.value = "";
+          }}
         />
+
+        {connectorNotice ? (
+          <p role="status" className="mt-3 rounded-xl bg-[#f5f1e9] px-4 py-3 text-xs leading-5 text-ink-soft">
+            {connectorNotice}
+          </p>
+        ) : null}
       </div>
 
       <details className="group border-y border-paper-line py-3">
@@ -341,16 +337,6 @@ export function UrlInput() {
 
       {!blocked && quota?.isAnonymous && approachingLimit(quota) && (
         <ApproachingLimitNudge quota={quota} />
-      )}
-
-      {!blocked && (
-        <button
-          type="submit"
-          disabled={!valid || submitting || !!uploading}
-          className="group flex w-full items-center justify-between gap-3 bg-ink px-5 py-4 text-sm font-semibold text-paper transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:bg-ink-faint"
-        >
-          {submitting ? "Building your visual…" : <><span>Turn this into a visual post</span><span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>}
-        </button>
       )}
 
       {!blocked && quota?.isAnonymous && quota.max !== null && (
