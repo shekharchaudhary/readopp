@@ -114,7 +114,7 @@ export function AuthMenu() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="max-w-[180px] truncate rounded-md px-3 py-1.5 text-sm text-ink-soft transition-colors hover:text-ink"
+        className="max-w-[112px] truncate rounded-md px-3 py-1.5 text-sm text-ink-soft transition-colors hover:text-ink sm:max-w-[180px]"
         title={label}
       >
         {label}

@@ -55,13 +55,13 @@ export function Nav() {
           </a>
           <a
             href="#try"
-            className="ml-2 rounded-xl bg-[#484848] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#333]"
+            className="ml-2 hidden rounded-xl bg-[#484848] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#333] sm:inline-block"
           >
             Try it free
           </a>
-          <span className="hidden items-center sm:flex">
-            <span aria-hidden className="mx-1 h-5 w-px bg-[#e5e5e5]" />
-            <ThemeToggle />
+          <span className="flex items-center">
+            <span aria-hidden className="mx-1 hidden h-5 w-px bg-[#e5e5e5] sm:block" />
+            <ThemeToggle className="hidden sm:inline-flex" />
             <AuthMenu />
           </span>
         </div>
