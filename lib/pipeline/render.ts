@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cachedSystem, callMessages, MODEL_DRAW } from "../anthropic";
+import {
+  callOpenAIVisual,
+  isOpenAIConfigured,
+  type OpenAIVisualContent,
+} from "../openai";
 import { findRelevant, type RetrievalHit } from "../references/store";
 import { critiquePanel, type CritiqueResult } from "../render/criticize";
 import { DESIGN_SYSTEM_PROMPT } from "../render/designSystem";
@@ -79,6 +84,16 @@ function critiqueEnabled(opts: RenderOptions): boolean {
 function referencesEnabled(opts: RenderOptions): boolean {
   if (typeof opts.references === "boolean") return opts.references;
   return process.env.READOPP_REFERENCE_RAG === "1";
+}
+
+function drawProvider(): "anthropic" | "openai" {
+  const configured = process.env.READOPP_DRAW_PROVIDER?.trim().toLowerCase();
+  if (configured === "anthropic" || configured === "openai") {
+    return configured;
+  }
+  // OpenAI becomes the visual renderer when its key is available. Claude
+  // remains the safe default/fallback for environments without that key.
+  return isOpenAIConfigured() ? "openai" : "anthropic";
 }
 
 /** Worst-case Opus draw attempts per panel when critique is on (baseline
@@ -403,23 +418,68 @@ export async function renderPanel(
 
     let text = "";
     try {
-      const res = await callMessages(
-        // No temperature: Opus 4.7 rejects the param outright.
-        // System prompt is wrapped in a cacheable block — the DESIGN_SYSTEM_PROMPT
-        // is ~3000 tokens and reused across every panel of the same format in a
-        // job, so cache reads after the first hit cost 10% of normal input.
-        {
-          model: MODEL_DRAW,
-          max_tokens: 4096,
-          system: cachedSystem(system),
-          messages,
-        },
-        { jobId, label: `render[${plan.sectionId}]` }
-      );
-      text = res.content
-        .map((b) => (b.type === "text" ? b.text : ""))
-        .join("")
-        .trim();
+      const label = `render[${plan.sectionId}]`;
+      if (drawProvider() === "openai") {
+        const openAIContent: OpenAIVisualContent[] = [
+          ...referenceBlocks.map((block): OpenAIVisualContent =>
+            block.type === "text"
+              ? { type: "text", text: block.text }
+              : {
+                  type: "image",
+                  data: block.source.data,
+                  mediaType: "image/png",
+                }
+          ),
+          { type: "text", text: textBody },
+        ];
+        try {
+          text = await callOpenAIVisual(
+            {
+              instructions: system,
+              content: openAIContent,
+              maxOutputTokens: 8192,
+            },
+            { jobId, label }
+          );
+        } catch (openAIError) {
+          // Keep jobs reliable while we evaluate OpenAI output quality.
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[readopp] OpenAI ${label} failed; falling back to Claude: ${(openAIError as Error).message}`
+          );
+          const res = await callMessages(
+            {
+              model: MODEL_DRAW,
+              max_tokens: 4096,
+              system: cachedSystem(system),
+              messages,
+            },
+            { jobId, label }
+          );
+          text = res.content
+            .map((b) => (b.type === "text" ? b.text : ""))
+            .join("")
+            .trim();
+        }
+      } else {
+        const res = await callMessages(
+          // No temperature: Opus 4.7 rejects the param outright.
+          // System prompt is wrapped in a cacheable block — the DESIGN_SYSTEM_PROMPT
+          // is ~3000 tokens and reused across every panel of the same format in a
+          // job, so cache reads after the first hit cost 10% of normal input.
+          {
+            model: MODEL_DRAW,
+            max_tokens: 4096,
+            system: cachedSystem(system),
+            messages,
+          },
+          { jobId, label }
+        );
+        text = res.content
+          .map((b) => (b.type === "text" ? b.text : ""))
+          .join("")
+          .trim();
+      }
     } catch (e) {
       lastError = `API error: ${(e as Error).message.slice(0, 300)}`;
       continue;

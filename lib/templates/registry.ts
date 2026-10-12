@@ -1,6 +1,8 @@
 import { TemplateIdSchema, type TemplateId } from "../shared/schemas";
 import type { TemplateDef } from "./types";
+import { DEFAULT_TEMPLATE_ID } from "./default";
 import { auroraGlassTemplate } from "./aurora-glass";
+import { adaptiveEditorialTemplate } from "./adaptive-editorial";
 import { bentoGridTemplate } from "./bento-grid";
 import { boardingPassTemplate } from "./boarding-pass";
 import { editorialBroadsheetTemplate } from "./editorial-broadsheet";
@@ -11,6 +13,7 @@ import { highlighterReaderTemplate } from "./highlighter-reader";
 import { indexCardTemplate } from "./index-card";
 import { kindleHighlightTemplate } from "./kindle-highlight";
 import { magazineCoverTemplate } from "./magazine-cover";
+import { boldSocialTemplate, dataStoryTemplate, editorialReportTemplate, modernTechnicalTemplate } from "./mature-systems";
 import { newYorkerFrameTemplate } from "./new-yorker-frame";
 import { notebookCellTemplate } from "./notebook-cell";
 import { receiptTemplate } from "./receipt";
@@ -26,8 +29,8 @@ import { terminalBrutalistTemplate } from "./terminal-brutalist";
  * register themselves here; the export route looks up by id at render
  * time.
  *
- * `tachyon` is the implicit default — every explainer created before the
- * picker shipped renders with this look unless the user changes it.
+ * Swiss Social is the publishing default. Older explainers that explicitly
+ * stored another template continue to render with that identity.
  */
 const TEMPLATES: Record<TemplateId, TemplateDef | undefined> = {
   // Default
@@ -57,9 +60,14 @@ const TEMPLATES: Record<TemplateId, TemplateDef | undefined> = {
   "aurora-glass": auroraGlassTemplate,
   "bento-grid": bentoGridTemplate,
   "swiss-poster": swissPosterTemplate,
+  "adaptive-editorial": adaptiveEditorialTemplate,
+  "editorial-report": editorialReportTemplate,
+  "modern-technical": modernTechnicalTemplate,
+  "data-story": dataStoryTemplate,
+  "bold-social": boldSocialTemplate,
 };
 
-export const DEFAULT_TEMPLATE_ID: TemplateId = "tachyon";
+export { DEFAULT_TEMPLATE_ID } from "./default";
 
 export function getTemplate(id?: TemplateId | null): TemplateDef {
   const resolved = id ?? DEFAULT_TEMPLATE_ID;

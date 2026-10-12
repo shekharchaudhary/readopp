@@ -2,14 +2,15 @@
 
 import { PanelCard } from "./PanelCard";
 import type { PanelSlot } from "@/lib/scene/reducer";
-import type { TemplateId } from "@/lib/shared/schemas";
+import type { PanelPatch, RenderedPanel, TemplateId } from "@/lib/shared/schemas";
 
 interface Props {
   slots: PanelSlot[];
+  allPanels?: readonly RenderedPanel[];
   onExportPanel?: (sectionId: string) => void;
   onEditPanel?: (
     sectionId: string,
-    patch: { heading?: string; caption?: string; content?: string }
+    patch: PanelPatch
   ) => Promise<void>;
   explainerId?: string;
   template?: TemplateId;
@@ -17,6 +18,7 @@ interface Props {
 
 export function PanelStream({
   slots,
+  allPanels,
   onExportPanel,
   onEditPanel,
   explainerId,
@@ -31,6 +33,7 @@ export function PanelStream({
             <PanelCard
               key={slot.sectionId ?? `slot-${slot.index}`}
               panel={slot.panel}
+              allPanels={allPanels}
               index={slot.index - 1}
               onExport={onExportPanel}
               onEdit={onEditPanel}

@@ -1,4 +1,5 @@
 import { countExplainersByUser } from "./store";
+import { PRO_FEATURES_ENABLED } from "./featureFlags";
 
 /**
  * Free generations granted to an anonymous user before they have to sign in.
@@ -31,6 +32,15 @@ export async function quotaFor(
   userId: string,
   isAnonymous: boolean
 ): Promise<QuotaState> {
+  if (!PRO_FEATURES_ENABLED) {
+    return {
+      isAnonymous,
+      used: 0,
+      max: null,
+      remaining: null,
+      blocked: false,
+    };
+  }
   if (!isAnonymous) {
     return {
       isAnonymous: false,
@@ -50,4 +60,3 @@ export async function quotaFor(
     blocked: used >= ANON_FREE_LIMIT,
   };
 }
-

@@ -1,3 +1,4 @@
+import { fetchPublicResource } from "./publicFetch";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { getBrowser } from "./playwright";
@@ -46,15 +47,10 @@ async function fetchHtml(url: string): Promise<FetchResult> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
+    const res = await fetchPublicResource(url, {
+      "User-Agent": USER_AGENT,
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9",
     });
     if (res.status === 401 || res.status === 403) {
       // Return a sentinel so ingestUrl can attempt the Playwright fallback
@@ -67,13 +63,13 @@ async function fetchHtml(url: string): Promise<FetchResult> {
         message: "The article URL returned 404 — it may have moved.",
       });
     }
-    if (!res.ok) {
+    if (res.status < 200 || res.status >= 300) {
       throw new IngestError({
         reason: "fetch_failed",
         message: `The page returned HTTP ${res.status}.`,
       });
     }
-    return { html: await res.text() };
+    return { html: res.body.toString("utf8") };
   } catch (err) {
     if (err instanceof IngestError) throw err;
     const aborted =
@@ -95,8 +91,8 @@ async function fetchHtml(url: string): Promise<FetchResult> {
 }
 
 /**
- * Fallback path for JS-rendered sites. Loads the page in headless Chromium,
- * waits for network idle, and returns the post-hydration DOM. Used only when
+ * Browser extraction fallback. Source JavaScript is disabled: arbitrary pages
+ * must not execute network-capable code on the application server. Used when
  * the raw HTML returns less than MIN_WORDS_BEFORE_FALLBACK readable words.
  */
 async function fetchHtmlRendered(url: string): Promise<string> {
@@ -104,10 +100,20 @@ async function fetchHtmlRendered(url: string): Promise<string> {
   const ctx = await browser.newContext({
     userAgent: USER_AGENT,
     viewport: { width: 1280, height: 900 },
-    javaScriptEnabled: true,
+    javaScriptEnabled: false,
+    serviceWorkers: "block",
   });
   const page = await ctx.newPage();
   try {
+    // Intercept every navigation and subresource. Chromium never resolves the
+    // source itself; the guarded transport checks redirects and pins DNS.
+    await ctx.route("**/*", async (route) => {
+      try {
+        const resource = await fetchPublicResource(route.request().url(), { "User-Agent": USER_AGENT });
+        await route.fulfill({ status: resource.status, body: resource.body,
+          contentType: resource.headers["content-type"] ?? "application/octet-stream" });
+      } catch { await route.abort("blockedbyclient"); }
+    });
     await page.goto(url, {
       waitUntil: "networkidle",
       timeout: RENDER_TIMEOUT_MS,
@@ -243,11 +249,11 @@ export async function ingestUrl(
     try {
       tick(
         fetchResult.authBlocked
-          ? "Page gated by bot check — loading in a real browser (up to 25s)…"
-          : "Raw page was thin — rendering JavaScript in a browser…"
+          ? "Page restricted — checking readable HTML…"
+          : "Page was thin — checking document markup…"
       );
       // eslint-disable-next-line no-console
-      console.log("[readopp] ingest falling back to JS render", {
+      console.log("[readopp] ingest checking browser markup", {
         url,
         authBlocked: fetchResult.authBlocked ?? false,
       });
@@ -264,7 +270,7 @@ export async function ingestUrl(
       }
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn("[readopp] JS-render fallback failed", {
+      console.warn("[readopp] Browser extraction fallback failed", {
         url,
         error: (e as Error).message,
       });

@@ -1,7 +1,3 @@
-import { Reveal } from "./Reveal";
-import { SectionLabel } from "./SectionLabel";
-import { Squiggle } from "./Squiggle";
-
 const FAQS = [
   {
     q: "What kinds of articles work best?",
@@ -9,15 +5,15 @@ const FAQS = [
   },
   {
     q: "How long does it take?",
-    a: "About sixty to ninety seconds for the explainer to generate, and another twenty-five to thirty-five seconds if you export the animated MP4. You watch the agents work in real time, so the wait isn't blind.",
+    a: "About sixty to ninety seconds for the visual story to generate, and another twenty-five to thirty-five seconds if you export an animated MP4. Progress stays visible while the source is being read and composed.",
   },
   {
     q: "Will it pull paywalled or login-required articles?",
     a: "No. Readopp fetches public HTML the same way a browser would. If the page is behind a paywall, login, or aggressive bot wall, the read step will fail clearly and you can pick a different source.",
   },
   {
-    q: "Can I edit the panels?",
-    a: "Not yet in the UI. Every export is regenerable, and the heading and caption text comes directly from the article's structure — so if the model gets something wrong, re-running with a different audience level usually fixes it.",
+    q: "Can I edit the result?",
+    a: "Yes. You can revise the copy, adjust the visual treatment, reorder panels, and regenerate individual parts without rebuilding the whole story.",
   },
   {
     q: "What's in the exported MP4?",
@@ -31,55 +27,26 @@ const FAQS = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="section-amb amb-rose border-b border-paper-line bg-paper">
-      <div className="mx-auto max-w-4xl px-6 py-24 sm:py-32">
-        <Reveal>
-          <SectionLabel title="Questions" tone="rose" />
-        </Reveal>
-        <Reveal delayMs={60}>
-          <h2 className="mt-6 font-display text-3xl font-medium leading-[1.1] tracking-tight text-ink sm:text-[40px]">
-            The questions people ask <Squiggle>first</Squiggle>.
-          </h2>
-        </Reveal>
-
-        <div className="mt-14 divide-y divide-paper-line border-y border-paper-line">
+    <section id="faq" className="force-light border-b border-[#e8e8e8] bg-white">
+      <div className="mx-auto grid max-w-[1320px] gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[.65fr_1.35fr] lg:gap-20 lg:px-12">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.14em] text-[#3da9d8]">Questions, answered</p>
+          <h2 className="mt-5 font-sans text-5xl font-bold leading-none tracking-[-.05em] text-[#484848]">Before you<br /><span className="text-[#3da9d8]">begin.</span></h2>
+        </div>
+        <div className="border-t border-[#484848]">
           {FAQS.map((f, i) => (
-            <Reveal key={f.q} delayMs={i * 40}>
-              <details className="group py-6">
+              <details key={f.q} className="group border-b border-[#e8e8e8] py-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left">
-                  <span className="text-base font-medium text-ink transition-colors group-hover:text-rose-deep group-open:text-rose sm:text-lg">
-                    {f.q}
-                  </span>
-                  <Chevron />
+                  <span className="flex items-baseline gap-4 text-base font-bold text-[#484848] sm:text-lg"><span className="text-[10px] font-normal text-[#999]">0{i + 1}</span>{f.q}</span>
+                  <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-[#eaf6fc] text-lg font-light text-[#3da9d8] transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="mt-3 max-w-[64ch] pr-10 text-base leading-relaxed text-ink-soft group-open:animate-rise-in">
+                <p className="mt-3 max-w-[64ch] pl-10 pr-10 text-base leading-relaxed text-[#686868] group-open:animate-rise-in">
                   {f.a}
                 </p>
               </details>
-            </Reveal>
           ))}
         </div>
       </div>
     </section>
-  );
-}
-
-function Chevron() {
-  return (
-    <span
-      aria-hidden
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-ink-muted transition-transform group-open:rotate-180 group-open:text-ink"
-    >
-      <svg viewBox="0 0 12 12" width="11" height="11">
-        <path
-          d="M2.5 4.5 L6 8 L9.5 4.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
   );
 }

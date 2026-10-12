@@ -316,8 +316,12 @@ function emitText(el: Element, ctx: WalkContext, out: unknown[]) {
   );
 
   if (tspans.length > 0) {
+    let cursorX = xAttr;
+    let cursorY = yAttr;
     for (const ts of tspans) {
-      emitTextNode(ts as Element, ctx, out, xAttr, yAttr);
+      const position = emitTextNode(ts as Element, ctx, out, cursorX, cursorY);
+      cursorX = position.x;
+      cursorY = position.y;
     }
     // If the text element ALSO has direct text content (rare), skip — the
     // tspans cover it. If only direct content with no tspans, fall through.
@@ -335,18 +339,17 @@ function emitTextNode(
   out: unknown[],
   parentX: number,
   parentY: number
-) {
+): { x: number; y: number } {
   const style = inheritStyle(ctx.style, ts);
-  const x = ts.hasAttribute("x") ? n(ts.getAttribute("x")) : parentX;
-  const y = ts.hasAttribute("y")
-    ? n(ts.getAttribute("y"))
-    : parentY +
-      (ts.hasAttribute("dy")
-        ? n(ts.getAttribute("dy"))
-        : 0);
+  const x =
+    (ts.hasAttribute("x") ? n(ts.getAttribute("x")) : parentX) +
+    (ts.hasAttribute("dx") ? n(ts.getAttribute("dx")) : 0);
+  const y =
+    (ts.hasAttribute("y") ? n(ts.getAttribute("y")) : parentY) +
+    (ts.hasAttribute("dy") ? n(ts.getAttribute("dy")) : 0);
   const text = (ts.textContent ?? "").trim();
-  if (!text) return;
-  emitTextDirect(text, { ...ctx, style }, out, x, y);
+  if (text) emitTextDirect(text, { ...ctx, style }, out, x, y);
+  return { x, y };
 }
 
 function emitTextDirect(

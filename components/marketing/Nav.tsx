@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MobileNav } from "./MobileNav";
 import { AuthMenu } from "@/components/AuthMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getBrowserSupabase } from "@/lib/supabase/client";
+
+import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -15,65 +20,88 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    const supabase = getBrowserSupabase();
+    let cancelled = false;
+
+    async function refreshAuth() {
+      const { data } = await supabase.auth.getUser();
+      if (!cancelled) {
+        setSignedIn(!!data.user && data.user.is_anonymous !== true);
+      }
+    }
+
+    void refreshAuth();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void refreshAuth();
+    });
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <nav
       aria-label="Primary"
       className={
-        "sticky top-0 z-40 w-full bg-paper/88 backdrop-blur-xl transition-colors " +
+        "landing-nav sticky top-0 z-40 w-full bg-surface/95 transition-colors " +
         (scrolled
           ? "border-b border-paper-line"
           : "border-b border-transparent")
       }
     >
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-8 lg:px-12">
         <Link
           href="/"
-          className="inline-flex items-center gap-2.5 font-display text-xl font-semibold tracking-[-0.03em] text-ink"
+          className="inline-flex items-center gap-2.5 font-sans text-xl font-bold tracking-[-0.04em] text-ink"
           aria-label="Readopp — home"
         >
-          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-sky text-[10px] font-sans font-bold text-white">R</span>
+          <span aria-hidden className="brand-mark grid h-8 w-8 rotate-[-8deg] place-items-center rounded-xl bg-[#cce68a] text-sm text-[#484848]">R</span>
           Readopp
         </Link>
         <div className="flex items-center gap-1 text-sm">
           <a
-            href="#templates"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            href="/#try"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink sm:inline-block"
           >
-            Templates
+            Create a story
           </a>
           <a
-            href="#how-it-works"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            href="/#how-it-works"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink sm:inline-block"
           >
             How it works
           </a>
-          <a
-            href="#use-cases"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
-          >
-            For
-          </a>
-          <a
-            href="#pricing"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+          {PRO_FEATURES_ENABLED && (
+          <Link
+            href="/pricing"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink lg:inline-block"
           >
             Pricing
-          </a>
+          </Link>
+          )}
+          {signedIn && (
+            <Link
+              href="/library"
+              className="hidden rounded-md px-2 py-1.5 font-semibold text-ink-soft transition-colors hover:text-ink sm:inline-block sm:px-3"
+            >
+              Library
+            </Link>
+          )}
           <a
-            href="#faq"
-            className="hidden rounded-md px-3 py-1.5 text-ink-muted transition-colors hover:text-ink sm:inline-block"
+            href="/#try"
+            className="ml-2 hidden rounded-xl bg-ink px-4 py-2.5 text-xs font-semibold text-paper transition hover:bg-ink/90 sm:inline-block"
           >
-            Questions
+            Start creating
           </a>
-          <a
-            href="#try"
-            className="ml-2 rounded-full bg-sky px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-sky-deep"
-          >
-            Try it
-          </a>
-          <span aria-hidden className="mx-1 h-5 w-px bg-paper-line" />
-          <ThemeToggle />
-          <AuthMenu />
+          <span className="flex items-center">
+            <span aria-hidden className="mx-1 hidden h-5 w-px bg-paper-line sm:block" />
+            <ThemeToggle />
+            <AuthMenu />
+            <MobileNav signedIn={signedIn} />
+          </span>
         </div>
       </div>
     </nav>

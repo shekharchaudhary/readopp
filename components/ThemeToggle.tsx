@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 /**
  * Light/dark switch. The class on <html> is set before paint by the inline
  * script in app/layout.tsx; this component just reflects and flips it.
- * Dark is the brand default — only an explicit "light" choice overrides it.
+ * Light is the default; an explicit dark choice persists across pages.
  */
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [dark, setDark] = useState<boolean | null>(null);
@@ -29,6 +29,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={toggle}
+      aria-pressed={dark === true}
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
       title={dark ? "Switch to light theme" : "Switch to dark theme"}
       className={

@@ -12,6 +12,7 @@ import { DEFAULT_TEMPLATE_ID, getTemplate } from "@/lib/templates/registry";
 import type { BrandKit, Explainer } from "@/lib/shared/schemas";
 import { canUseTemplate, currentEntitlement, proRequired } from "@/lib/entitlements";
 import { trackProductEvent } from "@/lib/analytics";
+import { renderPanelWithCanvasOverride } from "@/lib/templates/canvasOverride";
 
 /**
  * Cache-buster token — bumps whenever a panel, the brand kit, OR the
@@ -111,7 +112,7 @@ export async function POST(
         );
       }
       const panel = explainer.panels[panelIndex];
-      const html = await template.renderPanel({
+      const html = await renderPanelWithCanvasOverride(template, {
         explainer,
         panel,
         format,
@@ -135,39 +136,11 @@ export async function POST(
       });
     }
 
-    // Whole-explainer export.
-    if (format === "vertical") {
-      // Fall back to repeating renderPanel if the template doesn't ship
-      // a dedicated stacked view yet.
-      const html = template.renderStacked
-        ? await template.renderStacked({ explainer, format, brand })
-        : await template.renderPanel({
-            explainer,
-            panel: explainer.panels[0],
-            format,
-            panelIndex: 1,
-            totalPanels: explainer.panels.length,
-            brand,
-          });
-      const result = await htmlToPng({
-        html,
-        format,
-        cacheKeyParts: [explainer.id, "all", format, versionTag(explainer, brand)],
-        browser,
-      });
-      void trackProductEvent({ name: "image_exported", properties: { format, scope: "stacked", plan: entitlement.plan, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
-      return NextResponse.json({
-        url: result.url,
-        format: result.format,
-        width: result.width,
-        height: result.height,
-        cached: result.cached,
-        kind: "stacked",
-      });
-    }
-
-    // square/landscape: return one image per panel as a set, PLUS one
-    // attribution slide at the end pointing back to the source.
+    // Whole-explainer export: return one image per panel as a set, PLUS one
+    // attribution slide at the end pointing back to the source. This is the
+    // same contract for every aspect ratio. The old vertical-only stacked
+    // image showed at most four panels, which could silently omit the fifth
+    // panel from a dynamic story and made individual slides hard to reuse.
     //
     // We render every panel through a single shared context + page on
     // Chromium. Cycling contexts between panels was crashing the browser
@@ -207,7 +180,7 @@ export async function POST(
 
       for (let i = 0; i < explainer.panels.length; i++) {
         const panel = explainer.panels[i];
-        const html = await template.renderPanel({
+        const html = await renderPanelWithCanvasOverride(template, {
           explainer,
           panel,
           format,

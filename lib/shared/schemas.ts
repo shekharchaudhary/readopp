@@ -87,9 +87,32 @@ export const EditorialBriefSchema = z.object({
   sourceSummary: z.string(),
   audience: AudienceLevelSchema,
   publishingGoal: PublishingGoalSchema,
+  storyLength: z
+    .object({
+      min: z.number().int().min(1).max(5),
+      max: z.number().int().min(1).max(5),
+      reason: z.string().min(1).max(180),
+      target: z.number().int().min(1).max(5).optional(),
+    })
+    .optional(),
   directions: z.array(EditorialDirectionSchema).min(1).max(3),
   selectedDirectionId: z.string(),
   approvedAt: z.string().optional(),
+}).superRefine((brief, ctx) => {
+  if (!brief.directions.some((direction) => direction.id === brief.selectedDirectionId)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["selectedDirectionId"],
+      message: "Select one of the provided editorial directions.",
+    });
+  }
+  if (brief.storyLength && brief.storyLength.min > brief.storyLength.max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["storyLength"],
+      message: "The minimum panel count cannot exceed the maximum.",
+    });
+  }
 });
 export type EditorialBrief = z.infer<typeof EditorialBriefSchema>;
 
@@ -617,7 +640,7 @@ export type OutlineSection = z.infer<typeof OutlineSectionSchema>;
 
 export const ExplainerOutlineSchema = z.object({
   title: z.string(),
-  sections: z.array(OutlineSectionSchema).min(1).max(6),
+  sections: z.array(OutlineSectionSchema).min(1).max(5),
 });
 export type ExplainerOutline = z.infer<typeof ExplainerOutlineSchema>;
 
@@ -696,6 +719,21 @@ export type PanelPlan = z.infer<typeof PanelPlanSchema>;
 
 // ---------- Agent 5: Render ----------
 
+export const PanelCopyOverridesSchema = z.object({
+  kicker: z.string().max(80).optional(),
+  primary: z.string().max(1000).optional(),
+  items: z
+    .array(
+      z.object({
+        title: z.string().max(140),
+        detail: z.string().max(500),
+      })
+    )
+    .max(10)
+    .optional(),
+});
+export type PanelCopyOverrides = z.infer<typeof PanelCopyOverridesSchema>;
+
 export const RenderedPanelSchema = z.object({
   sectionId: z.string(),
   // Section heading from the Outline agent; falls back to "" for explainers
@@ -704,6 +742,27 @@ export const RenderedPanelSchema = z.object({
   caption: z.string(),
   format: z.enum(["svg", "html"]),
   content: z.string(),
+  // Optional per-slide accent. Templates fall back to the brand color and
+  // then their own default when a panel has no override.
+  themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  // Optional composition override for adaptive templates. "auto" lets the
+  // renderer continue choosing from the panel's structured content.
+  layoutVariant: z.enum([
+    "auto",
+    "cover",
+    "hierarchy",
+    "radial",
+    "architecture",
+    "chart",
+    "diverging",
+    "priorities",
+    "report",
+    "contents",
+    "essay",
+  ]).optional(),
+  // Human-authored copy layered over the generated plan. Templates read
+  // these values first, keeping edits stable across layout/theme changes.
+  copyOverrides: PanelCopyOverridesSchema.optional(),
   validated: z.boolean().default(false),
   fallback: z.boolean().default(false),
   // The PanelPlan that produced this content. Optional because older
@@ -739,6 +798,16 @@ export const RenderedPanelSchema = z.object({
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
 
+/** Fields the panel editor can persist without replacing the whole explainer. */
+export type PanelPatch = {
+  heading?: string;
+  caption?: string;
+  content?: string;
+  themeColor?: string;
+  layoutVariant?: "auto" | "cover" | "hierarchy" | "radial" | "architecture" | "chart" | "diverging" | "priorities" | "report" | "contents" | "essay";
+  copyOverrides?: PanelCopyOverrides | null;
+};
+
 // ---------- Agent 7: Social pack (Phase 8 week 1) ----------
 
 /**
@@ -760,6 +829,59 @@ export const SocialPackSchema = z.object({
     )
     .default([]),
   sourceAttribution: z.string().max(200).default(""),
+  poll: z.object({
+    question: z.string().min(1).max(140),
+    options: z.array(z.string().min(1).max(30)).min(2).max(4),
+    intro: z.string().min(1).max(600),
+    followUp: z.string().min(1).max(800),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+  }).optional(),
+  documentAd: z.object({
+    documentTitle: z.string().min(1).max(70),
+    adIntro: z.string().min(1).max(600),
+    headline: z.string().min(1).max(200),
+    description: z.string().min(1).max(300),
+    formHeadline: z.string().min(1).max(60),
+    formDetails: z.string().min(1).max(160),
+    cta: z.enum(["download", "learn_more", "sign_up", "get_quote"]),
+    thankYouMessage: z.string().min(1).max(300),
+    followUpMessage: z.string().min(1).max(800),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+  }).optional(),
+  conversationAd: z.object({
+    openingMessage: z.string().min(1).max(500),
+    senderGuidance: z.string().min(1).max(300),
+    branches: z.array(z.object({
+      id: z.string().min(1).max(30),
+      choice: z.string().min(1).max(40),
+      response: z.string().min(1).max(500),
+      nextStep: z.string().min(1).max(220),
+      cta: z.preprocess(
+        (value) => value === "view_story" ? "read_explainer" : value,
+        z.enum(["read_explainer", "download_document", "read_source", "start_conversation"])
+      ),
+    })).min(2).max(4),
+    noResponseFollowUp: z.string().min(1).max(500),
+    sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(4),
+  }).optional(),
+  newsletterSeries: z.object({
+    seriesTitle: z.string().min(1).max(80),
+    positioning: z.string().min(1).max(300),
+    cadence: z.enum(["three_days", "weekly", "biweekly"]),
+    issues: z.array(z.object({
+      issueNumber: z.number().int().min(1).max(3),
+      subject: z.string().min(1).max(100),
+      previewText: z.string().min(1).max(140),
+      headline: z.string().min(1).max(120),
+      opening: z.string().min(1).max(500),
+      sections: z.array(z.object({
+        heading: z.string().min(1).max(80),
+        takeaway: z.string().min(1).max(400),
+      })).min(2).max(4),
+      cta: z.string().min(1).max(160),
+      sourceClaimIndexes: z.array(z.number().int().nonnegative()).min(1).max(3),
+    })).length(3),
+  }).optional(),
 });
 export type SocialPack = z.infer<typeof SocialPackSchema>;
 
@@ -802,6 +924,11 @@ export const TemplateIdSchema = z.enum([
   "aurora-glass",
   "bento-grid",
   "swiss-poster",
+  "adaptive-editorial",
+  "editorial-report",
+  "modern-technical",
+  "data-story",
+  "bold-social",
 ]);
 export type TemplateId = z.infer<typeof TemplateIdSchema>;
 

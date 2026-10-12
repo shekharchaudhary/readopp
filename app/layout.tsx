@@ -1,6 +1,8 @@
+import { MARKETING_COPY } from "@/lib/marketingCopy";
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import { PageMotion } from "@/components/ui/PageMotion";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,26 +18,15 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Readopp — Visual posts from anything you read",
-  description:
-    "The shortest path from great read to great post. Paste a URL, paper, or PDF — Readopp turns it into a share-ready visual carousel for LinkedIn, X, and Substack in under 30 seconds. You shouldn't have to design what you already understand.",
-  openGraph: {
-    title: "Readopp — Visual posts from anything you read",
-    description:
-      "Turn the articles, papers, and PDFs you read into share-ready visual posts for LinkedIn, X, and Substack in under 30 seconds.",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Readopp — Visual posts from anything you read",
-    description: "The shortest path from great read to great post.",
-  },
+  title: MARKETING_COPY.title,
+  description: MARKETING_COPY.description,
+  openGraph: { title: MARKETING_COPY.title, description: MARKETING_COPY.description, type: "website" },
+  twitter: { card: "summary_large_image", title: MARKETING_COPY.title, description: MARKETING_COPY.description },
 };
 
-// Runs before paint so the theme never flashes. The brand look is dark
-// (black + ivory + bronze), so dark is the default unless the visitor
-// explicitly switched to light via the toggle.
-const themeInit = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.classList.toggle("dark",t!=="light")}catch(e){}})()`;
+// Runs before paint so an explicitly chosen dark theme never flashes.
+// The default stays light: the landing page is designed as a reading surface.
+const themeInit = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.classList.toggle("dark",t==="dark")}catch(e){}})()`;
 
 export default function RootLayout({
   children,
@@ -51,7 +42,8 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="min-h-screen bg-paper text-ink font-sans antialiased">
+      <body className="app-interactions min-h-screen bg-paper text-ink font-sans antialiased">
+        <PageMotion />
         {children}
       </body>
     </html>

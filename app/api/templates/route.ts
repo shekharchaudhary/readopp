@@ -4,9 +4,11 @@ import {
   templateExists,
   getTemplate,
 } from "@/lib/templates/registry";
-import { getExplainer } from "@/lib/store";
+import { getExplainer, getJob } from "@/lib/store";
 import { recommendTemplates } from "@/lib/templates/recommend";
 import { canUseTemplate, currentEntitlement } from "@/lib/entitlements";
+import type { TemplateId } from "@/lib/shared/schemas";
+import { isCanvasOverride } from "@/lib/templates/canvasOverride";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,9 +22,30 @@ export async function GET(req: Request) {
   const entitlement = await currentEntitlement().catch(() => ({ plan: "free" as const, isAnonymous: true }));
   const explainerId = new URL(req.url).searchParams.get("explainerId");
   const explainer = explainerId ? await getExplainer(explainerId) : undefined;
-  const recommendations = explainer ? recommendTemplates(explainer) : [];
+  const sourceJob = explainer
+    ? await getJob(explainer.jobId).catch(() => undefined)
+    : undefined;
+  const comprehension = sourceJob?.pipelineState?.comprehension;
+  // Only the strongest three are recommendations. The scorer returns the
+  // full ranking so the design director can make constrained choices, but
+  // marking every card as "recommended" would make the picker meaningless.
+  const matureIds = new Set<TemplateId>(["adaptive-editorial", "editorial-report", "modern-technical", "data-story", "bold-social"]);
+  const recommendations = explainer
+    ? recommendTemplates(
+        explainer,
+        {
+          genre: comprehension?.genre,
+          contentFeatures: comprehension?.contentFeatures,
+          requestedStyle: sourceJob?.style,
+        },
+        matureIds
+      ).slice(0, 3)
+    : [];
   const recommendedById = new Map(recommendations.map((r, index) => [r.id, { ...r, rank: index + 1 }]));
-  const templates = listAllTemplateIds().map((id) => {
+  const previewPanel =
+    explainer?.panels.find((panel) => !isCanvasOverride(panel.content)) ??
+    explainer?.panels[0];
+  const templates = listAllTemplateIds().filter((id) => matureIds.has(id) || explainer?.template === id).map((id) => {
     const available = templateExists(id);
     // getTemplate falls back to the default for missing ids, so for the
     // "coming soon" rows we synthesise a minimal preview from the id.
@@ -41,7 +64,17 @@ export async function GET(req: Request) {
         }
       : placeholderFor(id);
   });
-  return NextResponse.json({ templates, entitlement });
+  return NextResponse.json({
+    templates,
+    entitlement,
+    // A canvas override is intentionally identity-independent. Previewing it
+    // in every card would make distinct template choices look identical, so
+    // demonstrate the direction with the first panel that can actually adopt
+    // it. Fall back only when every panel has been custom-designed.
+    previewSectionId: previewPanel?.sectionId ?? null,
+    customPanelCount:
+      explainer?.panels.filter((panel) => isCanvasOverride(panel.content)).length ?? 0,
+  });
 }
 
 function placeholderFor(id: string) {

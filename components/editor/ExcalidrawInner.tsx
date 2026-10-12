@@ -24,7 +24,11 @@ type ExcalidrawImperativeAPI = unknown;
 interface Props {
   initialData: unknown;
   onAPI: (api: ExcalidrawImperativeAPI) => void;
-  onChange: () => void;
+  onChange: (
+    elements: readonly unknown[],
+    appState: unknown,
+    files: Record<string, unknown>
+  ) => void;
 }
 
 export default function ExcalidrawInner({
@@ -46,8 +50,8 @@ export default function ExcalidrawInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableInitial = useMemo(() => initialData, []);
 
-  const stableOnChange = useCallback(() => {
-    changeRef.current();
+  const stableOnChange = useCallback((elements: readonly unknown[], appState: unknown, files: Record<string, unknown>) => {
+    changeRef.current(elements, appState, files);
   }, []);
 
   const stableExcalidrawAPI = useCallback((captured: unknown) => {

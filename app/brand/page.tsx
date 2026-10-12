@@ -152,7 +152,7 @@ export default function BrandPage() {
 
         <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-start">
           {/* Form */}
-          <div className="space-y-8 rounded-xl border border-paper-line bg-surface p-7">
+          <div className="brand-controls space-y-8 rounded-xl border border-paper-line bg-surface p-7">
             <Field label="Brand color">
               <div className="flex items-center gap-2">
                 <span
@@ -177,8 +177,9 @@ export default function BrandPage() {
                       onClick={() => setDraft({ ...draft, color: c })}
                       title={c}
                       aria-label={c}
+                      aria-pressed={draft.color.toLowerCase() === c.toLowerCase()}
                       className={
-                        "h-6 w-6 rounded-md border transition-transform " +
+                        "h-9 w-9 rounded-lg border transition-transform " +
                         (draft.color.toLowerCase() === c.toLowerCase()
                           ? "scale-110 border-ink"
                           : "border-paper-line hover:scale-105")
@@ -198,6 +199,7 @@ export default function BrandPage() {
                     <button
                       key={f.value}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => setDraft({ ...draft, font: f.value })}
                       className={
                         "rounded-md border px-3 py-3 transition-colors " +
@@ -272,7 +274,7 @@ export default function BrandPage() {
                 {saving ? "Saving…" : "Save brand kit"}
               </button>
               {savedAt && !saving && !error && (
-                <span className="text-xs text-ink-muted">
+                <span role="status" className="text-xs text-ink-muted">
                   Saved. Used on your next export.
                 </span>
               )}
@@ -327,7 +329,8 @@ function PreviewCard({ draft }: { draft: DraftKit }) {
   const fontFamily = FONT_FAMILY[draft.font];
   return (
     <div
-      className="aspect-square overflow-hidden rounded-lg border border-paper-line bg-paper shadow-sm"
+      data-motion-item
+      className="brand-live-preview aspect-square overflow-hidden rounded-lg border border-paper-line bg-paper shadow-sm"
       style={{ fontFamily }}
     >
       <div className="flex h-full flex-col p-6">

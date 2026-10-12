@@ -1,3 +1,9 @@
+import Link from "next/link";
+import { Nav } from "@/components/marketing/Nav";
+import { Footer } from "@/components/marketing/Footer";
+import { PretextMotionPreview } from "@/components/PretextMotionPreview";
+import { SampleGallery } from "@/components/SampleGallery";
+
 export const dynamic = "force-static";
 
 const ICEBERG_SVG = `
@@ -235,52 +241,5 @@ const SAMPLES: Array<{
 ];
 
 export default function SamplesPage() {
-  return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
-      <header className="mb-12">
-        <p className="text-xs font-medium uppercase tracking-wider text-accent">
-          Style calibration · not in production
-        </p>
-        <h1 className="mt-2 text-3xl font-medium tracking-tight text-ink">
-          Storytelling diagram samples
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-soft">
-          Four hand-drafted SVGs in the two styles we discussed —{" "}
-          <span className="text-ink">metaphor scenes</span> (iceberg, mountain,
-          confluence) and{" "}
-          <span className="text-ink">annotated hero</span> (one concrete subject
-          with numbered callouts). These are the quality target, not generator
-          output yet. If the look lands, the next step is to rewrite the planner
-          to pick from these recipes and demote flowcharts to a fallback.
-        </p>
-      </header>
-
-      <div className="space-y-16">
-        {SAMPLES.map((s) => (
-          <section key={s.styleName}>
-            <div className="mb-3 flex items-baseline justify-between gap-4">
-              <span className="text-xs font-medium uppercase tracking-wider text-accent">
-                {s.styleName}
-              </span>
-              <span className="text-xs text-ink-muted">680 × auto</span>
-            </div>
-            <h2 className="mb-2 text-lg font-medium text-ink">{s.topic}</h2>
-            <p className="mb-5 max-w-2xl text-sm text-ink-muted">{s.note}</p>
-            <div
-              className="rounded-xl border border-paper-line bg-paper p-6"
-              dangerouslySetInnerHTML={{ __html: s.svg }}
-            />
-          </section>
-        ))}
-      </div>
-
-      <footer className="mt-20 border-t border-paper-line pt-8 text-sm text-ink-muted">
-        <p>
-          Tell me which feel right and which feel off — naming the worst one is
-          more useful than naming the best. Then I'll wire the planner to pick
-          from the surviving recipes.
-        </p>
-      </footer>
-    </main>
-  );
+  return <><Nav /><main className="mx-auto max-w-4xl px-5 py-12 sm:px-8 sm:py-16"><header className="mb-10"><p className="text-[10px] font-semibold uppercase tracking-[.15em] text-ink-muted">Visual inspiration</p><h1 className="mt-3 text-3xl font-medium tracking-tight text-ink sm:text-4xl">Find a fresh way to tell your story.</h1><p className="mt-4 max-w-2xl text-sm leading-7 text-ink-soft">Explore example layouts, from visual metaphors to annotated diagrams. Filter the gallery to see how each approach brings an idea into focus.</p></header><PretextMotionPreview /><SampleGallery samples={SAMPLES} /><div className="mt-12 flex flex-col gap-4 rounded-2xl border border-paper-line bg-surface p-6 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-ink-soft">Have a source in mind? Start shaping your own story.</p><Link href="/#try" className="site-action shrink-0 rounded-xl bg-ink px-4 py-3 text-xs font-medium text-paper">Create a story →</Link></div></main><Footer /></>;
 }

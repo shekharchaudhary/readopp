@@ -26,6 +26,7 @@ export function AuthMenu() {
     email: null,
   });
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -86,14 +87,17 @@ export function AuthMenu() {
 
   if (!state.signedIn) {
     return (
+      <div className="relative">
       <button
         type="button"
         onClick={async () => {
           if (busy) return;
+          setError(null);
           setBusy(true);
           try {
             await signInWithGoogle("/");
-          } catch {
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : "Sign-in could not start. Please try again.");
             setBusy(false);
           }
         }}
@@ -103,6 +107,12 @@ export function AuthMenu() {
         {!busy && <GoogleLogo size={14} />}
         {busy ? "…" : "Sign in"}
       </button>
+      {error && (
+        <p role="alert" className="absolute right-0 top-full z-50 mt-2 w-64 rounded-md border border-coral/30 bg-surface px-3 py-2 text-xs leading-5 text-coral-deep shadow-lg">
+          {error}
+        </p>
+      )}
+      </div>
     );
   }
 
@@ -114,7 +124,7 @@ export function AuthMenu() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="max-w-[180px] truncate rounded-md px-3 py-1.5 text-sm text-ink-soft transition-colors hover:text-ink"
+        className="max-w-[112px] truncate rounded-md px-3 py-1.5 text-sm text-ink-soft transition-colors hover:text-ink sm:max-w-[180px]"
         title={label}
       >
         {label}

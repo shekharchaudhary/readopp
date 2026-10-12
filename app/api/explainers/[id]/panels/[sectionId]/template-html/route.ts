@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { isExportFormat } from "@/lib/export/dimensions";
-import { getBrandKit, getExplainer } from "@/lib/store";
-import { getOrCreateUser } from "@/lib/supabase/server";
+import { TemplateIdSchema } from "@/lib/shared/schemas";
+import { getBrandKit, getExplainer, getExplainerOwner } from "@/lib/store";
 import { getTemplate } from "@/lib/templates/registry";
+import { renderPanelWithCanvasOverride } from "@/lib/templates/canvasOverride";
+import {
+  panelLayoutCompatibility,
+  PANEL_LAYOUT_IDS,
+  templateSupportsPanelLayouts,
+  type PanelLayoutId,
+} from "@/lib/templates/panelLayouts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +29,8 @@ export async function GET(
 ) {
   const url = new URL(req.url);
   const format = url.searchParams.get("format") ?? "square";
+  const requestedLayout = url.searchParams.get("layout");
+  const requestedTemplate = url.searchParams.get("template");
   if (!isExportFormat(format)) {
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
   }
@@ -37,19 +46,48 @@ export async function GET(
     return NextResponse.json({ error: "Panel not found." }, { status: 404 });
   }
 
-  // Brand lookup is best-effort — anonymous viewers just get default styling.
+  // A shared story must retain its author's visual identity. Resolve the
+  // owner's brand directly instead of applying the viewer's kit (or minting
+  // an anonymous auth user on this public read path).
   let brand = null;
   try {
-    const { userId, isAnonymous } = await getOrCreateUser();
-    if (!isAnonymous) brand = await getBrandKit(userId);
+    const ownerId = await getExplainerOwner(params.id);
+    if (ownerId) brand = await getBrandKit(ownerId);
   } catch {
     // ignore — render with default brand
   }
 
-  const template = getTemplate(explainer.template);
-  const html = await template.renderPanel({
+  const parsedTemplate = requestedTemplate
+    ? TemplateIdSchema.safeParse(requestedTemplate)
+    : null;
+  if (parsedTemplate && !parsedTemplate.success) {
+    return NextResponse.json({ error: "Invalid template preview." }, { status: 400 });
+  }
+  const template = getTemplate(
+    parsedTemplate?.success ? parsedTemplate.data : explainer.template
+  );
+  const storedPanel = explainer.panels[panelIndex];
+  let panel = storedPanel;
+  if (requestedLayout) {
+    if (
+      !templateSupportsPanelLayouts(template.id) ||
+      !PANEL_LAYOUT_IDS.includes(requestedLayout as PanelLayoutId)
+    ) {
+      return NextResponse.json({ error: "Invalid layout preview." }, { status: 400 });
+    }
+    const layout = requestedLayout as PanelLayoutId;
+    const compatibility = panelLayoutCompatibility(storedPanel, layout);
+    if (!compatibility.compatible) {
+      return NextResponse.json(
+        { error: compatibility.reason ?? "Layout is not compatible with this panel." },
+        { status: 422 }
+      );
+    }
+    panel = { ...storedPanel, layoutVariant: layout };
+  }
+  const html = await renderPanelWithCanvasOverride(template, {
     explainer,
-    panel: explainer.panels[panelIndex],
+    panel,
     format,
     panelIndex: panelIndex + 1,
     totalPanels: explainer.panels.length,
@@ -63,6 +101,8 @@ export async function GET(
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
+      "content-security-policy": "sandbox; default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data:; font-src data: https://fonts.gstatic.com; base-uri 'none'; form-action 'none'",
+      "x-content-type-options": "nosniff",
     },
   });
 }

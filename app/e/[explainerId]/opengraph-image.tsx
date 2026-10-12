@@ -19,7 +19,7 @@ import { getExplainer } from "@/lib/store";
  * the page component uses).
  */
 export const runtime = "nodejs";
-export const alt = "Readopp explainer";
+export const alt = "Readopp visual story";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -99,7 +99,7 @@ export default async function Image({
               textTransform: "uppercase",
             }}
           >
-            Visual explainer
+            Visual story
           </span>
         </div>
 

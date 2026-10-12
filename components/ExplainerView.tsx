@@ -1,29 +1,56 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ExportSheet } from "./ExportSheet";
 import { PanelCard } from "./PanelCard";
 import { ResumeDownload } from "./ResumeDownload";
 import { TemplatePicker } from "./TemplatePicker";
-import type { Explainer, TemplateId } from "@/lib/shared/schemas";
+import type {
+  Explainer,
+  PanelPatch,
+  TemplateId,
+} from "@/lib/shared/schemas";
 import { sourceIsLinkable, sourceLabel } from "@/lib/shared/source";
+import { DEFAULT_TEMPLATE_ID } from "@/lib/templates/default";
 
 interface Props {
   explainer: Explainer;
   canExport?: boolean;
+  justCreated?: boolean;
 }
 
-export function ExplainerView({ explainer: initial, canExport = true }: Props) {
+export function ExplainerView({
+  explainer: initial,
+  canExport = true,
+  justCreated = false,
+}: Props) {
+  const router = useRouter();
   const [explainer, setExplainer] = useState<Explainer>(initial);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPanelId, setExportPanelId] = useState<string | undefined>(
     undefined
   );
   const [copied, setCopied] = useState(false);
+  const [insertBusy, setInsertBusy] = useState(false);
+  // App Router can preserve this client component while a fresh server
+  // payload arrives (for example, returning from the full-screen canvas to
+  // the same explainer). Keep local optimistic state aligned with that new
+  // source of truth so an edited panel never reappears with stale badges or
+  // pre-save content.
+  useEffect(() => {
+    setExplainer(initial);
+  }, [initial]);
+
+  // Explain­ers created before template selection was persisted still need
+  // to render through the same mature default used by exports. Without this,
+  // the page shows legacy SVG while the downloaded asset shows Swiss Social.
+  const activeTemplate = explainer.template ?? DEFAULT_TEMPLATE_ID;
 
   async function patchPanel(
     sectionId: string,
-    patch: { heading?: string; caption?: string; content?: string }
+    patch: PanelPatch
   ) {
     const res = await fetch(
       `/api/explainers/${explainer.id}/panels/${sectionId}`,
@@ -86,35 +113,15 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
 
   async function deletePanel(sectionId: string) {
     if (explainer.panels.length <= 1) {
-      window.alert("An explainer needs at least one panel.");
-      return;
+      throw new Error("A story needs at least one panel.");
     }
-    const panel = explainer.panels.find((p) => p.sectionId === sectionId);
-    const label = panel?.heading?.trim() || "this panel";
-    if (
-      !window.confirm(
-        `Delete "${label}"? This can't be undone.`
-      )
-    ) {
-      return;
-    }
-    const previous = explainer.panels;
-    setExplainer({
-      ...explainer,
-      panels: previous.filter((p) => p.sectionId !== sectionId),
-    });
-    try {
-      const res = await fetch(
-        `/api/explainers/${explainer.id}/panels/${sectionId}`,
-        { method: "DELETE" }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
-      if (data.explainer) setExplainer(data.explainer as Explainer);
-    } catch (e) {
-      setExplainer({ ...explainer, panels: previous });
-      window.alert((e as Error).message);
-    }
+    const res = await fetch(
+      `/api/explainers/${explainer.id}/panels/${sectionId}`,
+      { method: "DELETE" }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
+    if (data.explainer) setExplainer(data.explainer as Explainer);
   }
 
   /** Move a panel by one step in the given direction — keyboard parallel
@@ -131,6 +138,8 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
   }
 
   async function insertBlankPanel(afterSectionId?: string) {
+    if (insertBusy) return;
+    setInsertBusy(true);
     try {
       const res = await fetch(
         `/api/explainers/${explainer.id}/panels/insert`,
@@ -143,8 +152,19 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Insert failed (${res.status})`);
       if (data.explainer) setExplainer(data.explainer as Explainer);
+      if (typeof data.sectionId === "string") {
+        // A blank panel has no structured content for suggestions yet, so its
+        // useful destination is the exact canvas. Make addition a single
+        // create-and-edit action instead of making the creator find another
+        // button after insertion.
+        router.push(
+          `/edit/${encodeURIComponent(explainer.id)}/${encodeURIComponent(data.sectionId)}`
+        );
+      }
     } catch (e) {
       window.alert((e as Error).message);
+    } finally {
+      setInsertBusy(false);
     }
   }
 
@@ -171,7 +191,22 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
   return (
     <div className="space-y-8">
       {!canExport && <PermalinkVisitorBanner />}
-      <header className="flex items-start justify-between gap-4">
+      {canExport && justCreated && (
+        <section
+          role="status"
+          className="rounded-2xl border border-accent/30 bg-accent/5 px-5 py-4 sm:px-6"
+        >
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[.16em] text-accent-deep">
+            Story ready
+          </p>
+          <p className="mt-1 text-sm leading-6 text-ink-soft">
+            Readopp shaped this source into {explainer.panels.length} focused
+            panel{explainer.panels.length === 1 ? "" : "s"}. Choose a visual
+            direction, then edit only the panels that need your touch.
+          </p>
+        </section>
+      )}
+      <header className="flex flex-col items-start justify-between gap-5 sm:flex-row">
         <div className="space-y-2 min-w-0">
           <h1 className="text-2xl font-medium tracking-tight text-ink sm:text-3xl">
             {explainer.title}
@@ -198,7 +233,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             </p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div className="flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
           {/* Share controls always render — viewers (not just the owner)
               are the audience for sharing. */}
           <ShareBar
@@ -209,26 +244,46 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
           />
           {/* Edit + export controls only render for the owner. canExport
               is set server-side from the ownership check in page.tsx. */}
-          {canExport && (
-            <>
+        </div>
+      </header>
+
+      {canExport && (
+        <section className="rounded-2xl border border-paper-line bg-surface p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="lg:max-w-sm">
+              <p className="text-sm font-semibold text-ink">Make it yours</p>
+              <p className="mt-1 text-xs leading-5 text-ink-muted">
+                Pick the overall visual direction, then customize any panel
+                with its own suggested layout or the full canvas.
+              </p>
+            </div>
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
               <TemplatePicker
                 explainerId={explainer.id}
-                current={explainer.template}
+                current={activeTemplate}
                 onChange={(next: TemplateId) =>
                   setExplainer({ ...explainer, template: next })
                 }
               />
+              {explainer.panels[0] && (
+                <Link
+                  href={`/edit/${encodeURIComponent(explainer.id)}/${encodeURIComponent(explainer.panels[0].sectionId)}`}
+                  className="rounded-full border border-paper-line bg-paper px-4 py-2 text-sm font-medium text-ink-soft transition hover:border-ink-muted hover:text-ink"
+                >
+                  Customize first panel
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={openExportAll}
-                className="rounded-md border border-paper-line bg-surface px-3 py-2 text-sm text-ink-soft hover:border-ink-muted"
+                className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper transition hover:opacity-90"
               >
-                Export all
+                Export story
               </button>
-            </>
-          )}
-        </div>
-      </header>
+            </div>
+          </div>
+        </section>
+      )}
 
       {canExport && explainer.resumeDoc && (
         <ResumeDownload explainerId={explainer.id} />
@@ -238,6 +293,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
         {canExport && (
           <InsertSlot
             label="Add panel above"
+            busy={insertBusy}
             onInsert={() => insertBlankPanel(undefined)}
           />
         )}
@@ -251,6 +307,7 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
             >
               <PanelCard
                 panel={panel}
+                allPanels={explainer.panels}
                 index={i}
                 onExport={canExport ? openExportPanel : undefined}
                 onEdit={canExport ? patchPanel : undefined}
@@ -268,13 +325,17 @@ export function ExplainerView({ explainer: initial, canExport = true }: Props) {
                     ? (id) => movePanel(id, "down")
                     : undefined
                 }
-                explainerId={canExport ? explainer.id : undefined}
-                template={explainer.template}
+                // Public readers should see the same mature rendered panel
+                // the owner previews and exports. Editing callbacks remain
+                // owner-only, so sharing the id here enables rendering only.
+                explainerId={explainer.id}
+                template={activeTemplate}
               />
             </PanelDraggable>
             {canExport && (
               <InsertSlot
                 label="Add panel below"
+                busy={insertBusy}
                 onInsert={() => insertBlankPanel(panel.sectionId)}
               />
             )}
@@ -393,23 +454,27 @@ function PanelDraggable({
  */
 function InsertSlot({
   label,
+  busy,
   onInsert,
 }: {
   label: string;
-  onInsert: () => void;
+  busy: boolean;
+  onInsert: () => Promise<void>;
 }) {
   return (
-    <div className="group relative h-2">
+    <div className="group relative h-9">
       <button
         type="button"
-        onClick={onInsert}
+        onClick={() => void onInsert()}
+        disabled={busy}
         aria-label={label}
-        className="absolute inset-x-0 top-0 flex h-2 items-center justify-center text-[11px] text-ink-faint opacity-0 transition-opacity hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
+        aria-busy={busy}
+        className="absolute inset-x-0 top-0 flex h-9 items-center justify-center text-[11px] text-ink-faint opacity-60 transition-[color,opacity] hover:text-accent hover:opacity-100 focus-visible:text-accent focus-visible:opacity-100 disabled:cursor-wait disabled:opacity-40 sm:opacity-35 sm:group-hover:opacity-100"
       >
         <span className="flex w-full items-center gap-2">
           <span className="h-px flex-1 bg-paper-line" />
-          <span className="rounded-full border border-paper-line bg-surface px-2 py-0.5">
-            + Add panel
+          <span className="rounded-full border border-paper-line bg-surface px-3 py-1 shadow-sm">
+            {busy ? "Opening canvas…" : "+ Add in canvas"}
           </span>
           <span className="h-px flex-1 bg-paper-line" />
         </span>
@@ -440,7 +505,7 @@ function PermalinkVisitorBanner() {
         <span className="inline-block h-2 w-2 -translate-y-px rounded-full bg-accent align-middle" />
         <span className="ml-2 font-medium text-ink">Made with Readopp</span>
         <span className="ml-2 text-ink-muted">
-          — paste any article, get a share-ready visual carousel.
+          — bring a document, get a share-ready visual story.
         </span>
       </p>
       <a
@@ -464,8 +529,9 @@ function PermalinkVisitorFooter() {
         Turn what you read into a post like this.
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-        Readopp made this carousel from a single URL. Paste any article,
-        paper, or PDF — it&rsquo;s 3 free tries, no sign-up needed.
+        Readopp made this visual story from one document. Bring a Google Doc,
+        Notion page, journal export, PDF, or Word file and publish your own in
+        minutes.
       </p>
       <a
         href="/"

@@ -34,8 +34,10 @@ interface RunnerState {
   runJobImpl: JobRunner | null;
   queue: string[];
   queued: Set<string>;
+  rerunRequested: Set<string>;
   wake: (() => void) | null;
   started: boolean;
+  active: number;
 }
 
 const globalForRunner = globalThis as unknown as {
@@ -48,23 +50,37 @@ const state: RunnerState =
     runJobImpl: null,
     queue: [],
     queued: new Set<string>(),
+    rerunRequested: new Set<string>(),
     wake: null,
     started: false,
+    active: 0,
   });
 
 export function registerJobRunner(fn: JobRunner): void {
   state.runJobImpl = fn;
+  state.wake?.();
 }
 
-export function enqueueJob(jobId: string): void {
-  // Idempotent: ignore a duplicate trigger while the job is still waiting.
-  if (state.queued.has(jobId)) return;
+export function enqueueJob(
+  jobId: string,
+  options: { requeueIfRunning?: boolean } = {}
+): void {
+  // Most duplicate triggers are harmless and should remain idempotent. Brief
+  // approval is different: it can land in the tiny window after brief.ready
+  // was persisted but before the first runner invocation has left runOne().
+  // Remember that handoff and run the job once more after the current pass
+  // exits, otherwise an accepted brief can stay queued forever.
+  if (state.queued.has(jobId)) {
+    if (options.requeueIfRunning) state.rerunRequested.add(jobId);
+    return;
+  }
   state.queued.add(jobId);
   state.queue.push(jobId);
   state.wake?.();
 }
 
 async function runOne(jobId: string): Promise<void> {
+  state.active = (state.active ?? 0) + 1;
   try {
     if (!state.runJobImpl) {
       throw new Error("no job runner registered");
@@ -77,7 +93,11 @@ async function runOne(jobId: string): Promise<void> {
     // eslint-disable-next-line no-console
     console.error(`[readopp] runJob(${jobId}) crashed`, err);
   } finally {
+    state.active -= 1;
+    const rerun = state.rerunRequested.delete(jobId);
     state.queued.delete(jobId);
+    if (rerun) enqueueJob(jobId);
+    state.wake?.();
   }
 }
 
@@ -91,7 +111,7 @@ export function startRunner(): void {
   state.started = true;
   void (async () => {
     for (;;) {
-      while (state.queue.length > 0) {
+      while (state.runJobImpl && state.queue.length > 0 && (state.active ?? 0) < 2) {
         const jobId = state.queue.shift();
         if (jobId) void runOne(jobId);
       }

@@ -17,7 +17,7 @@ const AGENT_DESC: Record<AgentName, string> = {
   structure: "Deciding what deserves a panel, and in what order",
   planner: "Designing each panel: layout, copy, visual idea",
   render: "Drawing every panel as crisp vector art",
-  assembly: "Stitching the panels into one shareable explainer",
+  assembly: "Stitching the panels into one shareable visual story",
   social: "Writing the caption, hashtags, and alt text for your post",
 };
 
@@ -52,7 +52,7 @@ export function WorkingScene({ scene }: Props) {
         <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">
           {scene.status === "failed"
             ? "Stopped"
-            : `Agent ${stepIndex} of ${AGENT_KEYS.length}`}
+            : `Step ${stepIndex} of ${AGENT_KEYS.length}`}
           <span className="mx-2 text-ink-faint">·</span>
           <span className="normal-case tracking-normal">
             {doneCount} done

@@ -6,6 +6,7 @@ import {
   type PublishingGoal,
   type BrandKit,
   type Explainer,
+  type PanelPatch,
   type Job,
   type JobError,
   type JobStatus,
@@ -17,6 +18,7 @@ import {
 } from "./shared/schemas";
 import type { StreamEvent, StreamEventInput } from "./events";
 import { getAdminSupabase, getServerSupabase } from "./supabase/server";
+import { sanitizePanelContent } from "./render/contentSafety";
 
 /**
  * Jobs + SSE event log live in Postgres so they survive serverless
@@ -350,7 +352,7 @@ function rowToExplainer(row: ExplainerRow): Explainer {
     audienceLevel: row.audience_level,
     publishingGoal: row.publishing_goal ?? "teach",
     voiceProfileId: (row.voice_profile_id as VoiceProfileId | null) ?? "clear_expert",
-    panels: row.panels,
+    panels: Array.isArray(row.panels) ? row.panels.map((panel) => ({ ...panel, content: typeof panel.content === "string" ? sanitizePanelContent(panel.content) : panel.content })) : row.panels,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     socialPack: row.social_pack ?? undefined,
@@ -455,7 +457,7 @@ export async function getExplainer(id: string): Promise<Explainer | undefined> {
 export async function updatePanel(
   explainerId: string,
   sectionId: string,
-  patch: { heading?: string; caption?: string; content?: string }
+  patch: PanelPatch
 ): Promise<Explainer | undefined> {
   const supabase = getServerSupabase();
   // Read-modify-write on the panels jsonb. Two round-trips; acceptable for
@@ -476,10 +478,23 @@ export async function updatePanel(
     heading: patch.heading !== undefined ? patch.heading : panel.heading,
     caption: patch.caption !== undefined ? patch.caption : panel.caption,
     content: patch.content !== undefined ? patch.content : panel.content,
+    themeColor:
+      patch.themeColor !== undefined ? patch.themeColor : panel.themeColor,
+    layoutVariant:
+      patch.layoutVariant !== undefined
+        ? patch.layoutVariant
+        : panel.layoutVariant,
+    copyOverrides:
+      patch.copyOverrides !== undefined
+        ? patch.copyOverrides ?? undefined
+        : panel.copyOverrides,
     // Lock the panel as edited once content is patched, so future
     // template re-renders don't blow away hand-edits.
     edited:
-      patch.content !== undefined ? true : panel.edited ?? false,
+      patch.content !== undefined ||
+      (patch.copyOverrides !== undefined && patch.copyOverrides !== null)
+        ? true
+        : panel.edited ?? false,
   };
   const nextPanels = existing.panels.slice();
   nextPanels[i] = nextPanel;
@@ -564,8 +579,9 @@ export async function deletePanel(
 }
 
 /**
- * Insert a blank panel after `afterSectionId` (or at the end when that
- * id is missing / not found). The blank ships with a minimal placeholder
+ * Insert a blank panel after `afterSectionId`, or at the beginning when no
+ * anchor is supplied. A stale/missing anchor falls back to the end. The blank
+ * ships with a minimal placeholder
  * SVG and is marked `edited: true` so future template re-runs don't
  * overwrite it.
  */
@@ -587,7 +603,8 @@ export async function insertBlankPanel(
   const insertAt = afterSectionId
     ? nextPanels.findIndex((p) => p.sectionId === afterSectionId)
     : -1;
-  if (insertAt >= 0) nextPanels.splice(insertAt + 1, 0, newPanel);
+  if (!afterSectionId) nextPanels.unshift(newPanel);
+  else if (insertAt >= 0) nextPanels.splice(insertAt + 1, 0, newPanel);
   else nextPanels.push(newPanel);
 
   const { data: updatedRow, error } = await supabase
@@ -607,7 +624,7 @@ function buildBlankPanel() {
   const sectionId = `blank-${Math.random().toString(36).slice(2, 10)}`;
   // 680×480 matches the SVG canvas used by all four templates so the new
   // panel sits at the same aspect ratio as its neighbours.
-  const content = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 480"><rect x="0" y="0" width="680" height="480" fill="#FAF9F5"/><text x="340" y="240" font-size="16" fill="#7A6F62" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">Click “Edit on canvas” to draw, or edit the heading and caption below.</text></svg>`;
+  const content = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 480"><rect x="0" y="0" width="680" height="480" fill="#FAF9F5"/><text x="340" y="240" font-size="16" fill="#7A6F62" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">Open “Customize canvas” to add text, shapes, images, and more.</text></svg>`;
   return {
     sectionId,
     heading: "Untitled panel",
@@ -817,6 +834,7 @@ export async function emitEvent(
     .from("job_events")
     .insert(insertRow)
     .select("seq, job_id, type, data, ts")
+    .abortSignal(AbortSignal.timeout(8_000))
     .maybeSingle();
   if (error || !data) {
     throw new Error(
@@ -846,7 +864,8 @@ export async function listEventsSince(
     .select("seq, job_id, type, data, ts")
     .eq("job_id", jobId)
     .gt("seq", afterSeq)
-    .order("seq", { ascending: true });
+    .order("seq", { ascending: true })
+    .abortSignal(AbortSignal.timeout(8_000));
   if (error || !data) return [];
   return (data as JobEventRow[]).map(rowToEvent);
 }

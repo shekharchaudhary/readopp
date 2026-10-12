@@ -5,6 +5,12 @@ import {
   type ExplainerOutline,
 } from "../shared/schemas";
 import { extractJson, parseWithFeedback, withRetry } from "./util";
+import {
+  effectivePanelCountRange,
+  recommendedPanelCountRange,
+} from "../storyLength";
+
+export { recommendedPanelCountRange, type PanelCountRange } from "../storyLength";
 
 const SYSTEM_PROMPT = `
 You are the structure stage. You break an understood document into a short
@@ -19,9 +25,20 @@ research paper.
 ═══════════════════════════════════════════════════════════════════════════
 GENERAL RULES (apply to every genre)
 ═══════════════════════════════════════════════════════════════════════════
-- Produce 3 to 6 panels. Fewer is better when the document is simple.
+- Produce 1 to 5 panels. Choose the story length from the source; NEVER pad
+  a simple idea to hit a preferred count.
+- Use exactly 1 panel when one visual can carry the complete useful idea
+  (one quote, one statistic, one definition, or one compact framework).
+- Use 2 panels for a clear claim + evidence or problem + response.
+- Use 3 panels for a short argument with a beginning, proof, and conclusion.
+- Use 4 panels when the source has multiple distinct findings or stages.
+- Use 5 panels only for genuinely rich research, technical systems, or
+  multi-part narratives where every panel adds a new insight.
+- Before returning, remove any panel whose meaning is already covered by
+  another panel. Completeness matters; panel count does not.
 - Panels form a narrative the reader can follow in order.
-- First panel usually frames the subject/problem; last summarises.
+- In multi-panel stories, the first panel usually frames the subject/problem
+  and the last resolves it. A one-panel story must stand alone.
 
 VOICE ROTATION (the carousel must FEEL varied):
 - Don't use the same visualType more than twice across the explainer.
@@ -35,7 +52,7 @@ VOICE ROTATION (the carousel must FEEL varied):
     • DATA         : stat_callout, chart
     • VISUAL       : metaphor, annotated_hero
     • STRUCTURAL   : timeline, comparison, flowchart, structural
-  A 5-section explainer should hit at LEAST 3 families. If two
+  A 4–5 section explainer should hit at LEAST 3 families. If two
   consecutive sections want to be in the same family, swap the second
   to a different family even if it's slightly less ideal — variety
   beats local-optimum every time on a LinkedIn carousel.
@@ -194,7 +211,18 @@ Respond with ONLY JSON matching the ExplainerOutline schema:
 No fences, no commentary.
 `.trim();
 
-function userMessage(c: Comprehension, publishingGoal = "teach", editorialDirection?: string): string {
+function userMessage(
+  c: Comprehension,
+  publishingGoal = "teach",
+  editorialDirection?: string,
+  sourceWordCount = 0,
+  targetPanelCount?: number
+): string {
+  const recommendation = recommendedPanelCountRange(c, sourceWordCount);
+  const panelRange = effectivePanelCountRange(
+    recommendation,
+    targetPanelCount
+  );
   const claimsList = c.keyClaims
     .map((claim, i) => `  [${i}] ${claim}`)
     .join("\n");
@@ -222,6 +250,12 @@ function userMessage(c: Comprehension, publishingGoal = "teach", editorialDirect
     `- narrative arc: ${c.narrativeArc}`,
     `- audience: ${c.audienceLevel}`,
     `- publishing goal: ${publishingGoal}`,
+    sourceWordCount > 0
+      ? `- source depth: ${sourceWordCount.toLocaleString("en-US")} words`
+      : null,
+    targetPanelCount
+      ? `- story length: the creator chose exactly ${targetPanelCount} panel${targetPanelCount === 1 ? "" : "s"}. Honor that exact count and shape a complete story at that length.`
+      : `- story length: use ${panelRange.min === panelRange.max ? panelRange.min : `${panelRange.min}–${panelRange.max}`} panels (${panelRange.reason}). Do not pad to five; do not exceed this range.`,
     editorialDirection ? `- approved editorial direction: ${editorialDirection}` : null,
     "- shape the narrative for that goal: teach=clarity, key_findings=evidence first, make_argument=claim→proof→conclusion, promote_source=tease value without replacing the source, start_discussion=surface tension and end with an open question",
     featureFlags ? `- content features: ${featureFlags}` : null,
@@ -248,8 +282,14 @@ export async function runStructure(
   comprehension: Comprehension,
   jobId?: string,
   publishingGoal = "teach",
-  editorialDirection?: string
+  editorialDirection?: string,
+  sourceWordCount = 0,
+  targetPanelCount?: number
 ): Promise<ExplainerOutline> {
+  const panelRange = effectivePanelCountRange(
+    recommendedPanelCountRange(comprehension, sourceWordCount),
+    targetPanelCount
+  );
   return withRetry("structure", async (retryHint) => {
     const messages = [
       {
@@ -257,7 +297,14 @@ export async function runStructure(
         content:
           (retryHint
             ? `${retryHint}\n\nReturn the COMPLETE corrected ExplainerOutline JSON. No fences, no commentary.\n\n---\n\n`
-            : "") + userMessage(comprehension, publishingGoal, editorialDirection),
+            : "") +
+          userMessage(
+            comprehension,
+            publishingGoal,
+            editorialDirection,
+            sourceWordCount,
+            targetPanelCount
+          ),
       },
     ];
     const res = await callMessages(
@@ -275,8 +322,20 @@ export async function runStructure(
       .join("");
     const parsed = JSON.parse(extractJson(text));
     const outline = parseWithFeedback(ExplainerOutlineSchema, parsed);
-    // Clamp to [3, 6]; rewrite duplicate ids defensively.
-    const sections = outline.sections.slice(0, 6).map((s, i) => ({
+    const outsidePanelBudget =
+      outline.sections.length < panelRange.min ||
+      outline.sections.length > panelRange.max;
+    if (outsidePanelBudget && (!retryHint || targetPanelCount !== undefined)) {
+      throw new Error(
+        `Panel count is ${outline.sections.length}. Return ${panelRange.min === panelRange.max ? `exactly ${panelRange.min}` : `${panelRange.min} to ${panelRange.max}`} panels for this source. Reframe the complete story at that length; do not merely pad or truncate it.`
+      );
+    }
+    // Clamp to [1, 5]; rewrite duplicate ids defensively.
+    const fittedSections =
+      outline.sections.length > panelRange.max
+        ? fitNarrativeToMax(outline.sections, panelRange.max)
+        : outline.sections;
+    const sections = fittedSections.slice(0, 5).map((s, i) => ({
       ...s,
       id: s.id?.trim() || `s${i + 1}`,
     }));
@@ -300,6 +359,18 @@ export async function runStructure(
     }
     return { title: outline.title, sections: unique };
   });
+}
+
+/** Preserve the opening, resolution, and evenly spaced proof when a retry
+ * still exceeds the source-specific budget. This is a last-resort guard;
+ * the first response is retried with an explicit reframing instruction. */
+function fitNarrativeToMax<T>(sections: T[], max: number): T[] {
+  if (sections.length <= max) return sections;
+  if (max <= 1) return [sections[0]];
+  const indexes = Array.from({ length: max }, (_, index) =>
+    Math.round((index * (sections.length - 1)) / (max - 1))
+  );
+  return indexes.map((index) => sections[index]);
 }
 
 /**

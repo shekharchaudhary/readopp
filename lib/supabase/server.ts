@@ -113,3 +113,19 @@ export async function getCurrentUserId(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Return the current user's id only when they completed sign-in.
+ * Anonymous sessions are useful for owning draft work, but they must not be
+ * treated as authenticated accounts when protecting account-only pages.
+ */
+export async function getCurrentSignedInUserId(): Promise<string | null> {
+  try {
+    const supabase = getServerSupabase();
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+    return user && user.is_anonymous !== true ? user.id : null;
+  } catch {
+    return null;
+  }
+}

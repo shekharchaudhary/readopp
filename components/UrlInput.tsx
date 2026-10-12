@@ -1,10 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  DOCUMENT_UPLOAD_LABEL,
+  isSupportedDocumentUpload,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/documents/uploadTypes";
 import type { AudienceLevel, BrandStyle, PublishingGoal, VoiceProfileId } from "@/lib/shared/schemas";
 import { VOICE_PROFILES } from "@/lib/voiceProfiles";
+import { CursorText } from "@/components/ui/CursorText";
 import { GoogleLogo } from "./GoogleLogo";
 
 const AUDIENCE_OPTIONS: {
@@ -72,20 +79,11 @@ interface Quota {
   blocked: boolean;
 }
 
-function looksLikeUrl(s: string): boolean {
-  try {
-    const u = new URL(s.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB — matches /api/jobs/upload cap
+type WorkspaceProvider = "Google Docs" | "Notion" | "Web article";
 
 export function UrlInput() {
   const router = useRouter();
-  const [url, setUrl] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [audience, setAudience] = useState<AudienceLevel>("general");
   const [style, setStyle] = useState<BrandStyle>("editorial");
   const [publishingGoal, setPublishingGoal] = useState<PublishingGoal>("teach");
@@ -93,10 +91,15 @@ export function UrlInput() {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
+  const [connectorNotice, setConnectorNotice] = useState<string | null>(null);
+  const [workspaceProvider, setWorkspaceProvider] =
+    useState<WorkspaceProvider | null>(null);
+  const [workspaceUrl, setWorkspaceUrl] = useState("");
   const [quota, setQuota] = useState<Quota | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-
-  const valid = useMemo(() => looksLikeUrl(url), [url]);
+  const googleDocsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const notionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreWorkspaceFocusRef = useRef<WorkspaceProvider | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,10 +116,37 @@ export function UrlInput() {
     };
   }, []);
 
+  useEffect(() => {
+    if (workspaceProvider || !restoreWorkspaceFocusRef.current) return;
+    const provider = restoreWorkspaceFocusRef.current;
+    restoreWorkspaceFocusRef.current = null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const trigger =
+        provider === "Google Docs"
+          ? googleDocsTriggerRef.current
+          : notionTriggerRef.current;
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [workspaceProvider]);
+
+  useEffect(() => {
+    if (!workspaceProvider) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeWorkspaceConnector();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [workspaceProvider]);
+
   async function uploadFile(file: File) {
     setError(null);
-    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
-      setError("Only PDF files are supported.");
+    setConnectorNotice(null);
+    setWorkspaceProvider(null);
+    if (!isSupportedDocumentUpload(file.name, file.type)) {
+      setError("Upload a PDF, Word (.docx), Markdown, or text document.");
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -152,35 +182,68 @@ export function UrlInput() {
     }
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function openWorkspaceConnector(provider: WorkspaceProvider) {
     setError(null);
-    if (!valid) {
-      setError("Please paste a valid http or https URL.");
+    setConnectorNotice(null);
+    setWorkspaceUrl("");
+    setWorkspaceProvider(provider);
+  }
+
+  function closeWorkspaceConnector() {
+    if (!workspaceProvider) return;
+    setError(null);
+    restoreWorkspaceFocusRef.current = workspaceProvider;
+    setWorkspaceProvider(null);
+  }
+
+  function openJournalExport() {
+    setError(null);
+    setWorkspaceProvider(null);
+    setConnectorNotice(
+      "Choose the PDF, Word, Markdown, or text export from Journal."
+    );
+    fileRef.current?.click();
+  }
+
+  async function submitWorkspaceLink() {
+    if (!workspaceProvider || submitting || uploading || blocked) return;
+    setError(null);
+    setConnectorNotice(null);
+    const validationError = validateWorkspaceUrl(
+      workspaceUrl,
+      workspaceProvider
+    );
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setSubmitting(true);
     try {
       const res = await fetch("/api/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), audienceLevel: audience, style, publishingGoal, voiceProfileId }),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: workspaceUrl.trim(),
+          audienceLevel: audience,
+          style,
+          publishingGoal,
+          voiceProfileId,
+        }),
       });
       const data = await res.json();
       if (res.status === 402) {
-        // Free-limit reached — flip into blocked state.
         setQuota(data?.quota ?? null);
         setSubmitting(false);
         return;
       }
       if (!res.ok) {
-        setError(data?.error || `Request failed (${res.status})`);
+        setError(data?.error || `Could not read this document (${res.status}).`);
         setSubmitting(false);
         return;
       }
       router.push(`/j/${data.jobId}`);
-    } catch (e) {
-      setError((e as Error).message || "Network error");
+    } catch (requestError) {
+      setError((requestError as Error).message || "Network error");
       setSubmitting(false);
     }
   }
@@ -188,51 +251,172 @@ export function UrlInput() {
   const blocked = quota?.blocked === true;
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (workspaceProvider) void submitWorkspaceLink();
+      }}
+      onDragOver={event => { if (event.dataTransfer.types.includes("Files") && !submitting && !uploading && !blocked) { event.preventDefault(); setDragging(true); } }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+      onDrop={event => { if (!event.dataTransfer.types.includes("Files")) return; event.preventDefault(); setDragging(false); if (submitting || uploading || blocked) return; const file = event.dataTransfer.files[0]; if (file) void uploadFile(file); }}
+      className={"interactive-source space-y-5 " + (dragging ? "is-dragging" : "")}
+      aria-busy={submitting || !!uploading}
+    >
+      {dragging && <p role="status" className="drop-feedback">Drop your document to start a story</p>}
       <div>
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <label htmlFor="url" className="block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
-            Paste your source
-          </label>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
+              <CursorText text="Add your source" />
+            </p>
+            <p className="mt-1 text-sm text-ink-soft"><CursorText text="Use a public document link or upload a file." /></p>
+          </div>
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block"><CursorText text="Review the brief first" /></span>
+        </div>
+
+        {connectorNotice && workspaceProvider && <p role="status" className="mb-3 rounded-xl bg-paper-soft p-3 text-xs text-ink-soft">{connectorNotice}</p>}
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <button
+            ref={googleDocsTriggerRef}
+            type="button"
+            onClick={() => openWorkspaceConnector("Google Docs")}
+            aria-expanded={workspaceProvider === "Google Docs"}
+            aria-controls="workspace-document-link-form"
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#e4e4e4] bg-[#fafafa] text-sm font-bold text-[#4285f4]">G</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink"><CursorText text="Google Docs" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Use a shared link" /></small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
+          <button
+            ref={notionTriggerRef}
+            type="button"
+            onClick={() => openWorkspaceConnector("Notion")}
+            aria-expanded={workspaceProvider === "Notion"}
+            aria-controls="workspace-document-link-form"
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#d9d9d9] bg-white font-serif text-sm font-bold text-[#333]">N</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink"><CursorText text="Notion" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Use a shared link" /></small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openJournalExport}
+            disabled={submitting || !!uploading || blocked}
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <JournalLogo />
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink"><CursorText text="Journal" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Upload an export" /></small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="text-xs font-semibold text-sky-deep transition-opacity hover:text-sky disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {uploading ? `Uploading ${uploading}…` : "or upload a PDF →"}
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef6df] text-base font-bold text-[#648e2e]">↑</span>
+            <span className="mt-4 flex w-full items-end justify-between gap-3">
+              <span><b className="block text-sm text-ink"><CursorText text="Upload document" /></b><small className="mt-1 block text-[11px] leading-4 text-ink-muted"><CursorText text={uploading ? `Uploading ${uploading}…` : DOCUMENT_UPLOAD_LABEL} /></small></span>
+              <span aria-hidden className="text-ink-muted transition-transform group-hover:-translate-y-0.5">↑</span>
+            </span>
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void uploadFile(f);
-              e.target.value = ""; // allow re-selecting the same file
-            }}
-          />
         </div>
+
+        <p className="mt-3 text-center text-[10px] text-ink-muted"><CursorText text="You can also drag a PDF, Word, Markdown, or text file here." /></p>
         <input
-          id="url"
-          type="url"
-          autoComplete="url"
-          autoFocus
-          placeholder="Drop an article, newsletter, or paper URL…"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          disabled={submitting || !!uploading || blocked}
-          className="w-full rounded-xl border border-paper-line bg-paper px-4 py-3.5 text-base text-ink outline-none transition placeholder:text-ink-faint focus:border-sky focus:ring-4 focus:ring-sky/10 disabled:cursor-not-allowed disabled:bg-paper-soft"
+          ref={fileRef}
+          type="file"
+          accept={DOCUMENT_UPLOAD_ACCEPT}
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void uploadFile(file);
+            event.target.value = "";
+          }}
         />
+
+        {workspaceProvider ? (
+          <div id="workspace-document-link-form" className="mt-3 rounded-2xl border border-paper-line bg-surface p-4 shadow-[0_18px_40px_-34px_rgba(16,16,16,.55)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-ink">
+                  {workspaceProvider === "Web article" ? "Start with a source link" : `Add a ${workspaceProvider} document`}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-ink-muted">
+                  Paste a public article or shared document. You’ll review the brief before Readopp creates your panels.
+                </p>
+              </div>
+              {workspaceProvider !== "Web article" && <button
+                type="button"
+                onClick={closeWorkspaceConnector}
+                aria-label="Close document link form"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm text-ink-muted transition hover:bg-paper hover:text-ink"
+              >
+                ×
+              </button>}
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="workspace-document-url">
+                Shared {workspaceProvider} link
+              </label>
+              <input
+                id="workspace-document-url"
+                aria-invalid={!!error}
+                aria-describedby={error ? "source-error" : undefined}
+                type="url"
+                value={workspaceUrl}
+                onChange={(event) => setWorkspaceUrl(event.target.value)}
+                placeholder={
+                  workspaceProvider === "Google Docs"
+                    ? "https://docs.google.com/document/d/…"
+                    : workspaceProvider === "Notion" ? "https://your-page.notion.site/…" : "https://example.com/article"
+                }
+                disabled={submitting || !!uploading || blocked}
+                className="min-w-0 flex-1 rounded-xl border border-paper-line bg-paper px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-ink-muted disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={submitting || !!uploading || blocked || !workspaceUrl.trim()}
+                className="shrink-0 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-paper transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "Reading…" : "Create story →"}
+              </button>
+            </div>
+          </div>
+        ) : connectorNotice ? (
+          <p role="status" className="mt-3 rounded-xl bg-paper-soft px-4 py-3 text-xs leading-5 text-ink-soft">
+            {connectorNotice}
+          </p>
+        ) : null}
+
+
       </div>
 
+      <details className="group border-y border-paper-line py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-medium text-ink-soft">
+          <span><CursorText text="Adjust the brief" /> <span className="font-normal text-ink-muted"><CursorText text="— optional" /></span></span>
+          <span aria-hidden className="text-base transition-transform group-open:rotate-45">+</span>
+        </summary>
+        <div className="space-y-6 pt-6">
       <fieldset>
         <legend className="mb-3 block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">What should this post do?</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {GOAL_OPTIONS.map((opt) => {
             const selected = publishingGoal === opt.value;
-            return <button type="button" key={opt.value} title={opt.hint} aria-pressed={selected} disabled={submitting || !!uploading || blocked} onClick={() => setPublishingGoal(opt.value)} className={"rounded-xl border px-2 py-2.5 text-xs font-medium transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>{opt.label}</button>;
+            return <button type="button" key={opt.value} title={opt.hint} aria-pressed={selected} disabled={submitting || !!uploading || blocked} onClick={() => setPublishingGoal(opt.value)} className={"border-b px-2 py-2 text-xs font-medium transition-colors " + (selected ? "border-ink text-ink" : "border-paper-line text-ink-muted hover:text-ink") + " disabled:opacity-60"}>{opt.label}</button>;
           })}
         </div>
         <p className="mt-2 text-xs text-ink-muted">{GOAL_OPTIONS.find((o) => o.value === publishingGoal)?.hint}</p>
@@ -253,10 +437,10 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-full border px-3 py-2 text-xs font-medium transition-all " +
+                  "border-b px-3 py-2 text-xs font-medium transition-colors " +
                   (selected
-                    ? "border-sky bg-sky text-white"
-                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
+                    ? "border-ink text-ink"
+                    : "border-paper-line text-ink-muted hover:text-ink") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
                 aria-pressed={selected}
@@ -286,10 +470,10 @@ export function UrlInput() {
                 disabled={submitting || !!uploading || blocked}
                 title={opt.hint}
                 className={
-                  "rounded-xl border px-3 py-2.5 text-xs font-medium transition-all " +
+                  "border-b px-3 py-2.5 text-xs font-medium transition-colors " +
                   (selected
-                    ? "border-sky bg-sky text-white"
-                    : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") +
+                    ? "border-ink text-ink"
+                    : "border-paper-line text-ink-muted hover:text-ink") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
                 aria-pressed={selected}
@@ -312,17 +496,20 @@ export function UrlInput() {
           {VOICE_PROFILES.map((profile) => {
             const selected = voiceProfileId === profile.id;
             return (
-              <button type="button" key={profile.id} onClick={() => setVoiceProfileId(profile.id)} disabled={submitting || !!uploading || blocked} title={profile.instruction} aria-pressed={selected} className={"rounded-xl border px-3 py-2.5 text-left transition-all " + (selected ? "border-sky bg-sky text-white" : "border-paper-line bg-surface text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>
+              <button type="button" key={profile.id} onClick={() => setVoiceProfileId(profile.id)} disabled={submitting || !!uploading || blocked} title={profile.instruction} aria-pressed={selected} className={"border-l px-3 py-2.5 text-left transition-colors " + (selected ? "border-ink text-ink" : "border-paper-line text-ink-soft hover:border-ink-muted") + " disabled:opacity-60"}>
                 <span className="block text-xs font-semibold">{profile.name}</span>
-                <span className={"mt-1 block text-[10px] leading-4 " + (selected ? "text-white/75" : "text-ink-muted")}>{profile.description}</span>
+                <span className="mt-1 block text-[10px] leading-4 text-ink-muted">{profile.description}</span>
               </button>
             );
           })}
         </div>
       </fieldset>
+        </div>
+      </details>
 
       {error && (
         <div
+          id="source-error"
           role="alert"
           className="rounded-md border border-paper-line bg-paper-soft px-3 py-2 text-sm text-ink-soft"
         >
@@ -334,16 +521,6 @@ export function UrlInput() {
 
       {!blocked && quota?.isAnonymous && approachingLimit(quota) && (
         <ApproachingLimitNudge quota={quota} />
-      )}
-
-      {!blocked && (
-        <button
-          type="submit"
-          disabled={!valid || submitting || !!uploading}
-          className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#111827] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_rgba(17,24,39,.7)] transition hover:-translate-y-0.5 hover:bg-sky-deep disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-ink-faint disabled:shadow-none"
-        >
-          {submitting ? "Building your visual…" : <><span>Turn this into a visual post</span><span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>}
-        </button>
       )}
 
       {!blocked && quota?.isAnonymous && quota.max !== null && (
@@ -369,6 +546,75 @@ export function UrlInput() {
   );
 }
 
+function validateWorkspaceUrl(
+  value: string,
+  provider: WorkspaceProvider
+): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return `Paste a valid ${provider} link.`;
+  }
+  if (url.protocol !== "https:") {
+    return "Use the secure https:// document link.";
+  }
+  const host = url.hostname.toLowerCase();
+  if (
+    provider === "Google Docs" &&
+    !(host === "docs.google.com" && url.pathname.startsWith("/document/"))
+  ) {
+    return "Paste a Google Docs document link from docs.google.com.";
+  }
+  if (
+    provider === "Notion" &&
+    !(
+      host === "notion.so" ||
+      host.endsWith(".notion.so") ||
+      host === "notion.site" ||
+      host.endsWith(".notion.site")
+    )
+  ) {
+    return "Paste a public Notion page link from notion.site or notion.so.";
+  }
+  return null;
+}
+
+function JournalLogo() {
+  return (
+    <span
+      aria-hidden
+      className="grid h-8 w-8 place-items-center overflow-hidden rounded-[9px] border border-[#54566f] bg-[#25273d] shadow-[inset_0_1px_0_rgba(255,255,255,.16),0_2px_5px_rgba(37,39,61,.18)]"
+    >
+      <svg width="25" height="25" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="journal-purple" x1="5" y1="5" x2="17" y2="18" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#B05BFF" />
+            <stop offset="1" stopColor="#5E4BE8" />
+          </linearGradient>
+          <linearGradient id="journal-blue" x1="6" y1="25" x2="17" y2="15" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#326DDC" />
+            <stop offset="1" stopColor="#6D4CF4" />
+          </linearGradient>
+          <linearGradient id="journal-pink" x1="17" y1="15" x2="28" y2="5" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#FF6F9C" />
+            <stop offset="1" stopColor="#FF9A99" />
+          </linearGradient>
+          <linearGradient id="journal-red" x1="17" y1="16" x2="27" y2="27" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#F85A82" />
+            <stop offset="1" stopColor="#D82C67" />
+          </linearGradient>
+        </defs>
+        <path d="M15.8 7.2C12.8 4.4 9.6 3.1 6.5 2.8c-.9-.1-1.6.6-1.6 1.5v8.1c0 1 .5 1.8 1.4 2.2l9.5 4.1V7.2Z" fill="url(#journal-purple)" />
+        <path d="M15.8 18.7 7.2 15c-1.1-.5-2.3.3-2.3 1.5v10.2c0 1 .9 1.7 1.8 1.5 3.6-.7 6.6-2.4 9.1-5.2v-4.3Z" fill="url(#journal-blue)" />
+        <path d="M16.2 7.2c3-2.8 6.2-4.1 9.3-4.4.9-.1 1.6.6 1.6 1.5v8.1c0 1-.5 1.8-1.4 2.2l-9.5 4.1V7.2Z" fill="url(#journal-pink)" />
+        <path d="m16.2 18.7 8.6-3.7c1.1-.5 2.3.3 2.3 1.5v10.2c0 1-.9 1.7-1.8 1.5-3.6-.7-6.6-2.4-9.1-5.2v-4.3Z" fill="url(#journal-red)" />
+        <path d="M16 6.8v16.6" stroke="#FFD7C4" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
 function BlockedPanel({ quota }: { quota: Quota }) {
   const [busy, setBusy] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
@@ -391,7 +637,7 @@ function BlockedPanel({ quota }: { quota: Quota }) {
           You&rsquo;ve used your {quota.max} free generations.
         </p>
         <p className="mt-1 text-xs text-ink-muted">
-          Sign in with Google to keep generating — your existing explainers
+          Sign in with Google to keep generating — your existing stories
           stay attached to your account.
         </p>
       </div>

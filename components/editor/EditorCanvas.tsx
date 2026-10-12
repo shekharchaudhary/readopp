@@ -3,13 +3,14 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { svgToExcalidrawElements } from "@/lib/editor/svgToExcalidraw";
+import { markCanvasOverride } from "@/lib/templates/canvasOverride";
 
 /**
  * Full-canvas panel editor — Excalidraw mounted on /edit/[id]/[section]/.
  *
- * The user's generated panel is seeded as a locked image element so they
- * can compose icons, shapes, arrows, text on top of it. Scenes are auto-
- * saved (debounced 1.5 s) to /api/scenes/[id]/[section]. Export emits a
+ * The user's selected layout is seeded as native text, shapes, lines, paths,
+ * and diagram elements so every part can be changed in one place. Scenes are
+ * auto-saved (debounced 1.5 s) to /api/scenes/[id]/[section]. Export emits a
  * 1080×1080 PNG ready for LinkedIn.
  *
  * Excalidraw can't render server-side (it needs window) so we dynamic-import
@@ -32,6 +33,18 @@ type ExcalidrawAPI = {
   getSceneElements: () => readonly unknown[];
   getAppState: () => unknown;
   getFiles: () => Record<string, unknown>;
+  addFiles: (files: readonly unknown[]) => void;
+  updateScene: (scene: { elements?: readonly unknown[]; appState?: unknown }) => void;
+  setActiveTool: (tool: { type: string }) => void;
+  scrollToContent: (
+    target?: string | unknown | readonly unknown[],
+    options?: {
+      fitToViewport?: boolean;
+      viewportZoomFactor?: number;
+      animate?: boolean;
+      duration?: number;
+    }
+  ) => void;
   // The library now ships only native primitives (lines, rects, ellipses,
   // arrows, text) so no addFiles() call is needed — every element renders
   // without a file map. We pass a function form to merge while replacing
@@ -52,28 +65,19 @@ interface Props {
   heading: string;
   panelContent: string;
   panelFormat: "svg" | "html";
+  /** Native editable scene for the selected suggested layout. */
+  seedSceneUrl?: string;
+  /** Changes whenever template, layout, theme, or panel copy changes. */
+  seedVersion?: string;
   /**
    * Initial Excalidraw scene. Three states:
    *   • object → use it directly (SSR-loaded from the server)
-   *   • null   → no saved scene exists; build a seed from the panel SVG
+   *   • null   → no saved scene exists; build the selected editable seed
    *   • undefined → fetch from /api/scenes on mount, then null-or-seed
    *
-   * The /edit page passes object|null because it already SSR-loads. The
-   * inline panel-card editor passes undefined so the GET happens on first
-   * open and reflects any prior auto-saved work.
+   * The /edit page passes object|null because it already SSR-loads.
    */
   initialScene: unknown;
-  /**
-   * Height the canvas should occupy. Defaults to a viewport-filling value
-   * for the full-page editor; the inline panel mode passes a fixed pixel
-   * value so the canvas fits inside the panel card.
-   */
-  height?: string;
-  /**
-   * Called when the user clicks "Done" — only rendered when provided, used
-   * by the inline panel-card editor to switch back to the static view.
-   */
-  onDone?: () => void;
   /**
    * Called by the explicit Save button and by Done with the canvas exported
    * to an SVG string. The parent uses this to write the edited SVG into the
@@ -82,6 +86,17 @@ interface Props {
    * the Excalidraw scene to panel_scenes for crash-recovery / resume.
    */
   onCommit?: (svgString: string) => Promise<void>;
+  /** Navigate here after Done successfully saves the scene and panel. */
+  returnHref?: string;
+  /** Adjacent panel routes. Navigation saves and commits this panel first. */
+  previousPanelHref?: string;
+  nextPanelHref?: string;
+  previousPanelLabel?: string;
+  nextPanelLabel?: string;
+  /** Preserve canvas output as the source of truth for visual templates. */
+  commitAsCanvasOverride?: boolean;
+  /** Open the native title composer for a newly inserted blank panel. */
+  promptForTitle?: boolean;
 }
 
 const SEED_FILE_ID = "readopp-panel-base";
@@ -92,10 +107,17 @@ export function EditorCanvas({
   heading,
   panelContent,
   panelFormat,
+  seedSceneUrl,
+  seedVersion,
   initialScene,
-  height,
-  onDone,
   onCommit,
+  returnHref,
+  previousPanelHref,
+  nextPanelHref,
+  previousPanelLabel,
+  nextPanelLabel,
+  commitAsCanvasOverride = false,
+  promptForTitle = false,
 }: Props) {
   const apiRef = useRef<ExcalidrawAPI | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,14 +125,52 @@ export function EditorCanvas({
     | { kind: "idle" }
     | { kind: "dirty" }
     | { kind: "saving" }
-    | { kind: "saved"; at: number }
+    | { kind: "saved"; at: number; scope: "draft" | "panel" }
     | { kind: "error"; message: string };
   const [saving, setSaving] = useState<SaveState>({ kind: "idle" });
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [textComposerOpen, setTextComposerOpen] = useState(false);
+  const [textComposerTargetId, setTextComposerTargetId] = useState<string | null>(null);
+  const [textDraft, setTextDraft] = useState("");
+  const [resetAction, setResetAction] = useState<"restore" | "blank" | null>(null);
+  const [selectedText, setSelectedText] = useState<{ id: string; text: string } | null>(null);
+  const selectedTextRef = useRef<{ id: string; text: string } | null>(null);
+  const toolsRef = useRef<HTMLDivElement | null>(null);
+  const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const toolsMenuRef = useRef<HTMLDivElement | null>(null);
+  const restoreToolsFocusRef = useRef(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const resetDialogRef = useRef<HTMLDivElement | null>(null);
+  const resetTriggerRef = useRef<HTMLElement | null>(null);
   const [initialData, setInitialData] = useState<unknown | null>(null);
-  // Skip the first onChange Excalidraw fires after hydration so we don't
-  // mark the panel dirty before the user has touched anything.
-  const settled = useRef(false);
+  const [recoveredDraft, setRecoveredDraft] = useState(false);
+  const [seedKey, setSeedKey] = useState(0);
+  const [canvasFitted, setCanvasFitted] = useState(false);
+  const viewportFitKey = useRef<number | null>(null);
+  // Excalidraw can normalize text measurements and element versions during
+  // hydration. Capture the settled scene once the fitting veil is removed so
+  // those internal changes never masquerade as a user edit.
+  const hydrationBaselineKey = useRef<number | null>(null);
+  // Excalidraw fires onChange for viewport/tool changes too. Keep a compact
+  // element signature so only real canvas mutations schedule persistence.
+  const lastSceneSignature = useRef<string | null>(null);
+  // Opening the canvas is a read-only action until the user actually changes
+  // an element. This prevents Done or panel navigation from
+  // silently turning an untouched generated panel into a canvas override.
+  const sceneChangedSinceOpen = useRef(false);
+  // The visible panel title is a normal Excalidraw text element. Remember its
+  // id so rewriting it in the canvas can also update the story-card label.
+  const headingElementIdRef = useRef<string | null>(null);
+  const titlePromptOpenedRef = useRef(false);
+  // App-controlled exits already save (or intentionally skip an unchanged
+  // scene), so they must not be stopped by the generic browser-leave guard.
+  const allowNavigation = useRef(false);
   // Library import runs silently on every mount — the merge-replace path
   // inside handleLoadLibrary strips prior `readopp-*` items and prepends
   // the fresh set, so updates to lib/editor/library.ts always propagate
@@ -119,6 +179,91 @@ export function EditorCanvas({
   const [libraryLoading, setLibraryLoading] = useState(false);
   const libraryStarted = useRef(false);
 
+  useEffect(() => {
+    if (!toolsOpen) return;
+    toolsMenuRef.current
+      ?.querySelector<HTMLElement>('[role="menuitem"]')
+      ?.focus({ preventScroll: true });
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!toolsRef.current?.contains(event.target as Node)) setToolsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        restoreToolsFocusRef.current = true;
+        setToolsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [toolsOpen]);
+
+  useEffect(() => {
+    if (toolsOpen || !restoreToolsFocusRef.current) return;
+    restoreToolsFocusRef.current = false;
+    const focusFrame = window.requestAnimationFrame(() => {
+      toolsTriggerRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [toolsOpen]);
+
+  function handleToolsMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([disabled])'
+      )
+    );
+    if (!items.length) return;
+    event.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "Home") items[0]?.focus();
+    else if (event.key === "End") items.at(-1)?.focus();
+    else if (event.key === "ArrowDown") items[(current + 1) % items.length]?.focus();
+    else items[(current <= 0 ? items.length : current) - 1]?.focus();
+  }
+
+  useEffect(() => {
+    if (!resetAction) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => {
+      resetDialogRef.current
+        ?.querySelector<HTMLElement>("[data-canvas-reset-cancel]")
+        ?.focus();
+    });
+    const handleResetDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setResetAction(null);
+        window.requestAnimationFrame(() => resetTriggerRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab" || !resetDialogRef.current) return;
+      const focusable = getFocusableElements(resetDialogRef.current);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleResetDialogKeys);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleResetDialogKeys);
+    };
+  }, [resetAction]);
+
   // Build the initial scene exactly once. Resolution order:
   //   1. If the parent SSR-passed a scene object, use it.
   //   2. If the parent SSR-passed null, build the seed from the panel SVG.
@@ -126,15 +271,12 @@ export function EditorCanvas({
   //      prior auto-save), then fall back to the seed when nothing's saved.
   useEffect(() => {
     let cancelled = false;
+    setCanvasFitted(false);
     (async () => {
       const apply = (scene: unknown) => {
         if (cancelled) return;
-        setInitialData(scene);
+        setInitialData(withInitialViewport(scene));
       };
-      if (initialScene && typeof initialScene === "object") {
-        apply(initialScene);
-        return;
-      }
       let resolved: unknown = initialScene;
       if (resolved === undefined) {
         try {
@@ -153,9 +295,16 @@ export function EditorCanvas({
       // empty elements (auto-save fired without real edits) or the
       // pre-converter single-locked-image legacy state. Real edits load
       // untouched. See shouldReseed() for the exact patterns.
+      const savedSeedVersion =
+        resolved && typeof resolved === "object"
+          ? (resolved as { readoppSeedVersion?: unknown }).readoppSeedVersion
+          : undefined;
+      const matchesVisiblePanel =
+        !seedVersion || savedSeedVersion === seedVersion;
       if (
         resolved &&
         typeof resolved === "object" &&
+        matchesVisiblePanel &&
         !shouldReseed(resolved)
       ) {
         // eslint-disable-next-line no-console
@@ -164,16 +313,23 @@ export function EditorCanvas({
           (resolved as { elements?: unknown[] }).elements?.length ?? 0,
           "elements"
         );
+        setRecoveredDraft(true);
         apply(resolved);
         return;
       }
-      const seed = await buildSeedScene(panelContent, panelFormat, heading);
+      const seed = await buildSeedScene(
+        panelContent,
+        panelFormat,
+        heading,
+        seedSceneUrl
+      );
       // eslint-disable-next-line no-console
       console.info(
         "[readopp] canvas: re-seeded from panel SVG with",
         (seed as { elements?: unknown[] }).elements?.length ?? 0,
         "elements"
       );
+      setRecoveredDraft(false);
       apply(seed);
     })();
     return () => {
@@ -184,6 +340,8 @@ export function EditorCanvas({
     panelContent,
     panelFormat,
     heading,
+    seedSceneUrl,
+    seedVersion,
     explainerId,
     sectionId,
   ]);
@@ -247,13 +405,94 @@ export function EditorCanvas({
    */
   const handleAPI = useCallback(
     (api: unknown) => {
-      apiRef.current = api as ExcalidrawAPI;
+      const excalidraw = api as ExcalidrawAPI;
+      apiRef.current = excalidraw;
+      const acceptHydrationBaseline = () => {
+        if (hydrationBaselineKey.current === seedKey) return;
+        hydrationBaselineKey.current = seedKey;
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        lastSceneSignature.current = sceneChangeSignature(
+          excalidraw.getSceneElements(),
+          excalidraw.getFiles()
+        );
+        const titleElement = excalidraw
+          .getSceneElements()
+          .map((element) => element as Record<string, unknown>)
+          .find(
+            (element) =>
+              element.type === "text" &&
+              !element.isDeleted &&
+              typeof element.id === "string" &&
+              typeof element.text === "string" &&
+              element.text.trim() === heading.trim()
+          );
+        if (titleElement && typeof titleElement.id === "string") {
+          headingElementIdRef.current = titleElement.id;
+          if (promptForTitle && !titlePromptOpenedRef.current) {
+            titlePromptOpenedRef.current = true;
+            setTextComposerTargetId(titleElement.id);
+            setTextDraft("");
+            setTextComposerOpen(true);
+          }
+        }
+        sceneChangedSinceOpen.current = false;
+        setSaving({ kind: "idle" });
+      };
+      // initialData.scrollToContent is not consistently honoured after the
+      // dynamic Excalidraw mount, especially inside a narrow mobile route.
+      // Fit imperatively once the canvas has real dimensions so a complete
+      // 1080×1080 panel is visible instead of opening at a cropped 100% zoom.
+      if (viewportFitKey.current !== seedKey) {
+        const fitViewport = (attempt = 0) => {
+          if (viewportFitKey.current === seedKey) {
+            setCanvasFitted(true);
+            return;
+          }
+          const elements = excalidraw.getSceneElements();
+          if (!elements.length) {
+            if (attempt < 4) {
+              window.setTimeout(() => fitViewport(attempt + 1), 180);
+            } else {
+              // Never trap the user behind the fitting veil if a genuinely
+              // blank canvas has no bounds to fit.
+              acceptHydrationBaseline();
+              setCanvasFitted(true);
+            }
+            return;
+          }
+          viewportFitKey.current = seedKey;
+          excalidraw.scrollToContent(elements, {
+            fitToViewport: true,
+            viewportZoomFactor: window.matchMedia("(max-width: 767px)").matches
+              ? 1.12
+              : 0.94,
+            animate: false,
+          });
+          requestAnimationFrame(() => {
+            acceptHydrationBaseline();
+            setCanvasFitted(true);
+          });
+        };
+        requestAnimationFrame(() => {
+          // Excalidraw applies restored appState shortly after exposing its
+          // imperative API. Waiting for that hydration prevents the saved
+          // 100% viewport from immediately overriding this fit.
+          window.setTimeout(() => {
+            fitViewport();
+          }, 350);
+        });
+      } else {
+        setCanvasFitted(true);
+      }
       if (!libraryStarted.current) {
         libraryStarted.current = true;
         void handleLoadLibrary();
       }
     },
-    [handleLoadLibrary]
+    [handleLoadLibrary, heading, promptForTitle, seedKey]
   );
 
   /**
@@ -273,9 +512,13 @@ export function EditorCanvas({
         type: "excalidraw",
         version: 2,
         source: "readopp",
+        readoppSeedVersion: seedVersion,
         elements: api.getSceneElements(),
         appState: stripVolatileAppState(api.getAppState()),
-        files: api.getFiles(),
+        // Excalidraw retains binary files after their image elements are
+        // deleted. Persist only files still referenced by live elements so
+        // an editing session does not grow forever and eventually fail save.
+        files: sceneFilesForElements(api.getSceneElements(), api.getFiles()),
       };
       const res = await fetch(`/api/scenes/${explainerId}/${sectionId}`, {
         method: "POST",
@@ -293,7 +536,7 @@ export function EditorCanvas({
         setSaving({ kind: "error", message: detail });
         return false;
       }
-      setSaving({ kind: "saved", at: Date.now() });
+      setSaving({ kind: "saved", at: Date.now(), scope: "draft" });
       return true;
     } catch (e) {
       setSaving({
@@ -302,24 +545,59 @@ export function EditorCanvas({
       });
       return false;
     }
-  }, [explainerId, sectionId]);
+  }, [explainerId, sectionId, seedVersion]);
 
   /**
    * Debounced background save — fires 1.5s after the last edit. The explicit
    * Save button bypasses the debounce. The first onChange after hydration is
    * ignored so opening the editor doesn't mark the panel dirty.
    */
-  const scheduleSave = useCallback(() => {
-    if (!settled.current) {
-      settled.current = true;
+  const scheduleSave = useCallback((elements: readonly unknown[], appState: unknown, files: Record<string, unknown>) => {
+    const nextSelectedText = selectedCanvasText(elements, appState);
+    if (
+      nextSelectedText?.id !== selectedTextRef.current?.id ||
+      nextSelectedText?.text !== selectedTextRef.current?.text
+    ) {
+      selectedTextRef.current = nextSelectedText;
+      setSelectedText(nextSelectedText);
+    }
+    const signature = sceneChangeSignature(elements, files);
+    if (lastSceneSignature.current === null) {
+      lastSceneSignature.current = signature;
       return;
     }
+    if (signature === lastSceneSignature.current) return;
+    lastSceneSignature.current = signature;
+    sceneChangedSinceOpen.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaving({ kind: "dirty" });
     saveTimer.current = setTimeout(() => {
       void flushSave();
     }, 1500);
   }, [flushSave]);
+
+  useEffect(() => {
+    const hasPendingChanges =
+      saving.kind === "dirty" ||
+      saving.kind === "saving" ||
+      (saving.kind === "saved" && saving.scope === "draft");
+    if (!hasPendingChanges) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (allowNavigation.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [saving.kind]);
+
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    []
+  );
 
   /**
    * Export the current canvas to an SVG string. Excalidraw natively emits
@@ -340,11 +618,73 @@ export function EditorCanvas({
           exportPadding: 32,
         } as never,
         files: api.getFiles() as never,
+        // The committed SVG is an in-app visual override, not a standalone
+        // font archive. Keeping font-family references avoids Excalidraw's
+        // optional font-subsetting worker (which Next 14 can resolve to a
+        // file:// chunk URL in development) while preserving all native
+        // vector/text geometry. PNG export still renders from the live scene.
+        skipInliningFonts: true,
       });
       return new XMLSerializer().serializeToString(svgEl);
     } catch {
       return null;
     }
+  }, []);
+
+  /**
+   * Commit the rendered canvas to the panel shown everywhere else. Inline
+   * mode supplies onCommit so its parent state updates immediately; the
+   * standalone editor uses the same panel PATCH endpoint directly.
+   */
+  const commitPanelSvg = useCallback(
+    async (svg: string, canvasHeading?: string) => {
+      if (onCommit) {
+        await onCommit(svg);
+        return;
+      }
+      const res = await fetch(
+        `/api/explainers/${explainerId}/panels/${sectionId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            content: commitAsCanvasOverride ? markCanvasOverride(svg) : svg,
+            ...(canvasHeading && canvasHeading !== heading
+              ? { heading: canvasHeading }
+              : {}),
+          }),
+        }
+      );
+      if (!res.ok) {
+        let detail = `Save failed (${res.status})`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) detail = body.error;
+        } catch {
+          // Keep the status fallback when the response is not JSON.
+        }
+        throw new Error(detail);
+      }
+    },
+    [commitAsCanvasOverride, explainerId, heading, sectionId, onCommit]
+  );
+
+  const canvasHeading = useCallback(() => {
+    const titleId = headingElementIdRef.current;
+    if (!titleId || !apiRef.current) return undefined;
+    const titleElement = apiRef.current
+      .getSceneElements()
+      .map((element) => element as Record<string, unknown>)
+      .find(
+        (element) =>
+          element.id === titleId &&
+          element.type === "text" &&
+          !element.isDeleted &&
+          typeof element.text === "string"
+      );
+    if (!titleElement || typeof titleElement.text !== "string") return undefined;
+    const next = titleElement.text.replace(/\s+/g, " ").trim().slice(0, 140);
+    return next || undefined;
   }, []);
 
   /**
@@ -358,7 +698,6 @@ export function EditorCanvas({
     // not applied yet), still try to commit the SVG so the user sees their
     // edits in the static panel view. The user can always re-edit later.
     const sceneOk = await flushSave();
-    if (!onCommit) return sceneOk;
     const svg = await exportSceneAsSvg();
     if (!svg) {
       if (!sceneOk) return false;
@@ -366,8 +705,18 @@ export function EditorCanvas({
       return false;
     }
     try {
-      await onCommit(svg);
-      setSaving({ kind: "saved", at: Date.now() });
+      setSaving({ kind: "saving" });
+      await commitPanelSvg(svg, canvasHeading());
+      sceneChangedSinceOpen.current = false;
+      setRecoveredDraft(false);
+      setSaving(
+        sceneOk
+          ? { kind: "saved", at: Date.now(), scope: "panel" }
+          : {
+              kind: "error",
+              message: "Panel saved, but canvas recovery could not be saved",
+            }
+      );
       return true;
     } catch (e) {
       setSaving({
@@ -376,14 +725,34 @@ export function EditorCanvas({
       });
       return false;
     }
-  }, [flushSave, exportSceneAsSvg, onCommit]);
+  }, [flushSave, exportSceneAsSvg, commitPanelSvg, canvasHeading]);
 
   const handleDone = useCallback(async () => {
-    // Best-effort: save + commit before closing. Even if either fails, still
-    // close so the user isn't trapped — the Save-failed pill stays visible.
-    await handleSave();
-    onDone?.();
-  }, [handleSave, onDone]);
+    if (!sceneChangedSinceOpen.current) {
+      allowNavigation.current = true;
+      if (returnHref) window.location.assign(returnHref);
+      return;
+    }
+    const committed = await handleSave();
+    if (!committed) return;
+    allowNavigation.current = true;
+    if (returnHref) window.location.assign(returnHref);
+  }, [handleSave, returnHref]);
+
+  const handlePanelNavigation = useCallback(
+    async (href: string) => {
+      if (!sceneChangedSinceOpen.current) {
+        allowNavigation.current = true;
+        window.location.assign(href);
+        return;
+      }
+      const committed = await handleSave();
+      if (!committed) return;
+      allowNavigation.current = true;
+      window.location.assign(href);
+    },
+    [handleSave]
+  );
 
   /**
    * Escape hatch when the canvas opens blank or stuck. Wipes the saved
@@ -391,21 +760,14 @@ export function EditorCanvas({
    * and swaps it in as the new initial data. Excalidraw remounts via
    * the `key` we change downstream so the new scene takes effect.
    */
-  const [seedKey, setSeedKey] = useState(0);
   const handleRestoreFromPanel = useCallback(async () => {
-    if (
-      !window.confirm(
-        "Restore this canvas to the original panel content? Your unsaved canvas edits will be lost."
-      )
-    ) {
-      return;
-    }
     // Cancel any pending auto-save so we don't immediately re-persist
     // whatever Excalidraw had on screen.
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    setCanvasFitted(false);
     try {
       await fetch(`/api/scenes/${explainerId}/${sectionId}`, {
         method: "DELETE",
@@ -413,20 +775,211 @@ export function EditorCanvas({
     } catch {
       // Even if the server delete fails, fall through and reseed locally.
     }
-    const seed = await buildSeedScene(panelContent, panelFormat, heading);
+    const seed = await buildSeedScene(
+      panelContent,
+      panelFormat,
+      heading,
+      seedSceneUrl
+    );
     // eslint-disable-next-line no-console
     console.info(
       "[readopp] canvas: restored from panel, seeded",
       (seed as { elements?: unknown[] }).elements?.length ?? 0,
       "elements"
     );
-    // Reset the dirty/settled tracking so the reseeded scene doesn't
+    // Reset the dirty/signature tracking so the reseeded scene doesn't
     // immediately count as an edit.
-    settled.current = false;
+    lastSceneSignature.current = null;
+    sceneChangedSinceOpen.current = false;
+    setRecoveredDraft(false);
     setSaving({ kind: "idle" });
-    setInitialData(seed);
+    setInitialData(withInitialViewport(seed));
     setSeedKey((k) => k + 1);
-  }, [explainerId, sectionId, panelContent, panelFormat, heading]);
+  }, [explainerId, sectionId, panelContent, panelFormat, heading, seedSceneUrl]);
+
+  const handleStartBlank = useCallback(async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    setCanvasFitted(false);
+    await fetch(`/api/scenes/${explainerId}/${sectionId}`, {
+      method: "DELETE",
+    }).catch(() => {});
+    lastSceneSignature.current = null;
+    sceneChangedSinceOpen.current = false;
+    setRecoveredDraft(false);
+    setSaving({ kind: "idle" });
+    setInitialData(withInitialViewport(blankCanvasScene()));
+    setSeedKey((key) => key + 1);
+  }, [explainerId, sectionId]);
+
+  const handleImport = useCallback(async (file: File | undefined) => {
+    const api = apiRef.current;
+    if (!api || !file) return;
+    setImporting(true);
+    setImportFeedback(null);
+    try {
+      const current = [...api.getSceneElements()];
+      const name = file.name.toLowerCase();
+      let inserted: readonly unknown[] = [];
+      let editable = false;
+
+      if (name.endsWith(".excalidraw") || file.type === "application/json") {
+        const imported = JSON.parse(await file.text()) as {
+          elements?: readonly unknown[];
+          files?: Record<string, unknown>;
+        };
+        const elements = Array.isArray(imported.elements) ? imported.elements : [];
+        if (!elements.length) throw new Error("The canvas file has no elements.");
+        const files = Object.values(imported.files ?? {});
+        if (files.length) api.addFiles(files);
+        inserted = elements;
+        editable = true;
+        api.updateScene({ elements: [...current, ...elements] });
+      } else if (file.type === "image/svg+xml" || name.endsWith(".svg")) {
+        const converted = svgToExcalidrawElements(await file.text(), {
+          offsetX: 160,
+          offsetY: 160,
+        });
+        if (!converted?.elements.length) {
+          throw new Error("This SVG could not be converted into editable paths.");
+        }
+        inserted = converted.elements;
+        editable = true;
+        api.updateScene({ elements: [...current, ...converted.elements] });
+      } else if (file.type.startsWith("image/")) {
+        const prepared = await prepareCanvasImage(file);
+        const { dataURL, width, height, mimeType } = prepared;
+        const maxSide = 560;
+        const scale = Math.min(1, maxSide / Math.max(width, height));
+        const fileId = `readopp-import-${Date.now().toString(36)}`;
+        api.addFiles([{
+          id: fileId,
+          mimeType,
+          dataURL,
+          created: Date.now(),
+          lastRetrieved: Date.now(),
+          status: "saved",
+        }]);
+        const importedImage = imageElement({
+          id: `imported-image-${Date.now().toString(36)}`,
+          fileId,
+          x: 180,
+          y: 180,
+          width: Math.max(1, width * scale),
+          height: Math.max(1, height * scale),
+          locked: false,
+        });
+        inserted = [importedImage];
+        api.updateScene({ elements: [...current, importedImage] });
+      } else {
+        throw new Error("Import an SVG, PNG, JPG, WEBP, or .excalidraw file.");
+      }
+      // Imported artwork may land outside the user's current pan/zoom. Move
+      // directly to the new editable elements so the successful import never
+      // looks like it disappeared.
+      if (inserted.length) {
+        requestAnimationFrame(() =>
+          api.scrollToContent(inserted, {
+            fitToViewport: true,
+            viewportZoomFactor: 0.72,
+            animate: true,
+            duration: 260,
+          })
+        );
+      }
+      setSaving({ kind: "dirty" });
+      setImportFeedback({
+        kind: "success",
+        message: editable
+          ? `Imported “${file.name}” as ${inserted.length} editable element${inserted.length === 1 ? "" : "s"}.`
+          : `Imported “${file.name}” as an editable canvas image.`,
+      });
+    } catch (error) {
+      setImportFeedback({
+        kind: "error",
+        message: (error as Error).message || "Could not import this file.",
+      });
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }, []);
+
+  /**
+   * Mobile browsers can select Excalidraw's text tool but do not always
+   * deliver the follow-up touch that creates its WYSIWYG editor. This small
+   * canvas-native composer inserts a real Excalidraw text element instead.
+   * The result is selected immediately and remains movable, resizable, and
+   * editable with Excalidraw's normal controls — it is not a separate copy
+   * editor or an SVG overlay.
+   */
+  const handleCommitText = useCallback(async () => {
+    const api = apiRef.current;
+    const text = textDraft.trim();
+    if (!api || !text) return;
+
+    const current = [...api.getSceneElements()] as Array<Record<string, unknown>>;
+    const bounds = sceneElementBounds(current);
+    const mod = await import("@excalidraw/excalidraw");
+    const target = textComposerTargetId
+      ? current.find(
+          (element) =>
+            element.id === textComposerTargetId &&
+            element.type === "text" &&
+            !element.isDeleted
+        )
+      : undefined;
+    const skeleton = target
+      ? editableTextSkeleton(target, text)
+      : {
+        type: "text",
+        text,
+        x: bounds.x + Math.max(48, bounds.width * 0.1),
+        y: bounds.y + Math.max(72, bounds.height * 0.44),
+        fontSize: 36,
+        fontFamily: 2,
+        strokeColor: "#191817",
+        textAlign: "left",
+        verticalAlign: "top",
+      };
+    const [inserted] = mod.convertToExcalidrawElements(
+      [skeleton as never],
+      target ? { regenerateIds: false } : undefined
+    );
+    if (!inserted) return;
+    const finalElement = target
+      ? inserted
+      : {
+          ...inserted,
+          ...findOpenTextPosition(
+            current,
+            Number(inserted.width) || 240,
+            Number(inserted.height) || 48,
+            bounds
+          ),
+        };
+
+    const nextElements = target
+      ? current.map((element) =>
+          element.id === textComposerTargetId ? finalElement : element
+        )
+      : [...current, finalElement];
+    const appState = api.getAppState();
+    api.updateScene({
+      elements: nextElements,
+      appState: {
+        ...(appState && typeof appState === "object" ? appState : {}),
+        selectedElementIds: { [finalElement.id]: true },
+      },
+    });
+    api.setActiveTool({ type: "selection" });
+    setTextDraft("");
+    setTextComposerTargetId(null);
+    setTextComposerOpen(false);
+    setSaving({ kind: "dirty" });
+  }, [textComposerTargetId, textDraft]);
 
   const handleExport = useCallback(async () => {
     if (!apiRef.current) return;
@@ -464,62 +1017,444 @@ export function EditorCanvas({
     }
   }, [heading, sectionId]);
 
+  function restoreFromTools() {
+    setToolsOpen(false);
+    requestReset("restore", toolsTriggerRef.current);
+  }
+
+  function startBlankFromTools() {
+    setToolsOpen(false);
+    requestReset("blank", toolsTriggerRef.current);
+  }
+
+  function requestReset(action: "restore" | "blank", returnFocusTo?: HTMLElement | null) {
+    resetTriggerRef.current =
+      returnFocusTo ?? (document.activeElement as HTMLElement | null);
+    setResetAction(action);
+  }
+
+  function closeResetDialog() {
+    setResetAction(null);
+    window.requestAnimationFrame(() => resetTriggerRef.current?.focus());
+  }
+
+  function confirmReset() {
+    const action = resetAction;
+    closeResetDialog();
+    if (action === "restore") void handleRestoreFromPanel();
+    if (action === "blank") void handleStartBlank();
+  }
+
+  function importFromTools() {
+    setToolsOpen(false);
+    importInputRef.current?.click();
+  }
+
+  function addTextFromTools() {
+    setToolsOpen(false);
+    setTextComposerTargetId(null);
+    setTextDraft("");
+    setTextComposerOpen(true);
+  }
+
+  function editSelectedTextFromTools() {
+    if (!selectedText) return;
+    setToolsOpen(false);
+    setTextComposerTargetId(selectedText.id);
+    setTextDraft(selectedText.text);
+    setTextComposerOpen(true);
+  }
+
+  const editingPanelTitle =
+    Boolean(textComposerTargetId) &&
+    textComposerTargetId === headingElementIdRef.current;
+
   return (
     <div className="flex h-full w-full flex-col">
       {/* Sticky action strip above the canvas so it can't collide with
           Excalidraw's own top toolbar. */}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-paper-line bg-surface px-4 py-2">
+      <div
+        data-testid="canvas-action-strip"
+        className="relative flex shrink-0 flex-wrap items-center justify-end gap-1 border-b border-paper-line bg-surface px-1.5 py-1.5 sm:gap-1.5 sm:px-2"
+      >
         <span
+          data-testid="canvas-direct-edit-hint"
+          className="mr-auto hidden min-w-0 text-[10px] leading-tight text-ink-muted xl:block"
+        >
+          Double-click text to rewrite · drag any element to move it
+        </span>
+        <span
+          data-testid="canvas-mobile-edit-hint"
+          className="order-last w-full truncate px-1 text-center text-[9px] leading-tight text-ink-muted sm:hidden"
+        >
+          {selectedText
+            ? "Text selected · open Tools to rewrite, or drag it to move"
+            : "Tap text to select · use Tools to rewrite · drag anything to move"}
+        </span>
+        <span
+          aria-live="polite"
           className={
-            "rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider " +
+            "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.06em] sm:text-[10px] " +
+            (saving.kind === "idle" ? "hidden sm:inline " : "inline ") +
             (saving.kind === "error"
               ? "bg-rose/15 text-rose-deep"
               : "bg-paper text-ink-muted")
           }
           title={saving.kind === "error" ? saving.message : undefined}
         >
-          {saving.kind === "idle" && "Auto-save on"}
-          {saving.kind === "dirty" && "Edited — saves in 1.5s"}
-          {saving.kind === "saving" && "Saving…"}
-          {saving.kind === "saved" && "Saved"}
-          {saving.kind === "error" && `Save failed · ${saving.message.slice(0, 60)}`}
+          <span className="sm:hidden">
+            {saving.kind === "idle" && "Ready"}
+            {saving.kind === "dirty" && "Unsaved"}
+            {saving.kind === "saving" && "Saving…"}
+            {saving.kind === "saved" &&
+              (saving.scope === "panel" ? "Panel saved" : "Draft saved")}
+            {saving.kind === "error" && "Error"}
+          </span>
+          <span className="hidden sm:inline">
+            {saving.kind === "idle" && "Draft auto-save on"}
+            {saving.kind === "dirty" && "Saving draft in 1.5s"}
+            {saving.kind === "saving" && "Saving…"}
+            {saving.kind === "saved" &&
+              (saving.scope === "panel" ? "Panel saved" : "Draft saved")}
+            {saving.kind === "error" && `Needs attention · ${saving.message.slice(0, 60)}`}
+          </span>
         </span>
+        {saving.kind === "idle" && recoveredDraft && (
+          <span
+            data-testid="canvas-recovery-status"
+            className="shrink-0 rounded-full bg-sage/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.06em] text-sage-deep sm:text-[10px]"
+            title="Your last auto-saved canvas draft was restored"
+          >
+            <span className="sm:hidden">Restored</span>
+            <span className="hidden sm:inline">Draft restored</span>
+          </span>
+        )}
+        <details className="group relative hidden sm:block xl:hidden">
+          <summary className="cursor-pointer list-none rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink">
+            Edit tips
+          </summary>
+          <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-lg border border-paper-line bg-surface p-3 text-[11px] leading-5 text-ink-soft shadow-[0_14px_36px_rgba(15,23,42,.18)]">
+            <p><b className="text-ink">Text:</b> double-click to rewrite it.</p>
+            <p><b className="text-ink">Anything else:</b> click to move, resize, recolor, or delete it.</p>
+            <p><b className="text-ink">Canvas:</b> drag with the hand tool or hold the space bar.</p>
+          </div>
+        </details>
         <button
           type="button"
-          onClick={() => void handleRestoreFromPanel()}
+          onClick={() => requestReset("restore")}
           title="Discard canvas edits and restore the original panel"
-          className="rounded-full border border-paper-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink"
+          className="hidden shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink 2xl:block"
         >
           Restore from panel
         </button>
         <button
           type="button"
+          onClick={() => requestReset("blank")}
+          title="Remove the template base and design this panel from scratch"
+          className="hidden shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink 2xl:block"
+        >
+          Start blank
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".svg,.png,.jpg,.jpeg,.webp,.excalidraw,application/json,image/*"
+          className="sr-only"
+          onChange={(event) => void handleImport(event.target.files?.[0])}
+        />
+        <button
+          type="button"
+          onClick={() => importInputRef.current?.click()}
+          disabled={importing}
+          title="Import editable SVG paths, an image, or an Excalidraw scene"
+          className="hidden shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink-muted transition hover:border-ink-muted hover:text-ink disabled:opacity-60 2xl:block"
+        >
+          {importing ? "Importing…" : "Import"}
+        </button>
+        <div ref={toolsRef} className="relative 2xl:hidden">
+          <button
+            ref={toolsTriggerRef}
+            type="button"
+            onClick={() => setToolsOpen((open) => !open)}
+            aria-expanded={toolsOpen}
+            aria-haspopup="menu"
+            aria-label="Canvas tools"
+            className={
+              "min-h-8 shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-medium transition sm:min-h-0 " +
+              (toolsOpen
+                ? "border-accent bg-accent-soft text-accent-deep"
+                : "border-paper-line bg-paper text-ink-muted hover:border-ink-muted hover:text-ink")
+            }
+          >
+            Tools
+          </button>
+          {toolsOpen && (
+            <div
+              ref={toolsMenuRef}
+              role="menu"
+              aria-label="Canvas creation and recovery tools"
+              onKeyDown={handleToolsMenuKeyDown}
+              className="absolute right-0 top-full z-50 mt-1.5 w-48 rounded-lg border border-paper-line bg-surface p-1.5 shadow-[0_14px_36px_rgba(15,23,42,.18)]"
+            >
+              {selectedText ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={editSelectedTextFromTools}
+                  className="block w-full rounded-md bg-accent-soft px-3 py-2 text-left text-xs font-medium text-accent-deep hover:bg-accent/15"
+                >
+                  Edit selected text
+                </button>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={addTextFromTools}
+                className="block w-full rounded-md px-3 py-2 text-left text-xs font-medium text-ink hover:bg-paper-soft"
+              >
+                Add text to canvas
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={importFromTools}
+                disabled={importing}
+                className="block w-full rounded-md px-3 py-2 text-left text-xs font-medium text-ink hover:bg-paper-soft disabled:opacity-60"
+              >
+                {importing ? "Importing…" : "Import artwork or scene"}
+              </button>
+              <div className="my-1 border-t border-paper-line" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={restoreFromTools}
+                className="block w-full rounded-md px-3 py-2 text-left text-xs text-ink-soft hover:bg-paper-soft hover:text-ink"
+              >
+                Restore original panel
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={startBlankFromTools}
+                className="block w-full rounded-md px-3 py-2 text-left text-xs text-ink-soft hover:bg-paper-soft hover:text-ink"
+              >
+                Start with a blank canvas
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
           onClick={() => void handleSave()}
           disabled={saving.kind === "saving"}
-          className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted disabled:opacity-60"
+          className="min-h-8 shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink transition hover:border-ink-muted disabled:opacity-60 sm:min-h-0"
         >
-          Save
+          Save panel
         </button>
+        {previousPanelHref ? (
+          <button
+            type="button"
+            onClick={() => void handlePanelNavigation(previousPanelHref)}
+            disabled={saving.kind === "saving"}
+            aria-label={`Save and edit previous panel${previousPanelLabel ? `: ${previousPanelLabel}` : ""}`}
+            title={previousPanelLabel ? `Previous: ${previousPanelLabel}` : "Previous panel"}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-paper-line bg-paper text-[11px] font-medium text-ink transition hover:border-ink-muted disabled:opacity-60 sm:hidden"
+          >
+            ←
+          </button>
+        ) : null}
+        {nextPanelHref ? (
+          <button
+            type="button"
+            onClick={() => void handlePanelNavigation(nextPanelHref)}
+            disabled={saving.kind === "saving"}
+            aria-label={`Save and edit next panel${nextPanelLabel ? `: ${nextPanelLabel}` : ""}`}
+            title={nextPanelLabel ? `Next: ${nextPanelLabel}` : "Next panel"}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-paper-line bg-paper text-[11px] font-medium text-ink transition hover:border-ink-muted disabled:opacity-60 sm:hidden"
+          >
+            →
+          </button>
+        ) : null}
+        {previousPanelHref ? (
+          <button
+            type="button"
+            onClick={() => void handlePanelNavigation(previousPanelHref)}
+            disabled={saving.kind === "saving"}
+            aria-label={`Save and edit previous panel${previousPanelLabel ? `: ${previousPanelLabel}` : ""}`}
+            title={previousPanelLabel ? `Previous: ${previousPanelLabel}` : "Previous panel"}
+            className="hidden shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink transition hover:border-ink-muted disabled:opacity-60 sm:block"
+          >
+            ← Previous
+          </button>
+        ) : null}
+        {nextPanelHref ? (
+          <button
+            type="button"
+            onClick={() => void handlePanelNavigation(nextPanelHref)}
+            disabled={saving.kind === "saving"}
+            aria-label={`Save and edit next panel${nextPanelLabel ? `: ${nextPanelLabel}` : ""}`}
+            title={nextPanelLabel ? `Next: ${nextPanelLabel}` : "Next panel"}
+            className="hidden shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink transition hover:border-ink-muted disabled:opacity-60 sm:block"
+          >
+            Next →
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper transition hover:bg-ink/90 disabled:opacity-60"
+          className="min-h-8 shrink-0 rounded-full bg-ink px-2.5 py-1 text-[10px] font-medium text-paper transition hover:bg-ink/90 disabled:opacity-60 sm:min-h-0"
         >
           {exporting ? "Exporting…" : "Export PNG"}
         </button>
-        {onDone && (
+        {returnHref && (
           <button
             type="button"
             onClick={() => void handleDone()}
-            className="rounded-full border border-paper-line bg-paper px-4 py-1.5 text-sm font-medium text-ink transition hover:border-ink-muted"
+            className="min-h-8 shrink-0 rounded-full border border-paper-line bg-paper px-2.5 py-1 text-[10px] font-medium text-ink transition hover:border-ink-muted sm:min-h-0"
           >
             Done
           </button>
         )}
       </div>
 
-      <div className="min-h-0 flex-1" style={height ? { height } : undefined}>
+      {importFeedback ? (
+        <div
+          data-testid="canvas-import-status"
+          role={importFeedback.kind === "error" ? "alert" : "status"}
+          className={
+            "flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2 text-[11px] leading-4 " +
+            (importFeedback.kind === "error"
+              ? "border-coral/30 bg-coral-soft text-coral-deep"
+              : "border-sage/35 bg-sage-soft text-sage-deep")
+          }
+        >
+          <span>{importFeedback.message}</span>
+          <button
+            type="button"
+            aria-label="Dismiss import status"
+            onClick={() => setImportFeedback(null)}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-current/20 text-sm leading-none hover:bg-paper/35"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
+      {textComposerOpen ? (
+        <form
+          data-testid="canvas-text-composer"
+          className="flex shrink-0 flex-wrap items-end gap-1.5 border-b border-paper-line bg-paper-soft px-2 py-2 sm:flex-nowrap sm:items-center"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleCommitText();
+          }}
+        >
+          <label htmlFor={`canvas-text-${sectionId}`} className="sr-only">
+            {editingPanelTitle
+              ? "Panel title"
+              : textComposerTargetId
+                ? "Edit selected canvas text"
+              : "Text to add to this panel"}
+          </label>
+          <textarea
+            id={`canvas-text-${sectionId}`}
+            autoFocus
+            rows={2}
+            maxLength={editingPanelTitle ? 140 : undefined}
+            value={textDraft}
+            onChange={(event) => setTextDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder={
+              editingPanelTitle
+                ? "Write a clear panel title"
+                : textComposerTargetId
+                  ? "Rewrite selected text"
+                  : "Type text for this panel"
+            }
+            className="max-h-28 min-h-14 w-full min-w-0 resize-y rounded-xl border border-paper-line bg-surface px-3 py-2 text-[12px] leading-5 text-ink outline-none transition placeholder:text-ink-muted focus:border-accent sm:min-h-0 sm:flex-1"
+          />
+          <button
+            type="submit"
+            disabled={!textDraft.trim()}
+            className="min-h-8 shrink-0 rounded-full bg-ink px-3 py-1 text-[10px] font-medium text-paper disabled:opacity-40 sm:min-h-0"
+          >
+            {editingPanelTitle
+              ? "Use title"
+              : textComposerTargetId
+                ? "Update text"
+                : "Add to canvas"}
+          </button>
+          <button
+            type="button"
+            aria-label="Close text composer"
+            onClick={() => {
+              setTextDraft("");
+              setTextComposerTargetId(null);
+              setTextComposerOpen(false);
+            }}
+            className="min-h-8 shrink-0 rounded-full border border-paper-line bg-surface px-2.5 py-1 text-[10px] text-ink-muted sm:min-h-0"
+          >
+            Cancel
+          </button>
+        </form>
+      ) : null}
+
+      {resetAction ? (
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-[#080d18]/65 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeResetDialog();
+          }}
+        >
+          <div
+            ref={resetDialogRef}
+            data-testid="canvas-reset-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="canvas-reset-title"
+            aria-describedby="canvas-reset-description"
+            tabIndex={-1}
+            className="w-full max-w-md rounded-[24px] border border-paper-line bg-surface p-5 shadow-[0_30px_90px_rgba(0,0,0,.32)] sm:p-6"
+          >
+            <div className="font-mono text-[9px] font-semibold uppercase tracking-[.16em] text-coral-deep">
+              Canvas recovery
+            </div>
+            <h2 id="canvas-reset-title" className="mt-2 font-display text-2xl font-medium tracking-[-.025em] text-ink">
+              {resetAction === "restore" ? "Restore the saved panel?" : "Start with a blank canvas?"}
+            </h2>
+            <p id="canvas-reset-description" className="mt-3 text-sm leading-6 text-ink-soft">
+              {resetAction === "restore"
+                ? "This discards the current canvas draft and rebuilds the editor from the last saved panel. Your saved panel stays unchanged."
+                : "This removes every element from the canvas so you can design from scratch. Your saved panel stays unchanged until you choose Save panel."}
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                data-canvas-reset-cancel
+                type="button"
+                onClick={closeResetDialog}
+                className="rounded-full border border-paper-line bg-paper px-4 py-2 text-sm font-medium text-ink transition hover:border-ink-muted"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={confirmReset}
+                className="rounded-full bg-coral-deep px-4 py-2 text-sm font-medium text-white transition hover:bg-coral-deep/90"
+              >
+                {resetAction === "restore" ? "Restore panel" : "Start blank"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="relative min-h-0 flex-1">
         {initialData ? (
           <ExcalidrawInner
             // Bump on Restore so Excalidraw fully unmounts + remounts
@@ -532,6 +1467,14 @@ export function EditorCanvas({
         ) : (
           <CanvasLoading />
         )}
+        {initialData && !canvasFitted ? (
+          <div
+            data-testid="canvas-fitting"
+            className="absolute inset-0 z-40 grid place-items-center bg-paper/95 text-[11px] font-medium text-ink-muted backdrop-blur-[1px]"
+          >
+            Fitting the complete panel…
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -545,12 +1488,32 @@ function CanvasLoading() {
   );
 }
 
+function getFocusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter((element) => !element.hasAttribute("hidden") && element.offsetParent !== null);
+}
+
 // ---------- Seeding ----------
+
+/**
+ * Excalidraw otherwise opens every scene at its default 100% origin. That is
+ * workable on a desktop but makes a 1080px social panel look cropped on a
+ * phone. This one-time import hint centers the complete panel at a useful
+ * zoom without persisting viewport-only state back into the user's scene.
+ */
+function withInitialViewport(scene: unknown): unknown {
+  if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
+  return { ...(scene as Record<string, unknown>), scrollToContent: true };
+}
 
 /**
  * Build the initial scene for a panel that hasn't been edited before.
  *
- * For SVG panels we first try to parse the SVG into native Excalidraw
+ * Suggested layouts arrive from the server as native Excalidraw elements.
+ * For other SVG panels we first try to parse the SVG into native Excalidraw
  * elements (text, rect, line, ellipse, polyline) — that's what makes
  * individual headings, captions, shapes, and squiggles editable. If the
  * parser fails (malformed SVG, unsupported features) we fall back to
@@ -560,8 +1523,29 @@ function CanvasLoading() {
 async function buildSeedScene(
   panelContent: string,
   panelFormat: "svg" | "html",
-  heading: string
+  heading: string,
+  seedSceneUrl?: string
 ): Promise<unknown> {
+  if (seedSceneUrl) {
+    try {
+      const response = await fetch(seedSceneUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Template seed failed (${response.status})`);
+      }
+      const body = (await response.json()) as { scene?: unknown };
+      if (!body.scene || typeof body.scene !== "object") {
+        throw new Error("Template seed did not contain a scene");
+      }
+      return body.scene;
+    } catch (error) {
+      // Keep the editor usable if the editable layout endpoint is unavailable.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[readopp] canvas template seed failed; falling back to panel SVG: ${(error as Error).message}`
+      );
+    }
+  }
+
   // HTML panels can't be embedded as a single image. Open a blank canvas
   // with a title placeholder — HTML rasterization is a future-session
   // feature.
@@ -590,11 +1574,9 @@ async function buildSeedScene(
   // the scene after mount.
   const SEED_OFFSET_X = 120;
   const SEED_OFFSET_Y = 80;
-  const SEED_GROUP_ID = "readopp-seed-panel";
   const converted = svgToExcalidrawElements(panelContent, {
     offsetX: SEED_OFFSET_X,
     offsetY: SEED_OFFSET_Y,
-    groupId: SEED_GROUP_ID,
   });
   if (converted && converted.elements.length > 0) {
     return {
@@ -641,6 +1623,95 @@ async function buildSeedScene(
         lastRetrieved: Date.now(),
       },
     },
+  };
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read panel image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function imageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({
+      width: image.naturalWidth || 560,
+      height: image.naturalHeight || 560,
+    });
+    image.onerror = () => reject(new Error("Could not read the image dimensions."));
+    image.src = dataUrl;
+  });
+}
+
+/**
+ * Keep imported photos useful for design work without embedding a multi-MB
+ * camera original into every auto-save. SVGs stay vector; raster images are
+ * resized to a generous working resolution and encoded as WebP.
+ */
+async function prepareCanvasImage(file: File): Promise<{
+  dataURL: string;
+  width: number;
+  height: number;
+  mimeType: string;
+}> {
+  const original = await blobToDataUrl(file);
+  const dimensions = await imageDimensions(original);
+  const longestSide = Math.max(dimensions.width, dimensions.height);
+  const shouldOptimize = file.size > 160_000 || longestSide > 1400;
+  if (!shouldOptimize) {
+    return {
+      dataURL: original,
+      width: dimensions.width,
+      height: dimensions.height,
+      mimeType: file.type || "image/png",
+    };
+  }
+
+  const scale = Math.min(1, 1400 / longestSide);
+  let width = Math.max(1, Math.round(dimensions.width * scale));
+  let height = Math.max(1, Math.round(dimensions.height * scale));
+  const image = new Image();
+  image.src = original;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare this image for the canvas.");
+  let quality = 0.78;
+  let dataURL = "";
+  do {
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+    dataURL = canvas.toDataURL("image/webp", quality);
+    if (dataURL.length <= 160_000 || Math.max(width, height) <= 420) break;
+    const nextScale = Math.max(
+      0.68,
+      Math.min(0.88, Math.sqrt(160_000 / dataURL.length) * 0.96)
+    );
+    width = Math.max(1, Math.round(width * nextScale));
+    height = Math.max(1, Math.round(height * nextScale));
+    quality = Math.max(0.52, quality - 0.06);
+  } while (true);
+  return {
+    dataURL,
+    width,
+    height,
+    mimeType: "image/webp",
+  };
+}
+
+function blankCanvasScene(): unknown {
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: "readopp",
+    elements: [],
+    appState: { viewBackgroundColor: "#FAF9F5" },
+    files: {},
   };
 }
 
@@ -707,6 +1778,7 @@ function imageElement(args: {
   y: number;
   width: number;
   height: number;
+  locked?: boolean;
 }) {
   return {
     id: args.id,
@@ -732,7 +1804,7 @@ function imageElement(args: {
     boundElements: null,
     updated: Date.now(),
     link: null,
-    locked: true,
+    locked: args.locked ?? true,
     fileId: args.fileId,
     status: "saved",
     scale: [1, 1],
@@ -782,6 +1854,222 @@ function textElement(args: {
     autoResize: true,
     lineHeight: 1.25,
   } as const;
+}
+
+function sceneElementBounds(elements: Array<Record<string, unknown>>) {
+  const visible = elements.filter(
+    (element) =>
+      !element.isDeleted &&
+      Number.isFinite(element.x) &&
+      Number.isFinite(element.y) &&
+      Number.isFinite(element.width) &&
+      Number.isFinite(element.height)
+  );
+  if (!visible.length) return { x: 0, y: 0, width: 1080, height: 1080 };
+
+  const minX = Math.min(...visible.map((element) => Number(element.x)));
+  const minY = Math.min(...visible.map((element) => Number(element.y)));
+  const maxX = Math.max(
+    ...visible.map((element) => Number(element.x) + Number(element.width))
+  );
+  const maxY = Math.max(
+    ...visible.map((element) => Number(element.y) + Number(element.height))
+  );
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+function findOpenTextPosition(
+  elements: Array<Record<string, unknown>>,
+  width: number,
+  height: number,
+  bounds: { x: number; y: number; width: number; height: number }
+) {
+  const panelArea = bounds.width * bounds.height;
+  const obstacleGutter = Math.max(
+    18,
+    Math.min(bounds.width, bounds.height) * 0.025
+  );
+  const obstacles = elements
+    .filter((element) => {
+      if (element.isDeleted || element.type === "line" || element.type === "arrow") {
+        return false;
+      }
+      const obstacleWidth = Number(element.width);
+      const obstacleHeight = Number(element.height);
+      return (
+        Number.isFinite(element.x) &&
+        Number.isFinite(element.y) &&
+        Number.isFinite(obstacleWidth) &&
+        Number.isFinite(obstacleHeight) &&
+        obstacleWidth > 0 &&
+        obstacleHeight > 0 &&
+        obstacleWidth * obstacleHeight < panelArea * 0.55
+      );
+    })
+    .map((element) => ({
+      x: Number(element.x) - obstacleGutter,
+      y: Number(element.y) - obstacleGutter,
+      width: Number(element.width) + obstacleGutter * 2,
+      height: Number(element.height) + obstacleGutter * 2,
+    }));
+
+  const padding = Math.max(64, Math.min(bounds.width, bounds.height) * 0.075);
+  const availableWidth = Math.max(1, bounds.width - padding * 2 - width);
+  const availableHeight = Math.max(1, bounds.height - padding * 2 - height);
+  const xStops = [0, 0.5, 1];
+  const yStops = [0.08, 0.24, 0.42, 0.6, 0.78, 1];
+  let best = {
+    x: bounds.x + padding,
+    y: bounds.y + padding,
+    score: Number.POSITIVE_INFINITY,
+  };
+
+  for (const yStop of yStops) {
+    for (const xStop of xStops) {
+      const candidate = {
+        x: bounds.x + padding + availableWidth * xStop,
+        y: bounds.y + padding + availableHeight * yStop,
+        width,
+        height,
+      };
+      const overlap = obstacles.reduce(
+        (total, obstacle) => total + rectangleOverlapArea(candidate, obstacle),
+        0
+      );
+      // Prefer a clear location first. Among equally clear positions, favour
+      // the upper half so freshly added copy is immediately discoverable.
+      const score = overlap * 1000 + yStop * 10 + Math.abs(xStop - 0.5);
+      if (score < best.score) best = { x: candidate.x, y: candidate.y, score };
+    }
+  }
+  return { x: best.x, y: best.y };
+}
+
+function rectangleOverlapArea(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+): number {
+  const width = Math.max(
+    0,
+    Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+  );
+  const height = Math.max(
+    0,
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+  );
+  return width * height;
+}
+
+function selectedCanvasText(
+  elements: readonly unknown[],
+  appState: unknown
+): { id: string; text: string } | null {
+  if (!appState || typeof appState !== "object") return null;
+  const selectedIds = (appState as { selectedElementIds?: unknown })
+    .selectedElementIds;
+  if (!selectedIds || typeof selectedIds !== "object") return null;
+  const selectedId = Object.entries(selectedIds as Record<string, unknown>)
+    .find(([, selected]) => Boolean(selected))?.[0];
+  if (!selectedId) return null;
+  const element = elements.find((value) => {
+    const candidate = value as { id?: unknown; type?: unknown; isDeleted?: unknown };
+    return (
+      candidate.id === selectedId &&
+      candidate.type === "text" &&
+      !candidate.isDeleted
+    );
+  }) as { id?: unknown; text?: unknown } | undefined;
+  return element && typeof element.id === "string" && typeof element.text === "string"
+    ? { id: element.id, text: element.text }
+    : null;
+}
+
+/** Rebuild a text element without its measured dimensions so Excalidraw
+ * recalculates wrapping and bounds for the rewritten copy. Visual styling,
+ * grouping, and position remain attached to the same stable element id. */
+function editableTextSkeleton(
+  element: Record<string, unknown>,
+  text: string
+): Record<string, unknown> {
+  const keep = [
+    "id",
+    "x",
+    "y",
+    "angle",
+    "strokeColor",
+    "backgroundColor",
+    "fillStyle",
+    "strokeWidth",
+    "strokeStyle",
+    "roughness",
+    "opacity",
+    "groupIds",
+    "frameId",
+    "roundness",
+    "link",
+    "locked",
+    "fontSize",
+    "fontFamily",
+    "textAlign",
+    "verticalAlign",
+    "lineHeight",
+  ];
+  const skeleton: Record<string, unknown> = { type: "text", text };
+  for (const key of keep) {
+    if (element[key] !== undefined) skeleton[key] = element[key];
+  }
+  return skeleton;
+}
+
+/**
+ * Excalidraw's onChange also fires for zoom, tool, and selection changes.
+ * Element versions are incremented for actual content mutations, giving us
+ * a small stable fingerprint without serializing the complete scene on every
+ * pointer movement.
+ */
+function sceneChangeSignature(
+  elements: readonly unknown[],
+  files: Record<string, unknown>
+): string {
+  const elementPart = elements
+    .map((value) => {
+      const element = value as {
+        id?: string;
+        version?: number;
+        versionNonce?: number;
+        isDeleted?: boolean;
+      };
+      return `${element.id ?? "?"}:${element.version ?? 0}:${element.versionNonce ?? 0}:${element.isDeleted ? 1 : 0}`;
+    })
+    .join("|");
+  const filePart = Object.keys(files).sort().join("|");
+  return `${elementPart}::${filePart}`;
+}
+
+function sceneFilesForElements(
+  elements: readonly unknown[],
+  files: Record<string, unknown>
+): Record<string, unknown> {
+  const referenced = new Set(
+    elements.flatMap((value) => {
+      const element = value as {
+        type?: string;
+        fileId?: string | null;
+        isDeleted?: boolean;
+      };
+      return element.type === "image" && !element.isDeleted && element.fileId
+        ? [element.fileId]
+        : [];
+    })
+  );
+  return Object.fromEntries(
+    Object.entries(files).filter(([fileId]) => referenced.has(fileId))
+  );
 }
 
 // Trim fields that don't belong in persisted scenes (collaborators, theme,

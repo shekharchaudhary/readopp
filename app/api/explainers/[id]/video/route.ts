@@ -15,6 +15,7 @@ export const maxDuration = 120; // record + transcode can take a minute
 
 const RequestSchema = z.object({
   format: z.enum(["vertical", "square"]),
+  preset: z.enum(["native", "cinematic"]).default("native"),
 });
 
 export async function POST(
@@ -37,7 +38,7 @@ export async function POST(
     );
   }
 
-  const { format } = parsed.data;
+  const { format, preset } = parsed.data;
   if (!isVideoFormat(format)) {
     return NextResponse.json({ error: "Invalid format." }, { status: 400 });
   }
@@ -68,6 +69,7 @@ export async function POST(
     const { html, durationMs, panelsShown } = await buildVideoHtml({
       explainer,
       format,
+      preset,
       template,
       brand,
     });
@@ -78,16 +80,18 @@ export async function POST(
       cacheKeyParts: [
         explainer.id,
         format,
-        "v2",
+        "v3",
+        preset,
         explainer.updatedAt ?? explainer.createdAt ?? "v0",
         brand?.updatedAt ?? "no-brand",
         explainer.template ?? DEFAULT_TEMPLATE_ID,
       ],
     });
-    void trackProductEvent({ name: "video_exported", properties: { format, panelCount: panelsShown, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
+    void trackProductEvent({ name: "video_exported", properties: { format, preset, panelCount: panelsShown, template: explainer.template ?? DEFAULT_TEMPLATE_ID } });
     return NextResponse.json({
       url: result.url,
       format: result.format,
+      preset,
       width: result.width,
       height: result.height,
       durationMs: result.durationMs,

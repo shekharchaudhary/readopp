@@ -45,7 +45,7 @@ function loadEnvFile(path: string) {
   }
 }
 
-import { createJob, getJob } from "../lib/store";
+import { createJob, getJob, updateJob } from "../lib/store";
 import { runJob } from "../lib/pipeline/orchestrator";
 import { getAdminSupabase } from "../lib/supabase/server";
 import { ExplainerSchema } from "../lib/shared/schemas";
@@ -163,6 +163,21 @@ async function runOne(
     console.log(`  job=${job.id} — running pipeline...`);
     const t0 = Date.now();
     await runJob(job.id);
+    const checkpoint = await getJob(job.id);
+    if (checkpoint?.status === "awaiting_approval" && checkpoint.editorialBrief) {
+      // Harness jobs auto-approve the default direction. Production users
+      // make this choice in the UI; a non-interactive live evaluation must
+      // resume explicitly or it would correctly stop at the checkpoint.
+      await updateJob(job.id, {
+        status: "queued",
+        briefApproved: true,
+        editorialBrief: {
+          ...checkpoint.editorialBrief,
+          approvedAt: new Date().toISOString(),
+        },
+      });
+      await runJob(job.id);
+    }
     const dt = ((Date.now() - t0) / 1000).toFixed(1);
     const refreshed = await getJob(job.id);
     if (!refreshed?.explainerId) {

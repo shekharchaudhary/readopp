@@ -1,59 +1,25 @@
+import { MARKETING_COPY } from "@/lib/marketingCopy";
 import Link from "next/link";
+
+import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
 
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="force-light border-t border-white/10 bg-dark">
-      <div className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr]">
-          <div>
-            <Link
-              href="/"
-              className="inline-flex items-baseline gap-2 font-display text-lg font-semibold tracking-tight text-paper"
-            >
-              <span aria-hidden className="inline-block h-2 w-2 translate-y-px rounded-full bg-accent" />
-              Readopp
-            </Link>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-paper-line/80">
-              An experiment in turning careful writing into something worth
-              sharing — without flattening what the writer said.
-            </p>
+    <footer className="force-light bg-dark">
+      <div className="mx-auto max-w-[1080px] px-5 py-10 sm:px-8 lg:px-12">
+        <div className="flex flex-col gap-5 border-t border-white/20 pt-7 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="font-display text-xl font-semibold tracking-[-.04em] text-paper">Readopp</Link>
+            <span className="hidden text-sm text-paper-line/60 sm:inline">{MARKETING_COPY.slogan}</span>
           </div>
-          <nav aria-label="Sections" className="flex flex-col gap-2 text-sm">
-            <p className="mb-1 text-xs font-medium tracking-tight text-paper-line/50">
-              Read
-            </p>
-            <a href="#templates" className="text-paper-line/80 hover:text-paper">
-              Templates
-            </a>
-            <a href="#how-it-works" className="text-paper-line/80 hover:text-paper">
-              How it works
-            </a>
-            <a href="#use-cases" className="text-paper-line/80 hover:text-paper">
-              Who it&rsquo;s for
-            </a>
-            <a href="#faq" className="text-paper-line/80 hover:text-paper">
-              Questions
-            </a>
-          </nav>
-          <nav aria-label="Project" className="flex flex-col gap-2 text-sm">
-            <p className="mb-1 text-xs font-medium tracking-tight text-paper-line/50">
-              Project
-            </p>
-            <a
-              href="https://github.com/shekharchaudhary/readopp"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-paper-line/80 hover:text-paper"
-            >
-              Source on GitHub
-            </a>
+          <nav aria-label="Footer" className="flex items-center gap-5 text-sm">
+            <Link href="/#try" className="text-paper-line/75 hover:text-paper">Create a story</Link>
+            {PRO_FEATURES_ENABLED && <Link href="/pricing" className="text-paper-line/75 hover:text-paper">Pricing</Link>}
+            <a href="https://github.com/shekharchaudhary/readopp" target="_blank" rel="noopener noreferrer" className="text-paper-line/75 hover:text-paper">GitHub</a>
           </nav>
         </div>
-        <div className="mt-12 flex items-center justify-between border-t border-white/10 pt-6 text-xs text-paper-line/50">
-          <span>© {year} Readopp</span>
-          <span className="font-mono">v0.1</span>
-        </div>
+        <div className="mt-8 font-mono text-[10px] uppercase tracking-wider text-paper-line/40">© {year} Readopp</div>
       </div>
     </footer>
   );

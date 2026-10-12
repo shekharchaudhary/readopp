@@ -97,8 +97,8 @@ export function ExampleGallery({
   if (items === null || items.length === 0) return null;
 
   return (
-    <div aria-label="Recent explainers">
-      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div aria-label="Recent visual stories">
+      <ul className="grid grid-cols-1 border-t border-ink sm:grid-cols-2">
         {items.map((it) => {
           const isDeleting = deletingId === it.id;
           const preview = previewOf(it);
@@ -106,7 +106,7 @@ export function ExampleGallery({
             <li
               key={it.id}
               className={
-                "group relative overflow-hidden rounded-2xl bg-white shadow-[0_1px_2px_rgba(45,60,30,0.05),0_10px_28px_-20px_rgba(45,60,30,0.28)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_-20px_rgba(45,60,30,0.35)] " +
+                "group relative overflow-hidden border-b border-paper-line bg-surface sm:odd:border-r " +
                 (isDeleting ? "opacity-50" : "")
               }
             >
@@ -123,14 +123,10 @@ export function ExampleGallery({
                     <TypographicFallback title={it.title} />
                   )}
                   {/* Soft fade so the clipped panel bottom reads as a window, not a cut. */}
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/[0.06] to-transparent"
-                  />
                 </div>
 
-                <div className="p-4 pr-10">
-                  <div className="text-sm font-medium text-ink transition-colors line-clamp-2 group-hover:text-sage-deep">
+                <div className="p-5 pr-10">
+                  <div className="font-display text-lg font-medium leading-snug text-ink line-clamp-2">
                     {it.title}
                   </div>
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
@@ -167,7 +163,7 @@ function TypographicFallback({ title }: { title: string }) {
   return (
     <div className="force-light flex h-full items-center bg-white px-6">
       <div>
-        <div className="h-1 w-8 rounded-full bg-sage" />
+        <div className="h-px w-8 bg-ink" />
         <div className="mt-3 font-display text-lg font-medium leading-snug text-dark line-clamp-3">
           {title}
         </div>
