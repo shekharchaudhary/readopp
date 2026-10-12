@@ -1,0 +1,12 @@
+.git
+.vercel
+.next
+node_modules
+.env*
+tmp
+.readopp-data
+.readopp-exports
+coverage
+*.log
+*.tsbuildinfo
+supabase/.temp
