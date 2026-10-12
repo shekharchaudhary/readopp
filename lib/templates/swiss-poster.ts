@@ -34,6 +34,7 @@ function headlineScale(length: number): number {
 }
 
 function accentFor(input: PanelRenderInput | AttributionRenderInput): string {
+  if ("panel" in input && input.panel.themeColor) return input.panel.themeColor;
   return input.brand?.color ?? DEFAULT_ACCENT;
 }
 

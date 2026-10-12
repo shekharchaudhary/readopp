@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isApiKeyConfigured } from "@/lib/anthropic";
+import { extractUploadedDocument } from "@/lib/documents/extractUpload";
+import {
+  documentUploadType,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/documents/uploadTypes";
 import { enqueueJob } from "@/lib/pipeline/runner";
 import "@/lib/pipeline/registerRunner";
-import { stashPendingPdf } from "@/lib/pipeline/preIngested";
+import {
+  stashPendingPdf,
+  stashPreIngested,
+} from "@/lib/pipeline/preIngested";
 import { ANON_FREE_LIMIT, quotaFor } from "@/lib/quota";
 import { AudienceLevelSchema, BrandStyleSchema, PublishingGoalSchema, VoiceProfileIdSchema } from "@/lib/shared/schemas";
 import {
@@ -16,8 +24,6 @@ import { trackProductEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: Request) {
   if (!isApiKeyConfigured()) {
@@ -55,20 +61,19 @@ export async function POST(req: Request) {
   if (file.size === 0) {
     return NextResponse.json({ error: "File is empty." }, { status: 400 });
   }
-  if (file.size > MAX_FILE_BYTES) {
+  if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
       {
-        error: `File is too large (${(file.size / 1_000_000).toFixed(1)} MB). Limit is ${MAX_FILE_BYTES / 1_000_000} MB.`,
+        error: `File is too large (${(file.size / 1_000_000).toFixed(1)} MB). Limit is ${MAX_UPLOAD_BYTES / 1_000_000} MB.`,
       },
       { status: 413 }
     );
   }
-  const isPdf =
-    file.type === "application/pdf" ||
-    /\.pdf$/i.test(file.name || "");
-  if (!isPdf) {
+  const filename = file.name || "uploaded-document";
+  const uploadType = documentUploadType(filename, file.type);
+  if (!uploadType) {
     return NextResponse.json(
-      { error: "Only PDF files are supported right now." },
+      { error: "Upload a PDF, Word (.docx), Markdown, or text document." },
       { status: 415 }
     );
   }
@@ -90,6 +95,26 @@ export async function POST(req: Request) {
   const voice = VoiceProfileIdSchema.safeParse(voiceRaw);
   if (!voice.success) return NextResponse.json({ error: "Invalid voiceProfileId." }, { status: 400 });
 
+  const arrayBuf = await file.arrayBuffer();
+  const buf = Buffer.from(arrayBuf);
+  let preparedArticle: Awaited<
+    ReturnType<typeof extractUploadedDocument>
+  > | null = null;
+  if (uploadType !== "pdf") {
+    try {
+      preparedArticle = await extractUploadedDocument({
+        buffer: buf,
+        filename,
+        type: uploadType,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: (error as Error).message || "Could not read this document." },
+        { status: 422 }
+      );
+    }
+  }
+
   let userId: string;
   let isAnonymous: boolean;
   try {
@@ -101,14 +126,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const arrayBuf = await file.arrayBuffer();
-  const buf = Buffer.from(arrayBuf);
   const hash = createHash("sha256").update(buf).digest("hex").slice(0, 24);
-  const filename = file.name || "upload.pdf";
   const fakeUrl = `upload://${filename}`;
-  // Cache key is file-content based, so re-uploading the same PDF at the same
+  // Cache key is file-content based, so re-uploading the same document at the same
   // audience level + style hits the cache regardless of filename.
-  const cacheKey = `pdf:${hash}:${audience.data}:${style.data}:${goal.data}:${voice.data}`;
+  const cacheKey = `document:${uploadType}:${hash}:${audience.data}:${style.data}:${goal.data}:${voice.data}`;
 
   // Cache short-circuit (same per-user as URL flow).
   const cached = await findCachedExplainer(userId, cacheKey);
@@ -136,19 +158,18 @@ export async function POST(req: Request) {
     userId,
     cacheKey,
   });
-  void trackProductEvent({ userId, name: "job_started", properties: { audienceLevel: audience.data, style: style.data, publishingGoal: goal.data, cached: Boolean(cached), sourceType: "pdf" } });
+  void trackProductEvent({ userId, name: "job_started", properties: { audienceLevel: audience.data, style: style.data, publishingGoal: goal.data, cached: Boolean(cached), sourceType: uploadType } });
 
   if (cached) {
     await completeJob(job.id, cached);
     return NextResponse.json({ jobId: job.id, cached: true }, { status: 201 });
   }
 
-  // Stash the raw PDF buffer and kick off the pipeline. The orchestrator's
-  // ingest stage runs extractPdfArticle (a long Claude call) so the upload
-  // returns immediately and the client sees the job-stream progress UI
-  // instead of a 30–60s "Uploading…" spinner. Errors from extraction now
-  // flow through the normal job failure path.
-  stashPendingPdf(job.id, { buffer: buf, filename });
+  // PDFs still use the vision-aware extraction stage. Word and text files
+  // are already readable, so hand their normalized article directly to the
+  // orchestrator and keep the same progress UI for every source type.
+  if (preparedArticle) stashPreIngested(job.id, preparedArticle);
+  else stashPendingPdf(job.id, { buffer: buf, filename });
   enqueueJob(job.id);
 
   return NextResponse.json({ jobId: job.id, cached: false }, { status: 201 });

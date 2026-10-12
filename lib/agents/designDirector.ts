@@ -10,9 +10,8 @@ export function runDesignDirector(input: {
   comprehension: Comprehension;
   requestedStyle: BrandStyle;
 }): DesignDirection {
-  // One mature visual system adapts its internal composition to the agents'
-  // panel plans. Template roulette weakens brand recognition and makes design
-  // decorative; Swiss Social is therefore the deliberate default direction.
+  // Keep one identity across the carousel, but let the identity adapt each
+  // panel's composition to the information it needs to communicate.
   const [choice] = recommendTemplates(
     input.explainer,
     {
@@ -20,12 +19,12 @@ export function runDesignDirector(input: {
       contentFeatures: input.comprehension.contentFeatures,
       requestedStyle: input.requestedStyle,
     },
-    new Set<TemplateId>(["swiss-poster"])
+    new Set<TemplateId>(["adaptive-editorial", "editorial-report", "modern-technical", "data-story", "bold-social"])
   );
-  const template = choice?.id ?? "swiss-poster";
+  const template = choice?.id ?? "adaptive-editorial";
   return {
     template,
     name: getTemplate(template).name,
-    reason: choice?.reason ?? "A clear default for this visual story",
+    reason: choice?.reason ?? "A cohesive editorial system with a layout chosen for each idea",
   };
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { EditorialBriefSchema } from "@/lib/shared/schemas";
-import { getJob, updateJob } from "@/lib/store";
+import { emitEvent, getJob, updateJob } from "@/lib/store";
 import { getOrCreateUser } from "@/lib/supabase/server";
 import { enqueueJob } from "@/lib/pipeline/runner";
 import "@/lib/pipeline/registerRunner";
@@ -36,6 +36,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     status: parsed.data.approve ? "queued" : "awaiting_approval",
   });
   if (!updated) return NextResponse.json({ error: "Could not save brief." }, { status: 500 });
-  if (parsed.data.approve) enqueueJob(params.id);
+  if (parsed.data.approve) {
+    // Move the live page out of the review state immediately. The runner will
+    // emit the next concrete stage (structuring) when it resumes.
+    await emitEvent(params.id, {
+      type: "job.status",
+      data: { status: "queued" },
+    });
+    enqueueJob(params.id, { requeueIfRunning: true });
+  }
   return NextResponse.json({ job: updated });
 }

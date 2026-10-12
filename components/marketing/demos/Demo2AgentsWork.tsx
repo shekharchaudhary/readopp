@@ -12,12 +12,12 @@ interface AgentStep {
 }
 
 const AGENTS: AgentStep[] = [
-  { name: "Read",       working: "Fetching article…",                   done: "Read 4,230 words" },
+  { name: "Read",       working: "Reading source…",                     done: "Read 4,230 words" },
   { name: "Understand", working: "Extracting core idea…",                done: "Found 7 key claims" },
-  { name: "Outline",    working: "Choosing panel types…",                done: "5 panels planned" },
-  { name: "Plan",       working: "Designing panel 3 of 5…",              done: "Designed 5 panels" },
-  { name: "Draw",       working: "Rendering metaphor templates…",        done: "Rendered 5 panels" },
-  { name: "Assemble",   working: "Stitching the explainer…",             done: "Done" },
+  { name: "Outline",    working: "Choosing the right story length…",      done: "Story length planned" },
+  { name: "Plan",       working: "Matching ideas to mature layouts…",     done: "Panel layouts planned" },
+  { name: "Draw",       working: "Rendering the visual story…",           done: "Story rendered" },
+  { name: "Assemble",   working: "Stitching the visual story…",          done: "Done" },
 ];
 
 // Each agent takes ~1100ms (start → done). After the last completes, hold ~1000ms.

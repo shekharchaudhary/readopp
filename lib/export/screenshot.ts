@@ -49,6 +49,7 @@ export async function renderHtmlToPng(input: {
   format: ExportFormat;
   cacheKeyParts: string[];
   browser?: Browser;
+  deviceScaleFactor?: number;
 }): Promise<RenderedPng> {
   const dims = EXPORT_DIMENSIONS[input.format];
   const filename = `${input.format}-${hashKey(input.cacheKeyParts)}.png`;
@@ -56,7 +57,7 @@ export async function renderHtmlToPng(input: {
   const browser = input.browser ?? (await getBrowser());
   const ctx = await browser.newContext({
     viewport: { width: dims.w, height: dims.h },
-    deviceScaleFactor: 2,
+    deviceScaleFactor: input.deviceScaleFactor ?? 2,
   });
   const page = await ctx.newPage();
   try {

@@ -1,5 +1,6 @@
 import { getJob, listEventsSince } from "@/lib/store";
 import type { StreamEvent } from "@/lib/events";
+import { getCurrentUserId } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,11 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const job = await getJob(params.id);
-  if (!job) {
+  const [job, viewerId] = await Promise.all([
+    getJob(params.id),
+    getCurrentUserId(),
+  ]);
+  if (!job || !viewerId || job.userId !== viewerId) {
     return new Response("not found", { status: 404 });
   }
 

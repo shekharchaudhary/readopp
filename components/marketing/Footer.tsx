@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
+
 export function Footer() {
   const year = new Date().getFullYear();
   return (
@@ -12,7 +14,7 @@ export function Footer() {
           </div>
           <nav aria-label="Footer" className="flex items-center gap-5 text-sm">
             <Link href="/#try" className="text-paper-line/75 hover:text-paper">Make a post</Link>
-            <Link href="/pricing" className="text-paper-line/75 hover:text-paper">Pricing</Link>
+            {PRO_FEATURES_ENABLED && <Link href="/pricing" className="text-paper-line/75 hover:text-paper">Pricing</Link>}
             <a href="https://github.com/shekharchaudhary/readopp" target="_blank" rel="noopener noreferrer" className="text-paper-line/75 hover:text-paper">GitHub</a>
           </nav>
         </div>

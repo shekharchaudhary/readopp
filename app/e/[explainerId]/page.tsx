@@ -51,8 +51,10 @@ export async function generateMetadata({
 
 export default async function ExplainerPermalink({
   params,
+  searchParams,
 }: {
   params: { explainerId: string };
+  searchParams?: { created?: string };
 }) {
   const explainer = await getExplainer(params.explainerId);
   if (!explainer) notFound();
@@ -74,11 +76,15 @@ export default async function ExplainerPermalink({
           href="/"
           className="inline-block text-sm text-ink-muted hover:text-ink"
         >
-          ← New explainer
+          ← New story
         </Link>
         <ThemeToggle />
       </div>
-      <ExplainerView explainer={explainer} canExport={canEdit} />
+      <ExplainerView
+        explainer={explainer}
+        canExport={canEdit}
+        justCreated={searchParams?.created === "1"}
+      />
     </main>
   );
 }

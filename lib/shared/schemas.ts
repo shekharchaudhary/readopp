@@ -87,9 +87,32 @@ export const EditorialBriefSchema = z.object({
   sourceSummary: z.string(),
   audience: AudienceLevelSchema,
   publishingGoal: PublishingGoalSchema,
+  storyLength: z
+    .object({
+      min: z.number().int().min(1).max(5),
+      max: z.number().int().min(1).max(5),
+      reason: z.string().min(1).max(180),
+      target: z.number().int().min(1).max(5).optional(),
+    })
+    .optional(),
   directions: z.array(EditorialDirectionSchema).min(1).max(3),
   selectedDirectionId: z.string(),
   approvedAt: z.string().optional(),
+}).superRefine((brief, ctx) => {
+  if (!brief.directions.some((direction) => direction.id === brief.selectedDirectionId)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["selectedDirectionId"],
+      message: "Select one of the provided editorial directions.",
+    });
+  }
+  if (brief.storyLength && brief.storyLength.min > brief.storyLength.max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["storyLength"],
+      message: "The minimum panel count cannot exceed the maximum.",
+    });
+  }
 });
 export type EditorialBrief = z.infer<typeof EditorialBriefSchema>;
 
@@ -617,7 +640,7 @@ export type OutlineSection = z.infer<typeof OutlineSectionSchema>;
 
 export const ExplainerOutlineSchema = z.object({
   title: z.string(),
-  sections: z.array(OutlineSectionSchema).min(1).max(6),
+  sections: z.array(OutlineSectionSchema).min(1).max(5),
 });
 export type ExplainerOutline = z.infer<typeof ExplainerOutlineSchema>;
 
@@ -696,6 +719,21 @@ export type PanelPlan = z.infer<typeof PanelPlanSchema>;
 
 // ---------- Agent 5: Render ----------
 
+export const PanelCopyOverridesSchema = z.object({
+  kicker: z.string().max(80).optional(),
+  primary: z.string().max(1000).optional(),
+  items: z
+    .array(
+      z.object({
+        title: z.string().max(140),
+        detail: z.string().max(500),
+      })
+    )
+    .max(10)
+    .optional(),
+});
+export type PanelCopyOverrides = z.infer<typeof PanelCopyOverridesSchema>;
+
 export const RenderedPanelSchema = z.object({
   sectionId: z.string(),
   // Section heading from the Outline agent; falls back to "" for explainers
@@ -704,6 +742,27 @@ export const RenderedPanelSchema = z.object({
   caption: z.string(),
   format: z.enum(["svg", "html"]),
   content: z.string(),
+  // Optional per-slide accent. Templates fall back to the brand color and
+  // then their own default when a panel has no override.
+  themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  // Optional composition override for adaptive templates. "auto" lets the
+  // renderer continue choosing from the panel's structured content.
+  layoutVariant: z.enum([
+    "auto",
+    "cover",
+    "hierarchy",
+    "radial",
+    "architecture",
+    "chart",
+    "diverging",
+    "priorities",
+    "report",
+    "contents",
+    "essay",
+  ]).optional(),
+  // Human-authored copy layered over the generated plan. Templates read
+  // these values first, keeping edits stable across layout/theme changes.
+  copyOverrides: PanelCopyOverridesSchema.optional(),
   validated: z.boolean().default(false),
   fallback: z.boolean().default(false),
   // The PanelPlan that produced this content. Optional because older
@@ -738,6 +797,16 @@ export const RenderedPanelSchema = z.object({
     .optional(),
 });
 export type RenderedPanel = z.infer<typeof RenderedPanelSchema>;
+
+/** Fields the panel editor can persist without replacing the whole explainer. */
+export type PanelPatch = {
+  heading?: string;
+  caption?: string;
+  content?: string;
+  themeColor?: string;
+  layoutVariant?: "auto" | "cover" | "hierarchy" | "radial" | "architecture" | "chart" | "diverging" | "priorities" | "report" | "contents" | "essay";
+  copyOverrides?: PanelCopyOverrides | null;
+};
 
 // ---------- Agent 7: Social pack (Phase 8 week 1) ----------
 
@@ -855,6 +924,11 @@ export const TemplateIdSchema = z.enum([
   "aurora-glass",
   "bento-grid",
   "swiss-poster",
+  "adaptive-editorial",
+  "editorial-report",
+  "modern-technical",
+  "data-story",
+  "bold-social",
 ]);
 export type TemplateId = z.infer<typeof TemplateIdSchema>;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkflowTextRegion, WorkflowRevealText } from "./WorkflowTextEffects";
 import { useState } from "react";
 import {
   TemplateParallax,
@@ -16,7 +17,7 @@ const WORKFLOW_STEPS: Array<{
     id: 1,
     number: "01",
     title: "Bring the source",
-    body: "Bring a Google Doc, Notion page, journal entry, or PDF.",
+    body: "Bring a Google Doc, Notion page, journal export, PDF, or Word file.",
   },
   {
     id: 2,
@@ -37,16 +38,16 @@ export function HowItWorksShowcase() {
 
   return (
     <div className="grid gap-12 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:gap-14">
-      <div className="max-w-[430px]">
+      <WorkflowTextRegion>
         <p className="text-xs font-bold uppercase tracking-[.15em] text-[#7eae3f]">
           How it works
         </p>
-        <h2 className="mt-4 text-4xl font-bold leading-none tracking-[-.05em] text-[#484848] sm:text-5xl">
+        <h2 data-workflow-ink className="workflow-ink-heading mt-4 text-4xl font-bold leading-none tracking-[-.05em] text-[#484848] sm:text-5xl">
           From reading
           <br />
           to publishing.
         </h2>
-        <p className="mt-5 text-base leading-7 text-[#77736c]">
+        <p data-workflow-ink className="workflow-ink-summary mt-5 text-base leading-7 text-[#77736c]">
           One source becomes a set of clear, publishable visual stories. Each
           template follows the shape of the idea—not decoration.
         </p>
@@ -69,10 +70,10 @@ export function HowItWorksShowcase() {
                   <span className="process-step__number pt-1 text-xs font-bold text-[#7eae3f]">
                     {step.number}
                   </span>
-                  <span className="process-step__title text-lg font-bold tracking-[-.025em] text-[#484848]">
-                    {step.title}
+                  <span data-workflow-ink className="process-step__title text-lg font-bold tracking-[-.025em] text-[#484848]">
+                    <WorkflowRevealText text={step.title} active={isActive} />
                   </span>
-                  <span className="process-step__body col-start-2 text-sm leading-6 text-[#6d6a64]">
+                  <span data-workflow-ink className="process-step__body col-start-2 text-sm leading-6 text-[#6d6a64]">
                     {step.body}
                   </span>
                 </button>
@@ -80,7 +81,7 @@ export function HowItWorksShowcase() {
             );
           })}
         </ol>
-      </div>
+      </WorkflowTextRegion>
 
       <TemplateParallax activeStep={activeStep} />
     </div>

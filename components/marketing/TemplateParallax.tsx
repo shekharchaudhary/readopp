@@ -131,7 +131,7 @@ function SourceScene() {
         </div>
         <div className="template-upload-row">
           <span>⇧</span>
-          <div><b>Upload document</b><small>PDF · up to 25 MB</small></div>
+          <div><b>Upload document</b><small>PDF, Word, Markdown, or text</small></div>
           <i>Browse</i>
         </div>
       </div>

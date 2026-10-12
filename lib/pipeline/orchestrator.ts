@@ -238,7 +238,7 @@ export async function runJob(jobId: string): Promise<void> {
       // 3+4. Structure + plan are folded into one deterministic build.
       await emitStatus(jobId, "structuring");
       await emitAgentStart(jobId, "structure");
-      const deck = buildResumeDeck(resumeDoc);
+      const deck = buildResumeDeck(resumeDoc).slice(0, 5);
       await emitAgentDone(jobId, "structure", `Résumé — ${deck.length} slides`);
       await emitAgentStart(jobId, "planner");
       await emitAgentDone(jobId, "planner", "Laid out résumé deck");
@@ -284,7 +284,9 @@ export async function runJob(jobId: string): Promise<void> {
         comprehension,
         jobId,
         job.publishingGoal,
-        directionPrompt
+        directionPrompt,
+        article.wordCount,
+        job.editorialBrief?.storyLength?.target
       );
       await emitAgentDone(jobId, "structure", summarizeOutline(outline));
 

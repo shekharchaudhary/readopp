@@ -200,7 +200,7 @@ export function NodeEditPopover({
   onDelete,
   onClose,
 }: NodePopoverProps) {
-  const ref = useDismissable(onClose);
+  const ref = useDismissable(() => onClose());
   return (
     <div
       ref={ref}
@@ -261,7 +261,8 @@ interface ThemePopoverProps {
   position?: { top?: number; right?: number; left?: number };
   busy?: boolean;
   onColorChange: (triple: ColorTriple) => void;
-  onClose: () => void;
+  onClose: (reason?: "outside" | "escape" | "button") => void;
+  description?: string;
 }
 
 export function PanelThemePopover({
@@ -269,8 +270,17 @@ export function PanelThemePopover({
   busy,
   onColorChange,
   onClose,
+  description,
 }: ThemePopoverProps) {
   const ref = useDismissable(onClose);
+  useEffect(() => {
+    const focusFrame = window.requestAnimationFrame(() => {
+      ref.current
+        ?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])')
+        ?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [ref]);
   const style: React.CSSProperties = {
     position: "absolute",
     top: position?.top ?? 56,
@@ -295,7 +305,7 @@ export function PanelThemePopover({
         )}
       </div>
       <p className="px-1 text-xs text-ink-muted">
-        Recolor every node, label, and connector at once.
+        {description ?? "Recolor every node, label, and connector at once."}
       </p>
 
       <ColorPanel currentPalette={null} busy={busy} onChange={onColorChange} />
@@ -304,7 +314,7 @@ export function PanelThemePopover({
       <div className="flex items-center justify-end px-1">
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => onClose("button")}
           className="rounded-md px-2 py-1 text-xs text-ink-muted hover:text-ink"
         >
           Close
@@ -318,12 +328,14 @@ export function PanelThemePopover({
 // Shared dismiss-on-outside-click hook
 // ============================================================================
 
-function useDismissable(onClose: () => void) {
+function useDismissable(
+  onClose: (reason: "outside" | "escape") => void
+) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     function onDown(e: MouseEvent) {
       const el = ref.current;
-      if (el && !el.contains(e.target as Node)) onClose();
+      if (el && !el.contains(e.target as Node)) onClose("outside");
     }
     const t = window.setTimeout(
       () => window.addEventListener("mousedown", onDown),
@@ -336,7 +348,10 @@ function useDismissable(onClose: () => void) {
   }, [onClose]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose("escape");
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

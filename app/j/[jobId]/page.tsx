@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ExportSheet } from "@/components/ExportSheet";
 import { PanelStream } from "@/components/PanelStream";
 import { TemplatePicker } from "@/components/TemplatePicker";
@@ -9,7 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { WorkingScene } from "@/components/WorkingScene";
 import { failureCopy } from "@/lib/errorMessages";
 import { useJobStream } from "@/lib/scene/useJobStream";
-import type { Job, TemplateId } from "@/lib/shared/schemas";
+import type { Job, PanelPatch, TemplateId } from "@/lib/shared/schemas";
 import { sourceLabel } from "@/lib/shared/source";
 import { EditorialBriefReview } from "@/components/EditorialBriefReview";
 import { EvidenceInspector } from "@/components/EvidenceInspector";
@@ -44,6 +45,7 @@ function useJobMeta(jobId: string, refetchKey: number) {
 }
 
 export default function JobPage({ params }: { params: { jobId: string } }) {
+  const router = useRouter();
   const { scene, error: streamError } = useJobStream(params.jobId);
   const completed = scene.status === "completed";
   const failed = scene.status === "failed";
@@ -69,6 +71,14 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
     TemplateId | undefined
   >(undefined);
 
+  // Generation has one job: get the user to a complete story. Once that is
+  // done, continue in the canonical owner workspace rather than leaving them
+  // in this reduced streaming view with a second set of editing controls.
+  useEffect(() => {
+    if (!completed || !scene.explainer?.id) return;
+    router.replace(`/e/${encodeURIComponent(scene.explainer.id)}?created=1`);
+  }, [completed, router, scene.explainer?.id]);
+
   function openExportAll() {
     setExportPanelId(undefined);
     setExportOpen(true);
@@ -80,10 +90,10 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
 
   async function patchPanel(
     sectionId: string,
-    patch: { heading?: string; caption?: string; content?: string }
+    patch: PanelPatch
   ) {
     const explainerId = scene.explainer?.id;
-    if (!explainerId) throw new Error("Explainer not ready yet.");
+    if (!explainerId) throw new Error("Story not ready yet.");
     const res = await fetch(
       `/api/explainers/${explainerId}/panels/${sectionId}`,
       {
@@ -119,8 +129,10 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
   const headerTitle = scene.explainer?.title
     ? scene.explainer.title
     : failed
-    ? "Couldn’t build an explainer"
-    : "Building your explainer";
+    ? "Couldn’t build your story"
+    : awaitingApproval
+    ? "Shape your story"
+    : "Building your visual story";
 
   if (notFound) {
     return (
@@ -129,7 +141,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
           href="/"
           className="inline-block text-sm text-ink-muted hover:text-ink"
         >
-          ← New explainer
+          ← New story
         </Link>
         <p className="text-base text-ink-soft">
           That job ID doesn’t exist (or the dev server restarted — in-memory jobs
@@ -146,7 +158,7 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
           href="/"
           className="inline-block text-sm text-ink-muted hover:text-ink"
         >
-          ← New explainer
+          ← New story
         </Link>
         <ThemeToggle />
       </div>
@@ -212,6 +224,9 @@ export default function JobPage({ params }: { params: { jobId: string } }) {
 
       <PanelStream
         slots={slotsWithEdits}
+        allPanels={slotsWithEdits.flatMap((slot) =>
+          slot.panel ? [slot.panel] : []
+        )}
         onExportPanel={completed ? openExportPanel : undefined}
         onEditPanel={completed ? patchPanel : undefined}
         explainerId={scene.explainer?.id}

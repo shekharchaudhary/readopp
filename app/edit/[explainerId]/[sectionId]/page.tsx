@@ -6,6 +6,13 @@ import {
   getPanelScene,
 } from "@/lib/store";
 import { getCurrentUserId } from "@/lib/supabase/server";
+import {
+  canvasSeedUrl,
+  canvasSeedVersion,
+  usesRenderedTemplateSeed,
+} from "@/lib/editor/canvasSeed";
+import { chooseTemplatePanelLayout } from "@/lib/templates/panelLayouts";
+import { DEFAULT_TEMPLATE_ID } from "@/lib/templates/default";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,10 +39,24 @@ export default async function EditPanelPage({ params }: PageProps) {
   ]);
   if (!viewerId || !ownerId || viewerId !== ownerId) return notFound();
 
-  const panel = explainer.panels.find((p) => p.sectionId === sectionId);
-  if (!panel) return notFound();
+  const panelIndex = explainer.panels.findIndex((p) => p.sectionId === sectionId);
+  if (panelIndex === -1) return notFound();
+  const panel = explainer.panels[panelIndex];
+  const previousPanel = explainer.panels[panelIndex - 1];
+  const nextPanel = explainer.panels[panelIndex + 1];
+  const activeTemplate = explainer.template ?? DEFAULT_TEMPLATE_ID;
+  const resolvedLayout = chooseTemplatePanelLayout(
+    explainer.panels,
+    panelIndex + 1,
+    panel,
+    activeTemplate
+  );
 
   const saved = await getPanelScene(explainerId, sectionId);
+  const renderedTemplateSeed = usesRenderedTemplateSeed(
+    panel,
+    activeTemplate
+  );
 
   return (
     <div className="flex h-screen w-screen flex-col bg-paper text-ink">
@@ -45,17 +66,22 @@ export default async function EditPanelPage({ params }: PageProps) {
             href={`/e/${explainerId}`}
             className="max-w-[48vw] truncate text-sm font-medium text-ink-soft hover:text-ink sm:max-w-none"
           >
-            ← {explainer.title || "Explainer"}
+            ← {explainer.title || "Story"}
           </a>
           <span aria-hidden className="text-ink-faint">·</span>
-          <span className="text-sm font-medium tracking-tight text-ink">
-            {panel.heading || "Editing panel"}
-          </span>
+          <div className="min-w-0">
+            <span className="block font-mono text-[9px] uppercase tracking-[.12em] text-ink-muted">
+              Panel {panelIndex + 1} of {explainer.panels.length}
+            </span>
+            <span className="block max-w-[46vw] truncate text-sm font-medium tracking-tight text-ink sm:max-w-[58vw]">
+              {panel.heading || "Editing panel"}
+            </span>
+          </div>
         </div>
         <div className="hidden text-xs text-ink-muted sm:block">
           {saved
-            ? `Last saved ${new Date(saved.updatedAt).toLocaleString()}`
-            : "Fresh canvas"}
+            ? `Draft saved ${new Date(saved.updatedAt).toLocaleString()}`
+            : "Ready to edit"}
         </div>
       </header>
 
@@ -66,8 +92,34 @@ export default async function EditPanelPage({ params }: PageProps) {
           heading={panel.heading || ""}
           panelContent={panel.content}
           panelFormat={panel.format}
+          seedSceneUrl={
+            renderedTemplateSeed
+              ? canvasSeedUrl(explainerId, sectionId)
+              : undefined
+          }
+          seedVersion={
+            renderedTemplateSeed
+              ? canvasSeedVersion(panel, activeTemplate, resolvedLayout)
+              : undefined
+          }
           initialScene={saved?.scene ?? null}
-          returnHref={`/e/${explainerId}`}
+          // Return to the exact panel the user edited. This matters most on
+          // mobile, where canvas opens as a dedicated full-screen route.
+          returnHref={`/e/${explainerId}#panel-${encodeURIComponent(sectionId)}`}
+          previousPanelHref={
+            previousPanel
+              ? `/edit/${explainerId}/${encodeURIComponent(previousPanel.sectionId)}`
+              : undefined
+          }
+          nextPanelHref={
+            nextPanel
+              ? `/edit/${explainerId}/${encodeURIComponent(nextPanel.sectionId)}`
+              : undefined
+          }
+          previousPanelLabel={previousPanel?.heading || undefined}
+          nextPanelLabel={nextPanel?.heading || undefined}
+          commitAsCanvasOverride={activeTemplate !== "tachyon"}
+          promptForTitle={!saved && panel.heading === "Untitled panel"}
         />
       </div>
     </div>

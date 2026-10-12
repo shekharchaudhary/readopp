@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ExportFormat } from "@/lib/export/dimensions";
 import { EXPORT_DIMENSIONS } from "@/lib/export/dimensions";
 import type { VideoFormat, VideoPreset } from "@/lib/export/buildVideoHtml";
@@ -83,8 +83,39 @@ export function ExportSheet({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImageResult | null>(null);
   const [videoResult, setVideoResult] = useState<VideoResultPayload | null>(null);
+  const autoPreviewKey = useRef<string | null>(null);
+
+  const generateImage = useCallback(
+    async (fmt: ExportFormat, signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      try {
+        const res = await fetch(`/api/explainers/${explainerId}/export`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: fmt, panelId }),
+          signal,
+        });
+        const data = await res.json();
+        if (signal?.aborted) return;
+        if (!res.ok) {
+          setError(data?.error || `Export failed (${res.status}).`);
+          return;
+        }
+        setResult(data);
+      } catch (error) {
+        if (signal?.aborted) return;
+        setError((error as Error).message || "Network error");
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [explainerId, panelId]
+  );
 
   useEffect(() => {
+    const controller = new AbortController();
     if (open) {
       setResult(null);
       setVideoResult(null);
@@ -93,8 +124,16 @@ export function ExportSheet({
       setVideoFormat("vertical");
       setVideoPreset("native");
       setMode("image");
+      const previewKey = `${explainerId}:${panelId ?? "all"}`;
+      if (autoPreviewKey.current !== previewKey) {
+        autoPreviewKey.current = previewKey;
+        void generateImage("square", controller.signal);
+      }
+    } else {
+      autoPreviewKey.current = null;
     }
-  }, [open, panelId]);
+    return () => controller.abort();
+  }, [explainerId, generateImage, open, panelId]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -103,29 +142,6 @@ export function ExportSheet({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
-
-  async function generateImage(fmt: ExportFormat) {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      const res = await fetch(`/api/explainers/${explainerId}/export`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: fmt, panelId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || `Export failed (${res.status}).`);
-        return;
-      }
-      setResult(data);
-    } catch (e) {
-      setError((e as Error).message || "Network error");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function generateVideo(fmt: VideoFormat) {
     setLoading(true);
@@ -155,6 +171,7 @@ export function ExportSheet({
   return (
     <div
       role="dialog"
+      data-motion-dialog
       aria-modal="true"
       aria-label="Export"
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-0 sm:items-center sm:p-6"
@@ -167,7 +184,7 @@ export function ExportSheet({
         <header className="flex shrink-0 items-center justify-between border-b border-paper-line bg-paper px-5 py-4">
           <div>
             <h2 className="text-base font-medium text-ink">
-              {panelId ? "Export panel" : "Export explainer"}
+              {panelId ? "Export panel" : "Export story"}
             </h2>
             <p className="text-xs text-ink-muted">
               Image for carousels and stills · Video for Reels, TikTok, and Shorts.
@@ -203,7 +220,7 @@ export function ExportSheet({
               disabled={Boolean(panelId)}
               hint={
                 panelId
-                  ? "Video uses the whole explainer. Close this sheet and use Export all."
+                  ? "Video uses the whole story. Close this sheet and use Export all."
                   : undefined
               }
             >
@@ -219,7 +236,7 @@ export function ExportSheet({
               disabled={Boolean(panelId)}
               hint={
                 panelId
-                  ? "Caption uses the whole explainer."
+                  ? "Caption uses the whole story."
                   : undefined
               }
             >
@@ -291,8 +308,8 @@ export function ExportSheet({
           {!loading && !error && !result && !videoResult && (
             <p className="text-xs text-ink-muted">
               {mode === "image"
-                ? "Pick a format above to generate a preview."
-                : "Pick an aspect ratio above to record the explainer."}
+                ? "Preparing the selected format…"
+                : "Pick an aspect ratio above to record the story."}
             </p>
           )}
         </div>
@@ -874,7 +891,7 @@ function CaptionPack({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent-soft/30 p-3">
         <div>
           <p className="text-sm font-medium text-ink">{hasFullKit ? "Publishing kit ready" : "Generate the complete publishing kit"}</p>
-          <p className="mt-0.5 text-xs text-ink-muted">{busy ? "Creating four source-grounded campaign packages. This normally takes 20–60 seconds; keep this window open." : hasFullKit ? "Download everything as one text file or copy individual sections below." : "Your saved explainer has the original caption pack. Generate the new campaign formats once."}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">{busy ? "Creating four source-grounded campaign packages. This normally takes 20–60 seconds; keep this window open." : hasFullKit ? "Download everything as one text file or copy individual sections below." : "Your saved story has the original caption pack. Generate the new campaign formats once."}</p>
         </div>
         <div className="flex items-center gap-2">
           {!hasFullKit && <button type="button" onClick={() => regenerate()} disabled={busy} className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-paper hover:bg-accent-deep disabled:opacity-60">{busy ? "Generating full kit…" : "Generate full kit"}</button>}

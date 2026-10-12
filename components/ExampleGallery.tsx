@@ -97,7 +97,7 @@ export function ExampleGallery({
   if (items === null || items.length === 0) return null;
 
   return (
-    <div aria-label="Recent explainers">
+    <div aria-label="Recent visual stories">
       <ul className="grid grid-cols-1 border-t border-ink sm:grid-cols-2">
         {items.map((it) => {
           const isDeleting = deletingId === it.id;

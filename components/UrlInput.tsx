@@ -3,8 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signInWithGoogle } from "@/lib/supabase/auth";
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  DOCUMENT_UPLOAD_LABEL,
+  isSupportedDocumentUpload,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/documents/uploadTypes";
 import type { AudienceLevel, BrandStyle, PublishingGoal, VoiceProfileId } from "@/lib/shared/schemas";
 import { VOICE_PROFILES } from "@/lib/voiceProfiles";
+import { CursorText } from "@/components/ui/CursorText";
 import { GoogleLogo } from "./GoogleLogo";
 
 const AUDIENCE_OPTIONS: {
@@ -72,20 +79,27 @@ interface Quota {
   blocked: boolean;
 }
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB — matches /api/jobs/upload cap
+type WorkspaceProvider = "Google Docs" | "Notion" | "Web article";
 
 export function UrlInput() {
   const router = useRouter();
+  const [dragging, setDragging] = useState(false);
   const [audience, setAudience] = useState<AudienceLevel>("general");
   const [style, setStyle] = useState<BrandStyle>("editorial");
   const [publishingGoal, setPublishingGoal] = useState<PublishingGoal>("teach");
   const [voiceProfileId, setVoiceProfileId] = useState<VoiceProfileId>("clear_expert");
-  const submitting = false;
+  const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null); // filename being uploaded
   const [error, setError] = useState<string | null>(null);
   const [connectorNotice, setConnectorNotice] = useState<string | null>(null);
+  const [workspaceProvider, setWorkspaceProvider] =
+    useState<WorkspaceProvider | null>(null);
+  const [workspaceUrl, setWorkspaceUrl] = useState("");
   const [quota, setQuota] = useState<Quota | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const googleDocsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const notionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreWorkspaceFocusRef = useRef<WorkspaceProvider | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,11 +116,37 @@ export function UrlInput() {
     };
   }, []);
 
+  useEffect(() => {
+    if (workspaceProvider || !restoreWorkspaceFocusRef.current) return;
+    const provider = restoreWorkspaceFocusRef.current;
+    restoreWorkspaceFocusRef.current = null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const trigger =
+        provider === "Google Docs"
+          ? googleDocsTriggerRef.current
+          : notionTriggerRef.current;
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [workspaceProvider]);
+
+  useEffect(() => {
+    if (!workspaceProvider) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeWorkspaceConnector();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [workspaceProvider]);
+
   async function uploadFile(file: File) {
     setError(null);
     setConnectorNotice(null);
-    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
-      setError("Only PDF files are supported.");
+    setWorkspaceProvider(null);
+    if (!isSupportedDocumentUpload(file.name, file.type)) {
+      setError("Upload a PDF, Word (.docx), Markdown, or text document.");
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -142,66 +182,141 @@ export function UrlInput() {
     }
   }
 
-  function previewConnector(provider: "Google Docs" | "Notion" | "Journal") {
+  function openWorkspaceConnector(provider: WorkspaceProvider) {
     setError(null);
-    if (provider === "Journal") {
-      setConnectorNotice("Journal import is coming soon. For now, export an entry as a PDF and upload it here.");
+    setConnectorNotice(null);
+    setWorkspaceUrl("");
+    setWorkspaceProvider(provider);
+  }
+
+  function closeWorkspaceConnector() {
+    if (!workspaceProvider) return;
+    setError(null);
+    restoreWorkspaceFocusRef.current = workspaceProvider;
+    setWorkspaceProvider(null);
+  }
+
+  function openJournalExport() {
+    setError(null);
+    setWorkspaceProvider(null);
+    setConnectorNotice(
+      "Choose the PDF, Word, Markdown, or text export from Journal."
+    );
+    fileRef.current?.click();
+  }
+
+  async function submitWorkspaceLink() {
+    if (!workspaceProvider || submitting || uploading || blocked) return;
+    setError(null);
+    setConnectorNotice(null);
+    const validationError = validateWorkspaceUrl(
+      workspaceUrl,
+      workspaceProvider
+    );
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    setConnectorNotice(`${provider} is ready for OAuth setup. Add the provider credentials to enable document selection.`);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: workspaceUrl.trim(),
+          audienceLevel: audience,
+          style,
+          publishingGoal,
+          voiceProfileId,
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 402) {
+        setQuota(data?.quota ?? null);
+        setSubmitting(false);
+        return;
+      }
+      if (!res.ok) {
+        setError(data?.error || `Could not read this document (${res.status}).`);
+        setSubmitting(false);
+        return;
+      }
+      router.push(`/j/${data.jobId}`);
+    } catch (requestError) {
+      setError((requestError as Error).message || "Network error");
+      setSubmitting(false);
+    }
   }
 
   const blocked = quota?.blocked === true;
 
   return (
-    <form onSubmit={(event) => event.preventDefault()} className="space-y-5">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (workspaceProvider) void submitWorkspaceLink();
+      }}
+      onDragOver={event => { if (event.dataTransfer.types.includes("Files") && !submitting && !uploading && !blocked) { event.preventDefault(); setDragging(true); } }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+      onDrop={event => { if (!event.dataTransfer.types.includes("Files")) return; event.preventDefault(); setDragging(false); if (submitting || uploading || blocked) return; const file = event.dataTransfer.files[0]; if (file) void uploadFile(file); }}
+      className={"interactive-source space-y-5 " + (dragging ? "is-dragging" : "")}
+      aria-busy={submitting || !!uploading}
+    >
+      {dragging && <p role="status" className="drop-feedback">Drop your document to start a story</p>}
       <div>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
-              Choose your source
+              <CursorText text="Choose your source" />
             </p>
-            <p className="mt-1 text-sm text-ink-soft">Connect a workspace or upload your document.</p>
+            <p className="mt-1 text-sm text-ink-soft"><CursorText text="Bring an article, document, or reading note." /></p>
           </div>
-          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block">Private by default</span>
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block"><CursorText text="Review before generating" /></span>
         </div>
 
+        {connectorNotice && workspaceProvider && <p role="status" className="mb-3 rounded-xl bg-paper-soft p-3 text-xs text-ink-soft">{connectorNotice}</p>}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <button
+            ref={googleDocsTriggerRef}
             type="button"
-            onClick={() => previewConnector("Google Docs")}
+            onClick={() => openWorkspaceConnector("Google Docs")}
+            aria-expanded={workspaceProvider === "Google Docs"}
+            aria-controls="workspace-document-link-form"
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#e4e4e4] bg-[#fafafa] text-sm font-bold text-[#4285f4]">G</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
-              <span><b className="block text-sm text-ink">Google Docs</b><small className="mt-1 block text-[11px] text-ink-muted">Choose from Drive</small></span>
+              <span><b className="block text-sm text-ink"><CursorText text="Google Docs" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Use a shared link" /></small></span>
               <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
             </span>
           </button>
 
           <button
+            ref={notionTriggerRef}
             type="button"
-            onClick={() => previewConnector("Notion")}
+            onClick={() => openWorkspaceConnector("Notion")}
+            aria-expanded={workspaceProvider === "Notion"}
+            aria-controls="workspace-document-link-form"
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#d9d9d9] bg-white font-serif text-sm font-bold text-[#333]">N</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
-              <span><b className="block text-sm text-ink">Notion</b><small className="mt-1 block text-[11px] text-ink-muted">Select a page</small></span>
+              <span><b className="block text-sm text-ink"><CursorText text="Notion" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Use a shared link" /></small></span>
               <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => previewConnector("Journal")}
+            onClick={openJournalExport}
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <JournalLogo />
             <span className="mt-4 flex w-full items-end justify-between gap-3">
-              <span><b className="block text-sm text-ink">Journal</b><small className="mt-1 block text-[11px] text-ink-muted">Import an entry</small></span>
+              <span><b className="block text-sm text-ink"><CursorText text="Journal" /></b><small className="mt-1 block text-[11px] text-ink-muted"><CursorText text="Upload an export" /></small></span>
               <span aria-hidden className="text-ink-muted transition-transform group-hover:translate-x-0.5">→</span>
             </span>
           </button>
@@ -210,20 +325,21 @@ export function UrlInput() {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9fbe52] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef6df] text-base font-bold text-[#648e2e]">↑</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
-              <span><b className="block text-sm text-ink">Upload document</b><small className="mt-1 block text-[11px] text-ink-muted">{uploading ? `Uploading ${uploading}…` : "PDF · up to 25 MB"}</small></span>
+              <span><b className="block text-sm text-ink"><CursorText text="Upload document" /></b><small className="mt-1 block text-[11px] leading-4 text-ink-muted"><CursorText text={uploading ? `Uploading ${uploading}…` : DOCUMENT_UPLOAD_LABEL} /></small></span>
               <span aria-hidden className="text-ink-muted transition-transform group-hover:-translate-y-0.5">↑</span>
             </span>
           </button>
         </div>
 
+        <p className="mt-3 text-center text-[10px] text-ink-muted"><CursorText text="You can also drag a PDF, Word, Markdown, or text file here." /></p>
         <input
           ref={fileRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept={DOCUMENT_UPLOAD_ACCEPT}
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -232,16 +348,66 @@ export function UrlInput() {
           }}
         />
 
-        {connectorNotice ? (
+        {workspaceProvider ? (
+          <div id="workspace-document-link-form" className="mt-3 rounded-2xl border border-paper-line bg-white p-4 shadow-[0_18px_40px_-34px_rgba(16,16,16,.55)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-ink">
+                  {workspaceProvider === "Web article" ? "Start with a source link" : `Add a ${workspaceProvider} document`}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-ink-muted">
+                  Paste a public article or shared document. You’ll review the brief before Readopp creates your panels.
+                </p>
+              </div>
+              {workspaceProvider !== "Web article" && <button
+                type="button"
+                onClick={closeWorkspaceConnector}
+                aria-label="Close document link form"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm text-ink-muted transition hover:bg-paper hover:text-ink"
+              >
+                ×
+              </button>}
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="workspace-document-url">
+                Shared {workspaceProvider} link
+              </label>
+              <input
+                id="workspace-document-url"
+                aria-invalid={!!error}
+                aria-describedby={error ? "source-error" : undefined}
+                type="url"
+                value={workspaceUrl}
+                onChange={(event) => setWorkspaceUrl(event.target.value)}
+                placeholder={
+                  workspaceProvider === "Google Docs"
+                    ? "https://docs.google.com/document/d/…"
+                    : workspaceProvider === "Notion" ? "https://your-page.notion.site/…" : "https://example.com/article"
+                }
+                disabled={submitting || !!uploading || blocked}
+                className="min-w-0 flex-1 rounded-xl border border-paper-line bg-paper px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-ink-muted disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={submitting || !!uploading || blocked || !workspaceUrl.trim()}
+                className="shrink-0 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-paper transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "Reading…" : "Create story →"}
+              </button>
+            </div>
+          </div>
+        ) : connectorNotice ? (
           <p role="status" className="mt-3 rounded-xl bg-[#f5f1e9] px-4 py-3 text-xs leading-5 text-ink-soft">
             {connectorNotice}
           </p>
         ) : null}
+
+
       </div>
 
       <details className="group border-y border-paper-line py-3">
         <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-medium text-ink-soft">
-          <span>Adjust the brief <span className="font-normal text-ink-muted">— optional</span></span>
+          <span><CursorText text="Adjust the brief" /> <span className="font-normal text-ink-muted"><CursorText text="— optional" /></span></span>
           <span aria-hidden className="text-base transition-transform group-open:rotate-45">+</span>
         </summary>
         <div className="space-y-6 pt-6">
@@ -343,6 +509,7 @@ export function UrlInput() {
 
       {error && (
         <div
+          id="source-error"
           role="alert"
           className="rounded-md border border-paper-line bg-paper-soft px-3 py-2 text-sm text-ink-soft"
         >
@@ -377,6 +544,40 @@ export function UrlInput() {
       )}
     </form>
   );
+}
+
+function validateWorkspaceUrl(
+  value: string,
+  provider: WorkspaceProvider
+): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return `Paste a valid ${provider} link.`;
+  }
+  if (url.protocol !== "https:") {
+    return "Use the secure https:// document link.";
+  }
+  const host = url.hostname.toLowerCase();
+  if (
+    provider === "Google Docs" &&
+    !(host === "docs.google.com" && url.pathname.startsWith("/document/"))
+  ) {
+    return "Paste a Google Docs document link from docs.google.com.";
+  }
+  if (
+    provider === "Notion" &&
+    !(
+      host === "notion.so" ||
+      host.endsWith(".notion.so") ||
+      host === "notion.site" ||
+      host.endsWith(".notion.site")
+    )
+  ) {
+    return "Paste a public Notion page link from notion.site or notion.so.";
+  }
+  return null;
 }
 
 function JournalLogo() {
@@ -436,7 +637,7 @@ function BlockedPanel({ quota }: { quota: Quota }) {
           You&rsquo;ve used your {quota.max} free generations.
         </p>
         <p className="mt-1 text-xs text-ink-muted">
-          Sign in with Google to keep generating — your existing explainers
+          Sign in with Google to keep generating — your existing stories
           stay attached to your account.
         </p>
       </div>

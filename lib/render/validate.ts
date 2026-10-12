@@ -1,4 +1,5 @@
 import { JSDOM } from "jsdom";
+import { panelContentSafetyError } from "./contentSafety";
 
 export type ValidationResult =
   | { ok: true }
@@ -38,6 +39,8 @@ export function stripFences(raw: string): string {
 const ALLOWED_FONT_SIZES = new Set([12, 14, 56]);
 
 export function validateSvg(svg: string): ValidationResult {
+  const safetyError = panelContentSafetyError(svg);
+  if (safetyError) return { ok: false, reason: safetyError };
   if (!/^<svg[\s>]/i.test(svg.trim())) {
     return { ok: false, reason: "Output does not start with an <svg> tag." };
   }
@@ -124,6 +127,8 @@ export function validateSvg(svg: string): ValidationResult {
  * Once a human has edited the panel they're the source of truth.
  */
 export function validateUserSvg(svg: string): ValidationResult {
+  const safetyError = panelContentSafetyError(svg);
+  if (safetyError) return { ok: false, reason: safetyError };
   if (!/^<svg[\s>]/i.test(svg.trim())) {
     return { ok: false, reason: "Output does not start with an <svg> tag." };
   }
@@ -137,6 +142,10 @@ export function validateUserSvg(svg: string): ValidationResult {
     );
     const root = dom.window.document.querySelector("svg");
     if (!root) return { ok: false, reason: "No <svg> root parseable." };
+
+    if (dom.window.document.body.children.length !== 1 || root.parentElement !== dom.window.document.body) {
+      return { ok: false, reason: "Panel artwork must contain one SVG root." };
+    }
 
     const viewBox = root.getAttribute("viewBox") || "";
     const m = viewBox.match(
@@ -167,6 +176,8 @@ export function validateUserSvg(svg: string): ValidationResult {
 }
 
 export function validateHtmlPanel(html: string): ValidationResult {
+  const safetyError = panelContentSafetyError(html);
+  if (safetyError) return { ok: false, reason: safetyError };
   const t = html.trim();
   if (!t.startsWith("<")) {
     return { ok: false, reason: "HTML panel must start with an element." };

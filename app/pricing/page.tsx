@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/marketing/Footer";
 import { Nav } from "@/components/marketing/Nav";
+import { redirect } from "next/navigation";
+import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
 
 export const metadata: Metadata = {
   title: "Pricing — Readopp",
@@ -10,6 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
+  if (!PRO_FEATURES_ENABLED) redirect("/");
   return (
     <div className="force-light min-h-screen bg-[#f2ebf7] text-[#484848]">
       <Nav />

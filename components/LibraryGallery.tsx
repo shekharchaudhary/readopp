@@ -18,17 +18,17 @@ export interface LibraryItem {
 }
 
 export function LibraryGallery({ initialItems }: { initialItems: LibraryItem[] }) {
+  const [sort, setSort] = useState("newest");
   const [query, setQuery] = useState("");
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    if (!needle) return initialItems;
-
-    return initialItems.filter((item) =>
+    const filtered = initialItems.filter((item) =>
       `${item.title} ${item.summary} ${sourceLabel(item.url)}`
         .toLocaleLowerCase()
         .includes(needle),
     );
-  }, [initialItems, query]);
+    return sort === "title" ? [...filtered].sort((a, b) => a.title.localeCompare(b.title)) : sort === "oldest" ? [...filtered].reverse() : filtered;
+  }, [initialItems, query, sort]);
 
   if (initialItems.length === 0) return <EmptyLibrary />;
 
@@ -39,11 +39,14 @@ export function LibraryGallery({ initialItems }: { initialItems: LibraryItem[] }
           <p className="text-xs font-bold uppercase tracking-[.13em] text-[#8b877f]">
             Saved stories
           </p>
-          <p className="mt-2 text-sm text-[#77736c]">
-            {initialItems.length} {initialItems.length === 1 ? "story" : "stories"} in your library
+          <p role="status" aria-live="polite" className="mt-2 text-sm text-[#77736c]">
+            {visibleItems.length} {visibleItems.length === 1 ? "story" : "stories"}{query ? ` matching “${query}”` : " in your library"}
           </p>
         </div>
-        <label className="relative block w-full sm:max-w-xs">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <label className="sr-only" htmlFor="library-sort">Sort stories</label>
+        <select id="library-sort" value={sort} onChange={event => setSort(event.target.value)} className="rounded-xl border border-paper-line bg-surface px-3 py-2.5 text-xs text-ink-soft"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select>
+        <label className="relative block w-full sm:w-64">
           <span className="sr-only">Search your library</span>
           <svg aria-hidden viewBox="0 0 20 20" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8c8881]">
             <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -57,6 +60,7 @@ export function LibraryGallery({ initialItems }: { initialItems: LibraryItem[] }
             className="w-full rounded-xl border border-[#d8d4ca] bg-white py-2.5 pl-10 pr-4 text-sm text-[#484848] outline-none transition placeholder:text-[#a19d95] focus:border-[#94b85f] focus:ring-2 focus:ring-[#cce68a]/40"
           />
         </label>
+        </div>
       </div>
 
       {visibleItems.length > 0 ? (
@@ -69,6 +73,7 @@ export function LibraryGallery({ initialItems }: { initialItems: LibraryItem[] }
         <div className="rounded-2xl border border-dashed border-[#cec9bf] px-6 py-16 text-center">
           <h2 className="text-xl font-bold tracking-[-.03em] text-[#484848]">No matching stories</h2>
           <p className="mt-2 text-sm text-[#77736c]">Try another title, topic, or source.</p>
+          <button type="button" onClick={() => setQuery("")} className="mt-4 rounded-lg border border-paper-line px-4 py-2 text-xs text-ink-soft">Clear search</button>
         </div>
       )}
     </div>
@@ -77,7 +82,7 @@ export function LibraryGallery({ initialItems }: { initialItems: LibraryItem[] }
 
 function LibraryCard({ item, index }: { item: LibraryItem; index: number }) {
   return (
-    <li className="library-card group overflow-hidden rounded-[22px] border border-[#dedbd3] bg-white" style={{ "--library-index": index } as React.CSSProperties}>
+    <li data-motion-item className="library-card group overflow-hidden rounded-[22px] border border-[#dedbd3] bg-white" style={{ "--library-index": index } as React.CSSProperties}>
       <Link href={`/e/${item.id}`} className="block h-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7eae3f]">
         <div className="force-light relative aspect-[4/3] overflow-hidden border-b border-[#ebe8e1] bg-[#f5f1e9]">
           {item.preview ? (

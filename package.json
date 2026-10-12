@@ -9,6 +9,21 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "templates:lab": "node scripts/template-quality-lab.mjs",
+    "templates:scenes": "tsx scripts/template-scene-check.ts",
+    "templates:storyboards": "tsx scripts/render-identity-storyboards.ts",
+    "creation:check": "tsx scripts/creation-structure-check.ts",
+    "creation:resume-check": "tsx scripts/runner-resume-check.ts",
+    "creation:privacy-check": "node scripts/job-privacy-flow.mjs",
+    "e2e:editorial-brief": "node scripts/editorial-brief-flow.mjs",
+    "recommendations:api": "node scripts/template-recommendation-api-flow.mjs",
+    "e2e:canvas-recovery": "node scripts/canvas-recovery-flow.mjs",
+    "e2e:layout-canvas-handoff": "node scripts/layout-canvas-handoff-flow.mjs",
+    "e2e:mobile-template-picker": "node scripts/mobile-template-picker-flow.mjs",
+    "e2e:panel-actions-keyboard": "node scripts/panel-actions-keyboard-flow.mjs",
+    "e2e:export-parity": "node scripts/export-parity-flow.mjs",
+    "e2e:mobile-editor": "node scripts/mobile-editor-flow.mjs",
+    "e2e:desktop-editor": "node scripts/desktop-editor-flow.mjs",
+    "e2e:blank-panel-canvas": "node scripts/blank-panel-canvas-flow.mjs",
     "harness:all": "node scripts/agent-harness.mjs all",
     "harness:ingest": "node scripts/agent-harness.mjs ingest",
     "harness:comprehension": "node scripts/agent-harness.mjs comprehension",
@@ -17,10 +32,12 @@
     "harness:render": "node scripts/agent-harness.mjs render",
     "harness:assembly": "node scripts/agent-harness.mjs assembly",
     "harness:social": "node scripts/agent-harness.mjs social",
-    "harness:regenerate": "node scripts/agent-harness.mjs regenerate"
+    "harness:regenerate": "node scripts/agent-harness.mjs regenerate",
+    "core:security-check": "node --import tsx scripts/core-security-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@chenglou/pretext": "0.0.9",
     "@excalidraw/excalidraw": "^0.18.1",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@mozilla/readability": "^0.5.0",
@@ -48,7 +65,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
-    "typescript": "^5.6.3",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.12",
+    "typescript": "^5.6.3"
   }
 }

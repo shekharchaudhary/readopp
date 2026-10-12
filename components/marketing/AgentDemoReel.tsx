@@ -47,7 +47,7 @@ const CHAPTERS: Chapter[] = [
   {
     n: "04",
     title: "Share it anywhere",
-    body: "Export as a square for Instagram, vertical for TikTok or Reels, landscape for LinkedIn. Every frame carries a QR back to the live, editable explainer.",
+    body: "Export as a square for Instagram, vertical for TikTok or Reels, landscape for LinkedIn. Every frame carries a QR back to the live, editable story.",
     durationMs: 9000,
     demo: () => <Demo4Share />,
   },

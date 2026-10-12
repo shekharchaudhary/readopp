@@ -141,7 +141,10 @@ const config: Config = {
         blink: "blink 1s steps(2, start) infinite",
         "fade-up": "fade-up 240ms ease-out both",
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
-        "rise-in": "rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        // Apply the starting frame during stagger delays, then release the
+        // transform after the reveal. A persistent transform would trap
+        // fixed mobile dialogs inside animated cards.
+        "rise-in": "rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards",
         "draw-in": "draw-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both",
         drip: "drip 1.2s ease-in infinite",
       },

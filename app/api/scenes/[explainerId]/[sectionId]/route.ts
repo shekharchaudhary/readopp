@@ -11,7 +11,9 @@ import { getCurrentUserId } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_SCENE_BYTES = 2_000_000;
+// Keep below Vercel's request ceiling while leaving room for an optimized
+// imported image plus native canvas elements.
+const MAX_SCENE_BYTES = 4_000_000;
 
 interface RouteParams {
   params: { explainerId: string; sectionId: string };

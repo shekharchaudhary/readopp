@@ -1,27 +1,37 @@
 "use client";
 
 import { getBrowserSupabase } from "./client";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 
-const CLAIM_COOKIE = "readopp_claim_from";
-
-/**
- * Start a Google sign-in flow. If the current session is anonymous, we drop
- * a short-lived cookie with the anonymous user_id so the /auth/callback
- * route can reattach that user's explainers to the new permanent account
- * after Supabase has issued the new session.
- *
- * (We used to use Supabase's `linkIdentity` to keep the same user row, but
- * that requires a project-level "Allow manual linking" setting that isn't
- * exposed in the hosted dashboard. The server-side claim works without it.)
- */
 export async function signInWithGoogle(nextPath: string = "/"): Promise<void> {
   const supabase = getBrowserSupabase();
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
-  const { data: existing } = await supabase.auth.getUser();
+  const { data: existing, error: sessionError } = await supabase.auth.getUser();
+  if (isAuthRetryableFetchError(sessionError)) {
+    throw new Error("The sign-in service is unavailable. Please try again shortly.");
+  }
+
+  // With no existing session, getUser does not contact Supabase. Check the
+  // service before navigating away so an unavailable project produces an
+  // actionable error here instead of a browser DNS error on the OAuth page.
+  let health: Response;
+  try {
+    health = await fetch(`${supabase.supabaseUrl}/auth/v1/health`, {
+      headers: { apikey: supabase.supabaseKey },
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    throw new Error("The sign-in service could not be reached. Check your connection and try again.");
+  }
+  if (!health.ok) {
+    throw new Error("The sign-in service is unavailable. Please try again shortly.");
+  }
   if (existing.user?.is_anonymous) {
-    // SameSite=Lax so it survives the cross-origin OAuth redirect chain.
-    document.cookie = `${CLAIM_COOKIE}=${existing.user.id}; path=/; max-age=600; SameSite=Lax`;
+    const prepared = await fetch("/api/auth/prepare", { method: "POST" });
+    if (!prepared.ok) {
+      throw new Error("Could not secure your existing drafts. Please retry sign-in.");
+    }
   }
 
   const { error } = await supabase.auth.signInWithOAuth({

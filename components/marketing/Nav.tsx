@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MobileNav } from "./MobileNav";
 import { AuthMenu } from "@/components/AuthMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getBrowserSupabase } from "@/lib/supabase/client";
+
+import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -71,16 +74,18 @@ export function Nav() {
           >
             How it works
           </a>
+          {PRO_FEATURES_ENABLED && (
           <Link
             href="/pricing"
             className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] lg:inline-block"
           >
             Pricing
           </Link>
+          )}
           {signedIn && (
             <Link
               href="/library"
-              className="rounded-md px-2 py-1.5 font-semibold text-[#666] transition-colors hover:text-[#333] sm:px-3"
+              className="hidden rounded-md px-2 py-1.5 font-semibold text-[#666] transition-colors hover:text-[#333] sm:inline-block sm:px-3"
             >
               Library
             </Link>
@@ -95,6 +100,7 @@ export function Nav() {
             <span aria-hidden className="mx-1 hidden h-5 w-px bg-[#e5e5e5] sm:block" />
             <ThemeToggle className="hidden sm:inline-flex" />
             <AuthMenu />
+            <MobileNav signedIn={signedIn} />
           </span>
         </div>
       </div>

@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import type { BrandKit, Explainer, PublishingGoal } from "../shared/schemas";
 import { sourceLabel } from "../shared/source";
 import type { TemplateDef } from "../templates/types";
+import { renderPanelWithCanvasOverride } from "../templates/canvasOverride";
 
 /** Per-format dimensions and typography for video output. */
 export type VideoFormat = "vertical" | "square";
@@ -137,7 +138,7 @@ export async function buildVideoHtml(input: BuildInput): Promise<VideoBuild> {
   // the same pixel dimensions.
   const slides = await Promise.all(
     panels.map((panel, i) =>
-      template.renderPanel({
+      renderPanelWithCanvasOverride(template, {
         explainer,
         panel,
         format,

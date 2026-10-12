@@ -103,6 +103,7 @@ export async function POST(
     validated: next.validated,
     edited: false,
     plan: nextPlan,
+    copyOverrides: undefined,
   };
   const { data: updatedRow, error } = await supabase
     .from("explainers")

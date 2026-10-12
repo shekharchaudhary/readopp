@@ -9,7 +9,7 @@ export const BENCHMARK_SOURCES = [
 ] as const;
 
 export const BENCHMARK_TEMPLATES: TemplateId[] = [
-  "aurora-glass", "bento-grid", "swiss-poster", "editorial-broadsheet", "sticky-notes",
+  "adaptive-editorial", "aurora-glass", "bento-grid", "swiss-poster", "editorial-broadsheet", "sticky-notes",
 ];
 
 export const BENCHMARK_GOALS: PublishingGoal[] = ["teach", "key_findings", "make_argument"];

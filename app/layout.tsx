@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import { PageMotion } from "@/components/ui/PageMotion";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -18,17 +19,17 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "Readopp — Visual posts from anything you read",
   description:
-    "The shortest path from great read to great post. Paste a URL, paper, or PDF — Readopp turns it into a share-ready visual carousel for LinkedIn, X, and Substack in under 30 seconds. You shouldn't have to design what you already understand.",
+    "Bring a Google Doc, Notion page, journal export, PDF, Word file, or reading notes. Readopp finds the story and turns it into a distinctive visual post for LinkedIn, X, or Substack in minutes.",
   openGraph: {
     title: "Readopp — Visual posts from anything you read",
     description:
-      "Turn the articles, papers, and PDFs you read into share-ready visual posts for LinkedIn, X, and Substack in under 30 seconds.",
+      "Turn documents, notes, papers, and reading highlights into share-ready visual posts for LinkedIn, X, and Substack.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "Readopp — Visual posts from anything you read",
-    description: "The shortest path from great read to great post.",
+    description: "Bring one document. Leave with a visual story worth sharing.",
   },
 };
 
@@ -50,7 +51,8 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="min-h-screen bg-paper text-ink font-sans antialiased">
+      <body className="app-interactions min-h-screen bg-paper text-ink font-sans antialiased">
+        <PageMotion />
         {children}
       </body>
     </html>

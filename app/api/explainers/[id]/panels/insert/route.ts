@@ -10,10 +10,9 @@ const BodySchema = z.object({
 });
 
 /**
- * Insert a blank panel after the given sectionId (or at the end when
- * the field is omitted / the id isn't present). Returns the updated
- * explainer + the newly created panel's sectionId so the client can
- * scroll to it or auto-open the editor.
+ * Insert a blank panel after the given sectionId, or at the beginning when
+ * the field is omitted. Returns the updated story + the new panel's sectionId
+ * so the client can open its canvas immediately.
  */
 export async function POST(
   req: Request,

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PanelCopyOverridesSchema } from "@/lib/shared/schemas";
 import { validateHtmlPanel, validateUserSvg } from "@/lib/render/validate";
 import { deletePanel, getExplainer, updatePanel } from "@/lib/store";
+import {
+  panelLayoutCompatibility,
+  templateSupportsPanelLayouts,
+} from "@/lib/templates/panelLayouts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,20 +16,26 @@ const MAX_CAPTION = 600;
 // Excalidraw exports can be larger than the original generated SVG because
 // every editable element carries its own vector metadata. Keep the request
 // bounded while leaving enough room for a genuinely customized panel.
-const MAX_CONTENT = 750_000;
+const MAX_CONTENT = 2_000_000;
 
 const PatchSchema = z
   .object({
     heading: z.string().trim().min(1).max(MAX_HEADING).optional(),
     caption: z.string().trim().max(MAX_CAPTION).optional(),
     content: z.string().max(MAX_CONTENT).optional(),
+    themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    layoutVariant: z.enum(["auto", "cover", "hierarchy", "radial", "architecture", "chart", "diverging", "priorities", "report", "contents", "essay"]).optional(),
+    copyOverrides: PanelCopyOverridesSchema.nullable().optional(),
   })
   .refine(
     (v) =>
       v.heading !== undefined ||
       v.caption !== undefined ||
-      v.content !== undefined,
-    "Provide at least one of heading, caption, or content."
+      v.content !== undefined ||
+      v.themeColor !== undefined ||
+      v.layoutVariant !== undefined ||
+      v.copyOverrides !== undefined,
+    "Provide at least one editable panel field."
   );
 
 export async function PATCH(
@@ -49,7 +60,10 @@ export async function PATCH(
   // If content was provided, validate it against the panel's existing format
   // — block <script>, malformed SVG, or wrong viewBox so a bad edit can't
   // corrupt the persisted panel.
-  if (parsed.data.content !== undefined) {
+  if (
+    parsed.data.content !== undefined ||
+    parsed.data.layoutVariant !== undefined
+  ) {
     const explainer = await getExplainer(params.id);
     if (!explainer) {
       return NextResponse.json(
@@ -64,18 +78,36 @@ export async function PATCH(
         { status: 404 }
       );
     }
-    // User edits use a lenient validator (parseable + no script/foreignObject +
-    // sane viewBox). The strict design-system whitelist only applies to
-    // pristine model output, never hand-edited panels.
-    const v =
-      panel.format === "svg"
-        ? validateUserSvg(parsed.data.content)
-        : validateHtmlPanel(parsed.data.content);
-    if (!v.ok) {
-      return NextResponse.json(
-        { error: `Edited content rejected: ${v.reason}` },
-        { status: 400 }
+    if (parsed.data.content !== undefined) {
+      // User edits use a lenient validator (parseable + no script/foreignObject +
+      // sane viewBox). The strict design-system whitelist only applies to
+      // pristine model output, never hand-edited panels.
+      const v =
+        panel.format === "svg"
+          ? validateUserSvg(parsed.data.content)
+          : validateHtmlPanel(parsed.data.content);
+      if (!v.ok) {
+        return NextResponse.json(
+          { error: `Edited content rejected: ${v.reason}` },
+          { status: 400 }
+        );
+      }
+    }
+    if (
+      parsed.data.layoutVariant &&
+      parsed.data.layoutVariant !== "auto" &&
+      templateSupportsPanelLayouts(explainer.template)
+    ) {
+      const compatibility = panelLayoutCompatibility(
+        panel,
+        parsed.data.layoutVariant
       );
+      if (!compatibility.compatible) {
+        return NextResponse.json(
+          { error: compatibility.reason ?? "Layout is not compatible with this panel." },
+          { status: 422 }
+        );
+      }
     }
   }
 
