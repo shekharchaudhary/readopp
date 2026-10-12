@@ -1,3 +1,4 @@
+import { MARKETING_COPY } from "@/lib/marketingCopy";
 import Link from "next/link";
 
 import { PRO_FEATURES_ENABLED } from "@/lib/featureFlags";
@@ -10,10 +11,10 @@ export function Footer() {
         <div className="flex flex-col gap-5 border-t border-white/20 pt-7 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="font-display text-xl font-semibold tracking-[-.04em] text-paper">Readopp</Link>
-            <span className="hidden text-sm text-paper-line/60 sm:inline">Good reads, made visible.</span>
+            <span className="hidden text-sm text-paper-line/60 sm:inline">{MARKETING_COPY.slogan}</span>
           </div>
           <nav aria-label="Footer" className="flex items-center gap-5 text-sm">
-            <Link href="/#try" className="text-paper-line/75 hover:text-paper">Make a post</Link>
+            <Link href="/#try" className="text-paper-line/75 hover:text-paper">Create a story</Link>
             {PRO_FEATURES_ENABLED && <Link href="/pricing" className="text-paper-line/75 hover:text-paper">Pricing</Link>}
             <a href="https://github.com/shekharchaudhary/readopp" target="_blank" rel="noopener noreferrer" className="text-paper-line/75 hover:text-paper">GitHub</a>
           </nav>

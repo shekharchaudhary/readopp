@@ -78,22 +78,24 @@ export function TemplateParallax({ activeStep }: { activeStep: WorkflowStep }) {
     <div ref={stageRef} className="template-parallax" data-step={activeStep} role="img" aria-label={SCENE_LABELS[activeStep]}>
       <div className="template-layer template-layer--far template-workspace" aria-hidden>
         <WorkspaceBar activeStep={activeStep} />
-        <div key={activeStep} className="template-scene">
-          {activeStep === 1 ? <SourceScene /> : null}
-          {activeStep === 2 ? <StoryScene /> : null}
-          {activeStep === 3 ? <EditorScene /> : null}
+        <div className="template-scene-stack">
+          <div className="template-scene" data-scene-active={activeStep === 1}><SourceScene /></div>
+          <div className="template-scene" data-scene-active={activeStep === 2}><StoryScene /></div>
+          <div className="template-scene" data-scene-active={activeStep === 3}><EditorScene /></div>
         </div>
       </div>
 
-      {activeStep === 1 ? <SourcePanel /> : null}
-      {activeStep === 2 ? <SignalsPanel /> : null}
-      {activeStep === 3 ? <ColorPanel /> : null}
+      <SourcePanel active={activeStep === 1} />
+      <SignalsPanel active={activeStep === 2} />
+      <ColorPanel active={activeStep === 3} />
 
-      <div key={`format-${activeStep}`} className="template-layer template-layer--near template-export-panel template-scene" aria-hidden>
-        <span>{activeStep === 3 ? "Format" : activeStep === 2 ? "Story shape" : "Source type"}</span>
-        <b>{activeStep === 3 ? "LinkedIn carousel" : activeStep === 2 ? "Claim → evidence" : "Article or PDF"}</b>
-        <i>{activeStep === 3 ? "⌄" : "✓"}</i>
-      </div>
+      {([1, 2, 3] as const).map(step => (
+        <div key={step} className="template-layer template-layer--near template-export-panel template-scene" data-scene-active={activeStep === step} aria-hidden>
+          <span>{step === 3 ? "Format" : step === 2 ? "Story shape" : "Source type"}</span>
+          <b>{step === 3 ? "LinkedIn carousel" : step === 2 ? "Claim → evidence" : "Article or PDF"}</b>
+          <i>{step === 3 ? "⌄" : "✓"}</i>
+        </div>
+      ))}
 
       <div className="template-depth-label" aria-hidden>
         <span className="template-depth-dot" />
@@ -192,18 +194,18 @@ function EditorScene() {
   );
 }
 
-function SourcePanel() {
+function SourcePanel({ active }: { active: boolean }) {
   return (
-    <div className="template-layer template-layer--mid template-info-panel template-scene" aria-hidden>
+    <div className="template-layer template-layer--mid template-info-panel template-scene" data-scene-active={active} aria-hidden>
       <span className="template-panel-label">Source ready</span><b>Attention &amp;<br />Deep Work</b>
       <div><i>✓</i><span>Article text found</span></div><div><i>✓</i><span>8 min to process</span></div>
     </div>
   );
 }
 
-function SignalsPanel() {
+function SignalsPanel({ active }: { active: boolean }) {
   return (
-    <div className="template-layer template-layer--mid template-info-panel template-signals-panel template-scene" aria-hidden>
+    <div className="template-layer template-layer--mid template-info-panel template-signals-panel template-scene" data-scene-active={active} aria-hidden>
       <span className="template-panel-label">Story signals</span><b>6 useful ideas</b>
       <div><i className="template-signal-dot template-signal-dot--claim" /><span>Claim</span></div>
       <div><i className="template-signal-dot template-signal-dot--proof" /><span>Evidence</span></div>
@@ -212,9 +214,9 @@ function SignalsPanel() {
   );
 }
 
-function ColorPanel() {
+function ColorPanel({ active }: { active: boolean }) {
   return (
-    <div className="template-layer template-layer--mid template-color-panel template-scene" aria-hidden>
+    <div className="template-layer template-layer--mid template-color-panel template-scene" data-scene-active={active} aria-hidden>
       <div><span>COLORS</span><b>×</b></div><p>ACCENT</p>
       <div className="template-swatches">
         <i /><i /><i /><i /><i /><span className="template-swatch-ring" />

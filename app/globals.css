@@ -231,13 +231,11 @@ body {
   color: inherit;
   background: transparent;
   cursor: pointer;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 260ms ease;
+  transition: background-color 360ms ease;
 }
 .process-step:hover,
 .process-step:focus-visible,
 .process-step--active {
-  transform: translateX(8px);
   background: rgb(255 255 255 / 0.55);
 }
 .process-step::before {
@@ -246,20 +244,21 @@ body {
   left: 0;
   top: 50%;
   width: 3px;
-  height: 0;
+  height: 52%;
   border-radius: 99px;
   background: #7eae3f;
-  transform: translateY(-50%);
-  transition: height 220ms ease;
+  transform: translateY(-50%) scaleY(0);
+  opacity: 0;
+  transition: transform 360ms cubic-bezier(.22,1,.36,1), opacity 280ms ease;
 }
-.process-step--active::before { height: 52%; }
+.process-step--active::before { transform: translateY(-50%) scaleY(1); opacity: 1; }
 .process-step:focus-visible {
   outline: 2px solid rgb(126 174 63 / 0.45);
   outline-offset: -2px;
 }
 .process-step__number,
 .process-step__title,
-.process-step__body { transition: color 220ms ease; }
+.process-step__body { transition: color 360ms ease; }
 .process-step--active .process-step__title { color: #283315; }
 .process-step--active .process-step__body { color: #54524d; }
 
@@ -558,15 +557,27 @@ body {
   grid-template-columns: 4.65rem 1fr;
   height: calc(100% - 2.5rem);
 }
+/* Keep scenes mounted so rapid hover reverses the current crossfade smoothly. */
 .template-scene {
-  animation: template-scene-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 360ms ease, visibility 0s linear 360ms, transform 650ms cubic-bezier(.22,1,.36,1);
 }
-.template-workspace > .template-scene {
+.template-scene[data-scene-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.template-scene-stack {
+  position: relative;
   height: calc(100% - 2.5rem);
 }
-.template-workspace > .template-scene > * {
-  height: 100%;
+.template-scene-stack > .template-scene {
+  position: absolute;
+  inset: 0;
 }
+.template-scene-stack > .template-scene > * { height: 100%; }
 .template-scene-kicker,
 .template-panel-label {
   color: #7eae3f;
@@ -1651,10 +1662,45 @@ html { scroll-behavior:smooth; scroll-padding-top:88px; }
  background-image:radial-gradient(circle 95px at var(--ink-x,-200px) var(--ink-y,-200px),#527c2d 0%,var(--ink-rest) 85%);
  background-clip:text; -webkit-background-clip:text; color:transparent;
 }
-.workflow-reveal-word { display:inline-block; }
-.workflow-reveal-word.is-selected { animation:workflow-word-arrive 300ms cubic-bezier(.22,1,.36,1) backwards; }
+.workflow-reveal-word { display:inline-block; opacity:.88; transition:opacity 320ms ease; }
+.workflow-reveal-word.is-selected { opacity:1; }
 @keyframes workflow-word-arrive { from { opacity:.6; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 @media(prefers-reduced-motion:reduce), (hover:none), (pointer:coarse) {
  .workflow-reveal-word.is-selected { animation:none; }
  .workflow-text-region[data-ink-active=true] [data-workflow-ink] { background-image:none; color:var(--ink-rest); }
+}
+
+/* The landing chrome follows the saved theme; artwork keeps its own palette. */
+.landing-page { --c-paper:255 255 255; --c-ink:72 72 72; --c-ink-soft:98 98 98; --c-ink-muted:119 115 108; }
+.landing-green { color:#7eae3f; }
+.landing-how { background:#fff5e9; }
+.landing-nav { backdrop-filter:blur(14px); }
+.dark .landing-page { --c-paper:17 17 17; --c-paper-soft:25 26 23; --c-paper-line:54 57 49; --c-surface:24 25 23; --c-ink:239 241 233; --c-ink-soft:194 201 184; --c-ink-muted:163 173 153; --c-ink-faint:137 146 127; }
+.dark .landing-page .landing-green { color:#b5d881; }
+.dark .landing-page .napkin-grid { background-image:linear-gradient(rgb(200 215 180 / .055) 1px,transparent 1px),radial-gradient(circle at 50% 25%,rgb(126 174 63 / .09),transparent 40%); }
+.dark .landing-page .landing-how { background:#1c1d18; }
+.dark .landing-page .how-stage::before,.dark .landing-page .how-stage::after { background:rgb(126 174 63 / .055); }
+.dark .landing-page .hero-kicker { border-color:rgb(var(--c-paper-line)); }
+.dark .landing-page .hero-composer:hover,.dark .landing-page .hero-composer:focus-within { box-shadow:0 30px 80px -42px rgb(0 0 0 / .8); border-color:#6b854d; }
+.dark .landing-page .process-step--active { background:#242a1c; }
+.dark .landing-page .process-step--active .process-step__title { color:#c7dda6; }
+.dark .landing-page .process-step--active .process-step__body { color:#bcc8ad; }
+.dark .landing-page .workflow-ink-heading,.dark .landing-page .process-step__title { --ink-rest:#eff1e9; }
+.dark .landing-page .workflow-ink-summary { --ink-rest:#a3ad99; }
+.dark .landing-page .process-step__body { --ink-rest:#c2c9b8; }
+.dark .landing-page .process-step--active .process-step__title { --ink-rest:#c7dda6; }
+.dark .landing-page .process-step--active .process-step__body { --ink-rest:#bcc8ad; }
+.dark .landing-page .workflow-text-region[data-ink-active=true] [data-workflow-ink] { background-image:radial-gradient(circle 95px at var(--ink-x,-200px) var(--ink-y,-200px),#c4e59b 0%,var(--ink-rest) 85%); }
+
+/* Falling glyphs do not change word widths or intercept pointer hit testing. */
+.waterfall-word { display:inline-block; white-space:nowrap; }
+.waterfall-glyph { display:inline-block; pointer-events:none; transform-origin:50% 70%; }
+@media(prefers-reduced-motion:reduce), (hover:none), (pointer:coarse) {
+ .waterfall-glyph { transform:none !important; opacity:1 !important; }
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
+  .template-scene, .process-step, .process-step::before,
+  .process-step__number, .process-step__title, .process-step__body,
+  .workflow-reveal-word { transition: none; }
 }

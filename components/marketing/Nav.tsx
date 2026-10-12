@@ -46,16 +46,16 @@ export function Nav() {
     <nav
       aria-label="Primary"
       className={
-        "force-light sticky top-0 z-40 w-full bg-white/95 transition-colors " +
+        "landing-nav sticky top-0 z-40 w-full bg-surface/95 transition-colors " +
         (scrolled
           ? "border-b border-paper-line"
           : "border-b border-transparent")
       }
     >
-      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-8 lg:px-12">
         <Link
           href="/"
-          className="inline-flex items-center gap-2.5 font-sans text-xl font-bold tracking-[-0.04em] text-[#484848]"
+          className="inline-flex items-center gap-2.5 font-sans text-xl font-bold tracking-[-0.04em] text-ink"
           aria-label="Readopp — home"
         >
           <span aria-hidden className="brand-mark grid h-8 w-8 rotate-[-8deg] place-items-center rounded-xl bg-[#cce68a] text-sm text-[#484848]">R</span>
@@ -64,20 +64,20 @@ export function Nav() {
         <div className="flex items-center gap-1 text-sm">
           <a
             href="/#try"
-            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink sm:inline-block"
           >
-            Make a post
+            Create a story
           </a>
           <a
             href="/#how-it-works"
-            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] sm:inline-block"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink sm:inline-block"
           >
             How it works
           </a>
           {PRO_FEATURES_ENABLED && (
           <Link
             href="/pricing"
-            className="hidden rounded-md px-3 py-1.5 text-[#666] transition-colors hover:text-[#333] lg:inline-block"
+            className="hidden rounded-md px-3 py-1.5 text-ink-soft transition-colors hover:text-ink lg:inline-block"
           >
             Pricing
           </Link>
@@ -85,20 +85,20 @@ export function Nav() {
           {signedIn && (
             <Link
               href="/library"
-              className="hidden rounded-md px-2 py-1.5 font-semibold text-[#666] transition-colors hover:text-[#333] sm:inline-block sm:px-3"
+              className="hidden rounded-md px-2 py-1.5 font-semibold text-ink-soft transition-colors hover:text-ink sm:inline-block sm:px-3"
             >
               Library
             </Link>
           )}
           <a
             href="/#try"
-            className="ml-2 hidden rounded-xl bg-[#484848] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#333] sm:inline-block"
+            className="ml-2 hidden rounded-xl bg-ink px-4 py-2.5 text-xs font-semibold text-paper transition hover:bg-ink/90 sm:inline-block"
           >
-            Try it free
+            Start creating
           </a>
           <span className="flex items-center">
-            <span aria-hidden className="mx-1 hidden h-5 w-px bg-[#e5e5e5] sm:block" />
-            <ThemeToggle className="hidden sm:inline-flex" />
+            <span aria-hidden className="mx-1 hidden h-5 w-px bg-paper-line sm:block" />
+            <ThemeToggle />
             <AuthMenu />
             <MobileNav signedIn={signedIn} />
           </span>

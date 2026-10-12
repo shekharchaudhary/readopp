@@ -267,11 +267,11 @@ export function UrlInput() {
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
-              <CursorText text="Choose your source" />
+              <CursorText text="Add your source" />
             </p>
-            <p className="mt-1 text-sm text-ink-soft"><CursorText text="Bring an article, document, or reading note." /></p>
+            <p className="mt-1 text-sm text-ink-soft"><CursorText text="Use a public document link or upload a file." /></p>
           </div>
-          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block"><CursorText text="Review before generating" /></span>
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[.1em] text-ink-faint sm:block"><CursorText text="Review the brief first" /></span>
         </div>
 
         {connectorNotice && workspaceProvider && <p role="status" className="mb-3 rounded-xl bg-paper-soft p-3 text-xs text-ink-soft">{connectorNotice}</p>}
@@ -283,7 +283,7 @@ export function UrlInput() {
             aria-expanded={workspaceProvider === "Google Docs"}
             aria-controls="workspace-document-link-form"
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#e4e4e4] bg-[#fafafa] text-sm font-bold text-[#4285f4]">G</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
@@ -299,7 +299,7 @@ export function UrlInput() {
             aria-expanded={workspaceProvider === "Notion"}
             aria-controls="workspace-document-link-form"
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg border border-[#d9d9d9] bg-white font-serif text-sm font-bold text-[#333]">N</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
@@ -312,7 +312,7 @@ export function UrlInput() {
             type="button"
             onClick={openJournalExport}
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <JournalLogo />
             <span className="mt-4 flex w-full items-end justify-between gap-3">
@@ -325,7 +325,7 @@ export function UrlInput() {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={submitting || !!uploading || blocked}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-[#dfdfdf] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-paper-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#bfcf9d] hover:shadow-[0_16px_30px_-26px_rgba(72,72,72,.65)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#648e2e] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef6df] text-base font-bold text-[#648e2e]">↑</span>
             <span className="mt-4 flex w-full items-end justify-between gap-3">
@@ -349,7 +349,7 @@ export function UrlInput() {
         />
 
         {workspaceProvider ? (
-          <div id="workspace-document-link-form" className="mt-3 rounded-2xl border border-paper-line bg-white p-4 shadow-[0_18px_40px_-34px_rgba(16,16,16,.55)]">
+          <div id="workspace-document-link-form" className="mt-3 rounded-2xl border border-paper-line bg-surface p-4 shadow-[0_18px_40px_-34px_rgba(16,16,16,.55)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-ink">
@@ -397,7 +397,7 @@ export function UrlInput() {
             </div>
           </div>
         ) : connectorNotice ? (
-          <p role="status" className="mt-3 rounded-xl bg-[#f5f1e9] px-4 py-3 text-xs leading-5 text-ink-soft">
+          <p role="status" className="mt-3 rounded-xl bg-paper-soft px-4 py-3 text-xs leading-5 text-ink-soft">
             {connectorNotice}
           </p>
         ) : null}

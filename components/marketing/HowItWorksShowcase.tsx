@@ -16,20 +16,20 @@ const WORKFLOW_STEPS: Array<{
   {
     id: 1,
     number: "01",
-    title: "Bring the source",
-    body: "Bring a Google Doc, Notion page, journal export, PDF, or Word file.",
+    title: "Add your source",
+    body: "Use a public document link or upload a PDF, Word file, or reading notes.",
   },
   {
     id: 2,
     number: "02",
-    title: "Find the story",
-    body: "Readopp identifies the claim, evidence, and useful tension.",
+    title: "Shape the story",
+    body: "Review the brief, choose your angle, and decide what your audience should take away.",
   },
   {
     id: 3,
     number: "03",
-    title: "Edit and publish",
-    body: "Refine the result, then export it for LinkedIn or X.",
+    title: "Make it yours",
+    body: "Edit the words and layouts, then export a visual story ready to share.",
   },
 ];
 
@@ -39,19 +39,18 @@ export function HowItWorksShowcase() {
   return (
     <div className="grid gap-12 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:gap-14">
       <WorkflowTextRegion>
-        <p className="text-xs font-bold uppercase tracking-[.15em] text-[#7eae3f]">
+        <p className="text-xs font-bold uppercase tracking-[.15em] landing-green">
           How it works
         </p>
-        <h2 data-workflow-ink className="workflow-ink-heading mt-4 text-4xl font-bold leading-none tracking-[-.05em] text-[#484848] sm:text-5xl">
-          From reading
+        <h2 data-workflow-ink className="workflow-ink-heading mt-4 text-4xl font-bold leading-none tracking-[-.05em] text-ink sm:text-5xl">
+          Your reading.
           <br />
-          to publishing.
+          Your point of view.
         </h2>
-        <p data-workflow-ink className="workflow-ink-summary mt-5 text-base leading-7 text-[#77736c]">
-          One source becomes a set of clear, publishable visual stories. Each
-          template follows the shape of the idea—not decoration.
+        <p data-workflow-ink className="workflow-ink-summary mt-5 text-base leading-7 text-ink-muted">
+          Readopp helps you find the story in your source. You choose the message, shape the design, and make the final call.
         </p>
-        <ol className="mt-8 divide-y divide-[#d8d4ca] border-y border-[#d8d4ca]">
+        <ol className="mt-8 divide-y divide-paper-line border-y border-paper-line">
           {WORKFLOW_STEPS.map((step) => {
             const isActive = activeStep === step.id;
 
@@ -67,13 +66,13 @@ export function HowItWorksShowcase() {
                   onFocus={() => setActiveStep(step.id)}
                   onClick={() => setActiveStep(step.id)}
                 >
-                  <span className="process-step__number pt-1 text-xs font-bold text-[#7eae3f]">
+                  <span className="process-step__number pt-1 text-xs font-bold landing-green">
                     {step.number}
                   </span>
-                  <span data-workflow-ink className="process-step__title text-lg font-bold tracking-[-.025em] text-[#484848]">
+                  <span className="process-step__title text-lg font-bold tracking-[-.025em] text-ink">
                     <WorkflowRevealText text={step.title} active={isActive} />
                   </span>
-                  <span data-workflow-ink className="process-step__body col-start-2 text-sm leading-6 text-[#6d6a64]">
+                  <span className="process-step__body col-start-2 text-sm leading-6 text-ink-soft">
                     {step.body}
                   </span>
                 </button>
@@ -83,7 +82,7 @@ export function HowItWorksShowcase() {
         </ol>
       </WorkflowTextRegion>
 
-      <TemplateParallax activeStep={activeStep} />
+      <div className="force-light"><TemplateParallax activeStep={activeStep} /></div>
     </div>
   );
 }

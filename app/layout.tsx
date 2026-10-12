@@ -1,3 +1,4 @@
+import { MARKETING_COPY } from "@/lib/marketingCopy";
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
@@ -17,20 +18,10 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Readopp — Visual posts from anything you read",
-  description:
-    "Bring a Google Doc, Notion page, journal export, PDF, Word file, or reading notes. Readopp finds the story and turns it into a distinctive visual post for LinkedIn, X, or Substack in minutes.",
-  openGraph: {
-    title: "Readopp — Visual posts from anything you read",
-    description:
-      "Turn documents, notes, papers, and reading highlights into share-ready visual posts for LinkedIn, X, and Substack.",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Readopp — Visual posts from anything you read",
-    description: "Bring one document. Leave with a visual story worth sharing.",
-  },
+  title: MARKETING_COPY.title,
+  description: MARKETING_COPY.description,
+  openGraph: { title: MARKETING_COPY.title, description: MARKETING_COPY.description, type: "website" },
+  twitter: { card: "summary_large_image", title: MARKETING_COPY.title, description: MARKETING_COPY.description },
 };
 
 // Runs before paint so an explicitly chosen dark theme never flashes.

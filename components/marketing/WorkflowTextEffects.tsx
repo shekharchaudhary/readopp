@@ -51,5 +51,5 @@ export function WorkflowRevealText({ text, active }: { text: string; active: boo
     }
     void measure(); return () => { cancelled = true; };
   }, [text]);
-  return <span ref={ref} data-pretext-paced={delays.length > 0 ? "true" : "false"}><span className="sr-only">{text}</span><span aria-hidden="true">{words.map((word,index)=><span key={`${active}-${index}`}>{index > 0 ? " " : null}<span className={active ? "workflow-reveal-word is-selected" : "workflow-reveal-word"} style={{ animationDelay: `${delays[index] ?? index * 40}ms` }}>{word}</span></span>)}</span></span>;
+  return <span ref={ref} data-pretext-paced={delays.length > 0 ? "true" : "false"}><span className="sr-only">{text}</span><span aria-hidden="true">{words.map((word,index)=><span key={index}>{index > 0 ? " " : null}<span className={active ? "workflow-reveal-word is-selected" : "workflow-reveal-word"} style={{ transitionDelay: `${delays[index] ?? index * 40}ms` }}>{word}</span></span>)}</span></span>;
 }
